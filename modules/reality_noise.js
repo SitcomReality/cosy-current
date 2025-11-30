@@ -137,16 +137,6 @@ function clampedNoise(x,y){
 
 
 
-
-
-
-
-
-
-
-
-
-
 /* Smoothing, interpolation & wave function collapse.
 
 map_tile_array is a 2 dimensional array storing an intensity value for every [x][y] coordinate in this format:
@@ -213,15 +203,6 @@ function compare_and_smooth(map_tile_array){
 
 
 
-
-
-
-
-
-
-
-
-
 function perm_noise(x,y){
 /* Generates a smooth, infinitely permuting noise field */
 	var p = [],
@@ -260,10 +241,10 @@ function noise3(x,y,z)
 	x -= X; y -= Y; z -= Z;
 	var u=fade(x), v=fade(y), w=fade(z);
 	var A=[X,X+1], B=[Y,Y+1], C=[Z,Z+1];
-	var AA=perm[A[0]+perm[A[1]+perm[B[0]+perm[B[1]+perm[C[0]+perm[C[1]]]]]]],
-		AB=perm[A[0]+perm[A[1]+perm[B[0]+perm[B[1]+perm[C[1]+perm[C[0]]]]]]],
-		BA=perm[A[1]+perm[A[0]+perm[B[0]+perm[B[1]+perm[C[0]+perm[C[1]]]]]]],
-		BB=perm[A[1]+perm[A[0]+perm[B[0]+perm[B[1]+perm[C[1]+perm[C[0]]]]]]];
+	var AA=perm[A[0]+perm[A[1]+perm[B[0]+perm[B[1]+perm[C[0]+perm[C[1]]]]]],
+		AB=perm[A[0]+perm[A[1]+perm[B[0]+perm[B[1]+perm[C[1]+perm[C[0]]]]]],
+		BA=perm[A[1]+perm[A[0]+perm[B[0]+perm[B[1]+perm[C[0]+perm[C[1]]]]]],
+		BB=perm[A[1]+perm[A[0]+perm[B[0]+perm[B[1]+perm[C[1]+perm[C[0]]]]]];
 	return lerp(w, lerp(v, lerp(u, grad(AA  , x  , y  , z   ),
 									grad(BA  , x-1, y  , z   )),
 								lerp(u, grad(AB  , x  , y-1, z   ),

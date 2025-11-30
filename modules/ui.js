@@ -11,7 +11,7 @@ export function createUI({ container, state, renderer, noise }) {
 
     // Noise type selector
     const select = document.createElement('select');
-    ['perlin', 'reality', 'old'].forEach((type) => {
+    ['perlin', 'simplex', 'fbm-perlin', 'fbm-simplex'].forEach((type) => {
       const opt = document.createElement('option');
       opt.value = type;
       opt.textContent = type;

@@ -139,6 +139,7 @@ function grad(perml,x,y){
 
 
 
+
 function getPerlinNoiseAtCoord(x,y,seed){
 let theta=seed*Math.PI*2;
 let x1=x+Math.sin(theta);
@@ -174,14 +175,6 @@ let abc=xy<<13;
 let n=(1.0-((abc*(abc*abc*15731+789221)+1376312589)&0x7fffffff)/1073741824.0);
 return n;
 }
-
-
-
-
-
-
-
-
 
 
 

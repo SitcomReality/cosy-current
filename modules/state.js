@@ -6,7 +6,7 @@ export function createAppState() {
     animationId: null,
 
     // Example noise-related state
-    noiseType: 'perlin', // 'perlin' | 'reality' | 'old'
+    noiseType: 'fbm-perlin', // Default to a nicer looking noise
     scale: 0.01,
     speed: 0.5,
     time: 0
