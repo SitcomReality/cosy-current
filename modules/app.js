@@ -19,14 +19,63 @@ export function initApp({ canvas, controls }) {
   window.addEventListener('keydown', e => { 
     keys[e.code] = true; 
     state.lastInputTime = performance.now();
-    // Unlock camera if manual movement keys are pressed
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+    // Unlock camera only for steering keys (A/D or arrow left/right)
+    if (['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
       state.cameraLocked = false;
     }
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
 
   let lastTime = performance.now();
+
+  // --- MMB panning support ---
+  let isPanning = false;
+  const panStart = { x: 0, y: 0 };
+  const camStart = { x: 0, y: 0 };
+
+  // Convert pixel delta to world (tiles)
+  function pixelsToWorld(dx, dy) {
+    return {
+      x: dx / state.tileSize,
+      y: dy / state.tileSize
+    };
+  }
+
+  // Start panning on middle mouse button down
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button === 1) {
+      e.preventDefault();
+      isPanning = true;
+      panStart.x = e.clientX;
+      panStart.y = e.clientY;
+      camStart.x = state.camera.x;
+      camStart.y = state.camera.y;
+      state.cameraLocked = false;
+      state.lastInputTime = performance.now();
+    }
+  });
+
+  // Move camera while panning
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    const dx = e.clientX - panStart.x;
+    const dy = e.clientY - panStart.y;
+    const worldDelta = pixelsToWorld(dx, dy);
+    // Invert movement so dragging follows typical map behavior
+    state.camera.x = camStart.x - worldDelta.x;
+    state.camera.y = camStart.y - worldDelta.y;
+    state.lastInputTime = performance.now();
+  });
+
+  // End panning on mouseup / leave
+  window.addEventListener('mouseup', (e) => {
+    if (isPanning && e.button === 1) {
+      isPanning = false;
+      state.lastInputTime = performance.now();
+    }
+  });
+  // Also stop on blur (safety)
+  window.addEventListener('blur', () => { isPanning = false; });
 
   function loop(timestamp) {
     const dt = (timestamp - lastTime) / 1000;
@@ -47,21 +96,13 @@ export function initApp({ canvas, controls }) {
     const camSpeed = 20 * dt;
     let manualCam = false;
 
-    // Manual Pan
-    if (keys['KeyW'] || keys['ArrowUp']) { state.camera.y -= camSpeed; manualCam = true; }
-    if (keys['KeyS'] || keys['ArrowDown']) { state.camera.y += camSpeed; manualCam = true; }
-    // Note: A/D are used for steering now, so we only pan with mouse/other keys or if we change control scheme.
-    // Let's use I/J/K/L or just mouse drag later. For now, W/S for forward/back pan is weird if A/D steer.
-    // Let's make the camera strictly follow unless specific "Look" keys are used, or mouse drag.
-    // For simplicity in this iteration: Camera is locked unless we implement mouse drag, 
-    // or we use different keys for pan. 
-    // Let's rely on the requested "slide back" behavior.
-    
+    // Remove keyboard pan (W/S) — camera panning now via MMB drag only.
+
     // Check for inactivity
     const timeSinceInput = (timestamp - state.lastInputTime) / 1000;
     
     if (state.cameraLocked) {
-        // Soft lock
+        // Soft lock: follow player
         const targetX = state.player.x;
         const targetY = state.player.y;
         
@@ -69,7 +110,7 @@ export function initApp({ canvas, controls }) {
         state.camera.x += (targetX - state.camera.x) * 5 * dt;
         state.camera.y += (targetY - state.camera.y) * 5 * dt;
     } else {
-        // If unlocked, we stay where we are, but check if we should lock back
+        // If unlocked and no recent input, re-lock after timeout
         if (timeSinceInput > 2.0) {
             state.cameraLocked = true;
         }
