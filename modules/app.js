@@ -78,15 +78,22 @@ export function initApp({ canvas, controls }) {
     lastTime = timestamp;
 
     // 1. Update Game Logic
+    // Apply steering input bias to player angle BEFORE update
+    // The game logic will try to snap this to the road
+    if (state.player && state.isPlaying) {
+        if (keys['KeyA'] || keys['ArrowLeft']) {
+            state.player.angle -= 3.0 * dt;
+        }
+        if (keys['KeyD'] || keys['ArrowRight']) {
+            state.player.angle += 3.0 * dt;
+        }
+    }
+
     game.update(dt);
 
-    // 2. Player Input (Steering)
-    if (keys['KeyA'] || keys['ArrowLeft']) {
-        state.player.angle -= 2.0 * dt;
-    }
-    if (keys['KeyD'] || keys['ArrowRight']) {
-        state.player.angle += 2.0 * dt;
-    }
+    // 2. Player Input (Steering) - MOVED TO GAME UPDATE or biased above
+    // We removed the direct angle manipulation here to let the road logic handle "snapping"
+    // while still allowing influence.
 
     // 3. Camera Control
     const camSpeed = 20 * dt;

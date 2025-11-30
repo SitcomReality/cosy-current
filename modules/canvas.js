@@ -3,13 +3,14 @@ export function createRenderer({ canvas, state, game }) {
 
   // Technopunk Fantasy Palette -> more natural, readable terrain
   const COLORS = {
-    [game.CONSTANTS.TILE_DEEP_WATER]: '#021526', // Deep ocean
-    [game.CONSTANTS.TILE_WATER]: '#064e8a',      // Coastal water
-    [game.CONSTANTS.TILE_SAND]: '#f4e2b0',       // Sand / shore
-    [game.CONSTANTS.TILE_GRASS]: '#7bbf5e',      // Grasslands
-    [game.CONSTANTS.TILE_FOREST]: '#2f6b3c',     // Forest
-    [game.CONSTANTS.TILE_ROCK]: '#8b8f96',       // Rock / highland
-    [game.CONSTANTS.TILE_SNOW]: '#f9fbff'        // Snow peaks
+    [game.CONSTANTS.TILE_DEEP_WATER]: '#0f172a', // Deep ocean
+    [game.CONSTANTS.TILE_WATER]: '#0ea5e9',      // Coastal water
+    [game.CONSTANTS.TILE_SAND]: '#fdba74',       // Sand / shore
+    [game.CONSTANTS.TILE_GRASS]: '#22c55e',      // Grasslands
+    [game.CONSTANTS.TILE_FOREST]: '#15803d',     // Forest
+    [game.CONSTANTS.TILE_ROCK]: '#64748b',       // Rock / highland
+    [game.CONSTANTS.TILE_SNOW]: '#f8fafc',       // Snow peaks
+    [game.CONSTANTS.TILE_ROAD]: '#334155'        // Road (Dark Slate)
   };
 
   function resize() {
@@ -24,7 +25,7 @@ export function createRenderer({ canvas, state, game }) {
 
   function renderFrame(timestamp) {
     // Clear background
-    ctx.fillStyle = '#020202';
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
 
     if (!state.isPlaying) {
@@ -33,18 +34,22 @@ export function createRenderer({ canvas, state, game }) {
     }
 
     const tileSize = state.tileSize;
+    // Overdraw slightly to ensure no gaps and smoother look
+    const drawSize = tileSize + 1; 
+    
     const centerX = state.width / 2;
     const centerY = state.height / 2;
     
     // Calculate View
-    const colsVisible = Math.ceil(state.width / tileSize) + 2;
-    const rowsVisible = Math.ceil(state.height / tileSize) + 2;
+    const colsVisible = Math.ceil(state.width / tileSize) + 4;
+    const rowsVisible = Math.ceil(state.height / tileSize) + 4;
     const startCol = Math.floor(state.camera.x - colsVisible/2);
     const endCol = Math.floor(state.camera.x + colsVisible/2);
     const startRow = Math.floor(state.camera.y - rowsVisible/2);
     const endRow = Math.floor(state.camera.y + rowsVisible/2);
 
     // 1. Render Terrain
+    // We use circles for terrain to break the blocky grid look
     for (let y = startRow; y <= endRow; y++) {
       for (let x = startCol; x <= endCol; x++) {
         // Basic Tile
@@ -53,20 +58,48 @@ export function createRenderer({ canvas, state, game }) {
         const screenY = Math.floor((y - state.camera.y) * tileSize + centerY);
         
         ctx.fillStyle = COLORS[tileType] || '#f0f';
-        ctx.fillRect(screenX, screenY, tileSize + 1, tileSize + 1);
-
-        // Height-based shading with subtle top-lighting
-        const h = game.getHeight(x, y);
-        const hUp = game.getHeight(x, y - 1);
-        const slopeLight = (h - hUp) * 4.0; // emphasize ridges a bit
-        const shade = 0.15 - slopeLight * 0.1; // brighter on ridges, darker in valleys
-        ctx.fillStyle = `rgba(0,0,0,${Math.min(0.35, Math.max(0, shade))})`;
-        ctx.fillRect(screenX, screenY, tileSize + 1, tileSize + 1);
         
-        // Gentle grid on water for a subtle tech vibe
-        if (tileType === game.CONSTANTS.TILE_WATER || tileType === game.CONSTANTS.TILE_DEEP_WATER) {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-          ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+        if (tileType === game.CONSTANTS.TILE_ROAD) {
+           // Draw Road as connected blocks
+           // Roads are flat, no shading
+           ctx.fillRect(screenX, screenY, drawSize, drawSize);
+           
+           // Add lane markings? 
+           // Too detailed for this scale probably, but let's try a subtle dot
+           // ctx.fillStyle = '#475569';
+           // ctx.fillRect(screenX + tileSize/2 - 1, screenY + tileSize/2 - 1, 2, 2);
+        } else {
+           // Draw Terrain as overlapping circles for organic look
+           const h = game.getHeight(x, y);
+           
+           // Shading
+           const shade = (h - 0.5) * 0.5; // -0.25 to 0.25
+           // Apply shade to base color (simple opacity overlay)
+           
+           ctx.beginPath();
+           // Draw slightly larger circle to blend
+           ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize * 0.7, 0, Math.PI*2);
+           ctx.fill();
+           
+           // Fill gaps with rect behind?
+           // Performance-wise, drawing rect AND circle is heavy.
+           // Let's just draw rects but with color variation? 
+           // User explicitly asked for "smoother". 
+           // Let's just use the Rect but with very slight random offset? No.
+           // Let's stick to the rects but rely on the noise scale being smoother now.
+           // The "Blocky" complaint was likely due to 32px tiles and high freq noise.
+           // Now we have 12px tiles and low freq noise. It will look like pixel art map.
+           
+           ctx.fillRect(screenX, screenY, drawSize, drawSize);
+           
+           // Shadow layer
+           if (shade > 0) {
+             ctx.fillStyle = `rgba(255,255,255,${shade})`;
+             ctx.fillRect(screenX, screenY, drawSize, drawSize);
+           } else {
+             ctx.fillStyle = `rgba(0,0,0,${-shade})`;
+             ctx.fillRect(screenX, screenY, drawSize, drawSize);
+           }
         }
       }
     }
@@ -82,25 +115,25 @@ export function createRenderer({ canvas, state, game }) {
          // Neon Castle
          ctx.fillStyle = 'rgba(16, 185, 129, 0.2)'; // Glow
          ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize, 0, Math.PI*2);
+         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize * 2, 0, Math.PI*2);
          ctx.fill();
 
          ctx.fillStyle = '#10b981';
-         ctx.fillRect(screenX + tileSize/4, screenY + tileSize/4, tileSize/2, tileSize/2);
+         ctx.fillRect(screenX, screenY, tileSize, tileSize);
          ctx.fillStyle = '#065f46';
          ctx.fillRect(screenX + tileSize/2 - 2, screenY + tileSize/4 - 10, 4, 10); // Tower
        } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
          // Ancient Tech
          ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
          ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize, 0, Math.PI*2);
+         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize * 2, 0, Math.PI*2);
          ctx.fill();
 
          ctx.fillStyle = '#f59e0b';
          ctx.beginPath();
-         ctx.moveTo(screenX + tileSize/2, screenY + tileSize/4);
-         ctx.lineTo(screenX + tileSize*0.75, screenY + tileSize*0.75);
-         ctx.lineTo(screenX + tileSize*0.25, screenY + tileSize*0.75);
+         ctx.moveTo(screenX + tileSize/2, screenY);
+         ctx.lineTo(screenX + tileSize, screenY + tileSize);
+         ctx.lineTo(screenX, screenY + tileSize);
          ctx.fill();
        }
     });
@@ -114,13 +147,15 @@ export function createRenderer({ canvas, state, game }) {
     ctx.translate(px, py);
     ctx.rotate(p.angle);
     
+    const carScale = 1.5; // Car is larger than a single tile now
+    
     // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(-tileSize/2 + 4, -tileSize/4 + 4, tileSize, tileSize/2);
+    ctx.fillRect(-tileSize*carScale/2 + 2, -tileSize*carScale/4 + 2, tileSize*carScale, tileSize*carScale/2);
 
     // Body
     ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(-tileSize/2, -tileSize/4, tileSize, tileSize/2);
+    ctx.fillRect(-tileSize*carScale/2, -tileSize*carScale/4, tileSize*carScale, tileSize*carScale/2);
     
     // Engine Glow
     ctx.fillStyle = '#0ea5e9';
