@@ -5,11 +5,12 @@ import { initApp } from './modules/app.js';
 // Initialize the app once the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('main-canvas');
-  const controls = document.getElementById('controls');
+  // The UI layer in index.html is #ui-layer — use it so UI controls (Start button, settings)
+  // are properly bound. Previously we looked for a non-existent #controls element.
+  const controls = document.getElementById('ui-layer') || document.body;
 
-  if (!canvas || !controls) {
-    // Basic guard to avoid runtime errors if the layout changes
-    console.warn('Game canvas or controls container not found in DOM.');
+  if (!canvas) {
+    console.warn('Game canvas not found in DOM.');
     return;
   }
 
