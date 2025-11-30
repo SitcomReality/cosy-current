@@ -36,12 +36,13 @@ export function createGame({ state, noise }) {
   function getTile(x, y) {
     const h = getHeight(x, y);
     
-    if (h < 0.2) return TILE_DEEP_WATER;
-    if (h < 0.3) return TILE_WATER;
-    if (h < 0.35) return TILE_SAND;
-    if (h < 0.55) return TILE_GRASS;
-    if (h < 0.7) return TILE_FOREST;
-    if (h < 0.85) return TILE_ROCK;
+    // Tuned bands for more natural coastlines and biomes
+    if (h < 0.20) return TILE_DEEP_WATER;
+    if (h < 0.32) return TILE_WATER;
+    if (h < 0.37) return TILE_SAND;
+    if (h < 0.60) return TILE_GRASS;
+    if (h < 0.72) return TILE_FOREST;
+    if (h < 0.88) return TILE_ROCK;
     return TILE_SNOW;
   }
 

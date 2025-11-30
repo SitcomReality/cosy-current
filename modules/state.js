@@ -10,7 +10,7 @@ export function createAppState() {
     isPlaying: false,
 
     // Game Settings
-    tileSize: 48, 
+    tileSize: 32, 
     
     // World State
     camera: { x: 0, y: 0 },
@@ -37,8 +37,9 @@ export function createAppState() {
     entities: [],
     
     // Noise Settings
+    // We keep scale/speed configurable but use a single terrain technique internally
     noiseType: 'fbm-perlin',
-    scale: 0.015, // Smoother, larger features
+    scale: 0.008, // Larger, smoother features for natural landscapes
     speed: 0.2, // Slower time evolution
     time: 0
   };

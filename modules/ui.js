@@ -58,29 +58,17 @@ export function createUI({ container, state, renderer, noise, game }) {
       settingsContainer.appendChild(div);
     };
 
-    // 1. Noise Type
-    const typeSelect = document.createElement('select');
-    ['perlin', 'simplex', 'fbm-perlin', 'fbm-simplex'].forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t.toUpperCase();
-      if (state.noiseType === t) opt.selected = true;
-      typeSelect.appendChild(opt);
-    });
-    typeSelect.addEventListener('change', () => noise.setType(typeSelect.value));
-    createRow('Terrain Algorithm', typeSelect);
-
-    // 2. Scale
+    // Terrain Scale
     const scaleInput = document.createElement('input');
     scaleInput.type = 'range';
-    scaleInput.min = '0.005';
-    scaleInput.max = '0.1';
+    scaleInput.min = '0.004';
+    scaleInput.max = '0.05';
     scaleInput.step = '0.001';
     scaleInput.value = state.scale;
     scaleInput.addEventListener('input', () => state.scale = parseFloat(scaleInput.value));
     createRow('Terrain Scale', scaleInput);
 
-    // 3. Time Speed
+    // Time / evolution speed
     const speedInput = document.createElement('input');
     speedInput.type = 'range';
     speedInput.min = '0';

@@ -1,15 +1,15 @@
 export function createRenderer({ canvas, state, game }) {
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  // Technopunk Fantasy Palette
+  // Technopunk Fantasy Palette -> more natural, readable terrain
   const COLORS = {
-    [game.CONSTANTS.TILE_DEEP_WATER]: '#02040a', // Void-like water
-    [game.CONSTANTS.TILE_WATER]: '#0f172a',      // Dark tech blue
-    [game.CONSTANTS.TILE_SAND]: '#475569',       // Ash/Grey waste
-    [game.CONSTANTS.TILE_GRASS]: '#1e293b',      // Dark slate terrain
-    [game.CONSTANTS.TILE_FOREST]: '#14532d',     // Deep emerald (biolum forest?)
-    [game.CONSTANTS.TILE_ROCK]: '#334155',       // Tech-waste mountains
-    [game.CONSTANTS.TILE_SNOW]: '#94a3b8'        // High altitude peaks
+    [game.CONSTANTS.TILE_DEEP_WATER]: '#021526', // Deep ocean
+    [game.CONSTANTS.TILE_WATER]: '#064e8a',      // Coastal water
+    [game.CONSTANTS.TILE_SAND]: '#f4e2b0',       // Sand / shore
+    [game.CONSTANTS.TILE_GRASS]: '#7bbf5e',      // Grasslands
+    [game.CONSTANTS.TILE_FOREST]: '#2f6b3c',     // Forest
+    [game.CONSTANTS.TILE_ROCK]: '#8b8f96',       // Rock / highland
+    [game.CONSTANTS.TILE_SNOW]: '#f9fbff'        // Snow peaks
   };
 
   function resize() {
@@ -55,16 +55,18 @@ export function createRenderer({ canvas, state, game }) {
         ctx.fillStyle = COLORS[tileType] || '#f0f';
         ctx.fillRect(screenX, screenY, tileSize + 1, tileSize + 1);
 
-        // Height-based shading (fake lighting)
-        // We compare height with top-left neighbor
+        // Height-based shading with subtle top-lighting
         const h = game.getHeight(x, y);
-        ctx.fillStyle = `rgba(0,0,0,${(1 - h) * 0.5})`; // Lower is darker
+        const hUp = game.getHeight(x, y - 1);
+        const slopeLight = (h - hUp) * 4.0; // emphasize ridges a bit
+        const shade = 0.15 - slopeLight * 0.1; // brighter on ridges, darker in valleys
+        ctx.fillStyle = `rgba(0,0,0,${Math.min(0.35, Math.max(0, shade))})`;
         ctx.fillRect(screenX, screenY, tileSize + 1, tileSize + 1);
         
-        // Grid lines for "Techno" feel
+        // Gentle grid on water for a subtle tech vibe
         if (tileType === game.CONSTANTS.TILE_WATER || tileType === game.CONSTANTS.TILE_DEEP_WATER) {
-             ctx.strokeStyle = 'rgba(56, 189, 248, 0.05)';
-             ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+          ctx.strokeRect(screenX, screenY, tileSize, tileSize);
         }
       }
     }

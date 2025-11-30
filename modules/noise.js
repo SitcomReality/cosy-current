@@ -15,12 +15,12 @@ import { seedPermutation } from './noise_algorithms/permutations.js';
 */
 export function createNoiseEngine(state) {
   const DEFAULT_CONFIG = {
-    octaves: 4,
-    persistence: 0.5,
-    lacunarity: 2.0
+    octaves: 5,
+    persistence: 0.55,
+    lacunarity: 2.1
   };
 
-  let type = state.noiseType || 'fbm-perlin';
+  // We now always use a single, tuned FBM-Perlin setup
   let config = Object.assign({}, DEFAULT_CONFIG);
   let seed = state.seed || Date.now();
 
@@ -33,45 +33,17 @@ export function createNoiseEngine(state) {
     seedPermutation(seed);
   }
 
-  function setType(t) {
-    type = t;
-    state.noiseType = t;
-  }
-
-  function setConfig(cfg = {}) {
-    config = Object.assign({}, config, cfg);
-  }
-
-  function getConfig() {
-    return Object.assign({}, config);
-  }
-
   // Core sampling function: accepts world coords in tiles or units.
   // x,y are spatial coords; t is optional time (defaults to state.time)
   function sample(x, y, t = state.time || 0) {
     // Apply global scale from state
-    const s = (state.scale && state.scale > 0) ? state.scale : 0.05;
+    const s = (state.scale && state.scale > 0) ? state.scale : 0.008;
     const zx = x * s;
     const zy = y * s;
-    const zt = t * (state.speed || 1.0) * s;
+    const zt = t * (state.speed || 0.2) * s;
 
-    let v = 0;
-
-    switch (type) {
-      case 'simplex':
-        v = simplex3(zx, zy, zt);
-        break;
-      case 'perlin':
-        v = perlin3(zx, zy, zt);
-        break;
-      case 'fbm-simplex':
-        v = fbm3(zx, zy, zt, simplex3, config);
-        break;
-      case 'fbm-perlin':
-      default:
-        v = fbm3(zx, zy, zt, perlin3, config);
-        break;
-    }
+    // Single unified terrain noise
+    let v = fbm3(zx, zy, zt, perlin3, config);
 
     // Ensure numeric and roughly in [-1,1]
     if (!isFinite(v)) v = 0;
@@ -85,10 +57,17 @@ export function createNoiseEngine(state) {
     return sample(x, y, 0);
   }
 
+  function setConfig(cfg = {}) {
+    config = Object.assign({}, config, cfg);
+  }
+
+  function getConfig() {
+    return Object.assign({}, config);
+  }
+
   return {
     sample,
     sample2D,
-    setType,
     setSeed,
     setConfig,
     getConfig
