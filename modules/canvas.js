@@ -1,42 +1,33 @@
 export function createRenderer({ canvas, state, game }) {
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  // Modern Color Palette
+  // Technopunk Fantasy Palette
   const COLORS = {
-    [game.CONSTANTS.TILE_WATER]: '#0f172a', // Dark deep blue
-    [game.CONSTANTS.TILE_SAND]: '#9ca3af',  // Grey-ish sand (moon-like)
-    [game.CONSTANTS.TILE_GRASS]: '#1f2937', // Dark grey-blue terrain
-    [game.CONSTANTS.TILE_FOREST]: '#111827', // Darker forest patches
-    [game.CONSTANTS.TILE_MOUNTAIN]: '#374151' // Lighter grey mountains
-  };
-  
-  // Highlight colors for variety
-  const HIGHLIGHTS = {
-    [game.CONSTANTS.TILE_WATER]: '#1e293b',
-    [game.CONSTANTS.TILE_GRASS]: '#374151'
+    [game.CONSTANTS.TILE_DEEP_WATER]: '#02040a', // Void-like water
+    [game.CONSTANTS.TILE_WATER]: '#0f172a',      // Dark tech blue
+    [game.CONSTANTS.TILE_SAND]: '#475569',       // Ash/Grey waste
+    [game.CONSTANTS.TILE_GRASS]: '#1e293b',      // Dark slate terrain
+    [game.CONSTANTS.TILE_FOREST]: '#14532d',     // Deep emerald (biolum forest?)
+    [game.CONSTANTS.TILE_ROCK]: '#334155',       // Tech-waste mountains
+    [game.CONSTANTS.TILE_SNOW]: '#94a3b8'        // High altitude peaks
   };
 
   function resize() {
     const dpr = state.pixelRatio;
-    // Resize to window
     state.width = window.innerWidth;
     state.height = window.innerHeight;
-
     canvas.width = state.width * dpr;
     canvas.height = state.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    
-    // We want crisp edges for tiles
     ctx.imageSmoothingEnabled = false;
   }
 
   function renderFrame(timestamp) {
-    // Clear
-    ctx.fillStyle = '#0d1117';
+    // Clear background
+    ctx.fillStyle = '#020202';
     ctx.fillRect(0, 0, state.width, state.height);
 
     if (!state.isPlaying) {
-      // Draw a slow subtle background effect when in menu
       drawMenuBackground(timestamp);
       return;
     }
@@ -45,77 +36,115 @@ export function createRenderer({ canvas, state, game }) {
     const centerX = state.width / 2;
     const centerY = state.height / 2;
     
-    // Determine visible range
-    // We add a buffer of 2 tiles to ensure no flickering at edges
+    // Calculate View
     const colsVisible = Math.ceil(state.width / tileSize) + 2;
     const rowsVisible = Math.ceil(state.height / tileSize) + 2;
-    
     const startCol = Math.floor(state.camera.x - colsVisible/2);
     const endCol = Math.floor(state.camera.x + colsVisible/2);
     const startRow = Math.floor(state.camera.y - rowsVisible/2);
     const endRow = Math.floor(state.camera.y + rowsVisible/2);
 
-    // Render Tiles
+    // 1. Render Terrain
     for (let y = startRow; y <= endRow; y++) {
       for (let x = startCol; x <= endCol; x++) {
+        // Basic Tile
         const tileType = game.getTile(x, y);
-        
-        // Screen coords
         const screenX = Math.floor((x - state.camera.x) * tileSize + centerX);
         const screenY = Math.floor((y - state.camera.y) * tileSize + centerY);
         
-        // Base tile
         ctx.fillStyle = COLORS[tileType] || '#f0f';
-        ctx.fillRect(screenX, screenY, tileSize + 1, tileSize + 1); // +1 to fix subpixel gaps
+        ctx.fillRect(screenX, screenY, tileSize + 1, tileSize + 1);
 
-        // Simple texture detail (grid lines or highlights)
-        // ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-        // ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+        // Height-based shading (fake lighting)
+        // We compare height with top-left neighbor
+        const h = game.getHeight(x, y);
+        ctx.fillStyle = `rgba(0,0,0,${(1 - h) * 0.5})`; // Lower is darker
+        ctx.fillRect(screenX, screenY, tileSize + 1, tileSize + 1);
+        
+        // Grid lines for "Techno" feel
+        if (tileType === game.CONSTANTS.TILE_WATER || tileType === game.CONSTANTS.TILE_DEEP_WATER) {
+             ctx.strokeStyle = 'rgba(56, 189, 248, 0.05)';
+             ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+        }
       }
     }
 
-    // Render Entities
+    // 2. Render Entities (Towns, Relics)
     state.entities.forEach(ent => {
        const screenX = (ent.x - state.camera.x) * tileSize + centerX;
        const screenY = (ent.y - state.camera.y) * tileSize + centerY;
        
-       // Cull entities off screen
        if (screenX < -tileSize || screenX > state.width || screenY < -tileSize || screenY > state.height) return;
 
-       if (ent.type === game.CONSTANTS.ENTITY_NPC) {
-         // Glow
-         const g = ctx.createRadialGradient(screenX + tileSize/2, screenY + tileSize/2, 0, screenX + tileSize/2, screenY + tileSize/2, tileSize);
-         g.addColorStop(0, 'rgba(79, 172, 254, 0.8)');
-         g.addColorStop(1, 'rgba(79, 172, 254, 0)');
-         ctx.fillStyle = g;
-         ctx.fillRect(screenX - tileSize/2, screenY - tileSize/2, tileSize*2, tileSize*2);
-
-         ctx.fillStyle = '#fff';
+       if (ent.type === game.CONSTANTS.ENTITY_CITY) {
+         // Neon Castle
+         ctx.fillStyle = 'rgba(16, 185, 129, 0.2)'; // Glow
          ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize/4, 0, Math.PI * 2);
+         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize, 0, Math.PI*2);
          ctx.fill();
-       } else if (ent.type === game.CONSTANTS.ENTITY_CITY) {
-         ctx.fillStyle = '#238636';
+
+         ctx.fillStyle = '#10b981';
+         ctx.fillRect(screenX + tileSize/4, screenY + tileSize/4, tileSize/2, tileSize/2);
+         ctx.fillStyle = '#065f46';
+         ctx.fillRect(screenX + tileSize/2 - 2, screenY + tileSize/4 - 10, 4, 10); // Tower
+       } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
+         // Ancient Tech
+         ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
          ctx.beginPath();
-         // Hexagonish shape
-         const cx = screenX + tileSize/2;
-         const cy = screenY + tileSize/2;
-         const r = tileSize/2.5;
-         for (let i = 0; i < 6; i++) {
-           ctx.lineTo(cx + r * Math.cos(i * Math.PI / 3), cy + r * Math.sin(i * Math.PI / 3));
-         }
+         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize, 0, Math.PI*2);
+         ctx.fill();
+
+         ctx.fillStyle = '#f59e0b';
+         ctx.beginPath();
+         ctx.moveTo(screenX + tileSize/2, screenY + tileSize/4);
+         ctx.lineTo(screenX + tileSize*0.75, screenY + tileSize*0.75);
+         ctx.lineTo(screenX + tileSize*0.25, screenY + tileSize*0.75);
          ctx.fill();
        }
     });
+
+    // 3. Render Player (Caravan)
+    const p = state.player;
+    const px = (p.x - state.camera.x) * tileSize + centerX;
+    const py = (p.y - state.camera.y) * tileSize + centerY;
+    
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(p.angle);
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(-tileSize/2 + 4, -tileSize/4 + 4, tileSize, tileSize/2);
+
+    // Body
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(-tileSize/2, -tileSize/4, tileSize, tileSize/2);
+    
+    // Engine Glow
+    ctx.fillStyle = '#0ea5e9';
+    ctx.shadowColor = '#0ea5e9';
+    ctx.shadowBlur = 10;
+    ctx.fillRect(-tileSize/2 - 4, -tileSize/4 + 2, 4, tileSize/2 - 4);
+    
+    // Headlights
+    ctx.fillStyle = '#fef08a';
+    ctx.shadowColor = '#fef08a';
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    ctx.moveTo(tileSize/2, -5);
+    ctx.lineTo(tileSize + 20, -15);
+    ctx.lineTo(tileSize + 20, 15);
+    ctx.lineTo(tileSize/2, 5);
+    ctx.fill();
+
+    ctx.restore();
   }
 
   function drawMenuBackground(t) {
-    // Simple animated noise pattern
     const scale = 200;
     ctx.globalAlpha = 0.1;
-    ctx.fillStyle = '#238636';
+    ctx.fillStyle = '#0f172a';
     const offset = t * 0.02;
-    // Just draw a few moving shapes
     for(let i=0; i<5; i++) {
       ctx.beginPath();
       ctx.arc(

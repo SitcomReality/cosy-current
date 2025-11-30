@@ -34,21 +34,27 @@
         <!-- In-Game HUD -->
         <div id="game-hud" class="screen">
           <div class="hud-bar top-bar">
+            <!-- Resources -->
             <div class="stat-group">
-              <span class="stat-label">FUNDS</span>
-              <span class="stat-value" id="ui-funds">0</span>
+              <span class="stat-label">SCRAP</span>
+              <span class="stat-value" id="ui-scrap">0</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-group">
-              <span class="stat-label">POPULATION</span>
-              <span class="stat-value" id="ui-pop">0</span>
+              <span class="stat-label">FUEL</span>
+              <span class="stat-value" id="ui-fuel">0</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+              <span class="stat-label">BIO</span>
+              <span class="stat-value" id="ui-bio">0</span>
             </div>
           </div>
 
           <div class="hud-bar bottom-bar">
             <div class="controls-hint">
-              <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
-              <span>to move camera</span>
+              <span class="key">A</span><span class="key">D</span>
+              <span>to steer</span>
             </div>
             <button id="btn-settings-toggle" class="btn-icon" aria-label="Settings">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -10,21 +10,36 @@ export function createAppState() {
     isPlaying: false,
 
     // Game Settings
-    tileSize: 48, // Larger tiles for better visibility
+    tileSize: 48, 
     
     // World State
     camera: { x: 0, y: 0 },
+    cameraLocked: true,
+    lastInputTime: 0,
+
     seed: Date.now(),
     
     // Game Data
+    player: {
+      x: 0,
+      y: 0,
+      angle: 0, // Radians
+      speed: 2.0, // Tiles per second
+      targetSpeed: 2.0
+    },
+    
+    resources: {
+      scrap: 0,
+      fuel: 100,
+      bio: 0
+    },
+
     entities: [],
-    funds: 0,
-    population: 0,
     
     // Noise Settings
     noiseType: 'fbm-perlin',
-    scale: 0.03, // Smoother default
-    speed: 0.5, // Slower default
+    scale: 0.015, // Smoother, larger features
+    speed: 0.2, // Slower time evolution
     time: 0
   };
 }

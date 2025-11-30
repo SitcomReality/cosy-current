@@ -4,8 +4,9 @@ export function createUI({ container, state, renderer, noise, game }) {
   const startScreen = document.getElementById('start-screen');
   const gameHud = document.getElementById('game-hud');
   const btnStart = document.getElementById('btn-start');
-  const fundsEl = document.getElementById('ui-funds');
-  const popEl = document.getElementById('ui-pop');
+  const uiScrap = document.getElementById('ui-scrap');
+  const uiFuel = document.getElementById('ui-fuel');
+  const uiBio = document.getElementById('ui-bio');
   
   // Settings Modal Elements
   const btnSettingsToggle = document.getElementById('btn-settings-toggle');
@@ -93,9 +94,14 @@ export function createUI({ container, state, renderer, noise, game }) {
   function update(dt) {
     if (!state.isPlaying) return;
 
-    // Simple formatted numbers
-    fundsEl.textContent = Math.floor(state.funds).toLocaleString();
-    popEl.textContent = state.population.toLocaleString();
+    // Resources
+    uiScrap.textContent = Math.floor(state.resources.scrap);
+    uiFuel.textContent = Math.floor(state.resources.fuel);
+    uiBio.textContent = Math.floor(state.resources.bio);
+    
+    // Optional: Warn low fuel
+    if (state.resources.fuel < 20) uiFuel.style.color = '#ef4444';
+    else uiFuel.style.color = 'inherit';
   }
 
   return { bind, update };
