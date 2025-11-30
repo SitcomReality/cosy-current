@@ -19,10 +19,6 @@ export function initApp({ canvas, controls }) {
   window.addEventListener('keydown', e => { 
     keys[e.code] = true; 
     state.lastInputTime = performance.now();
-    // Unlock camera only for steering keys (A/D or arrow left/right)
-    if (['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-      state.cameraLocked = false;
-    }
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
 
