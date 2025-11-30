@@ -25,6 +25,9 @@ export function initApp({ canvas, controls }) {
     const dt = (timestamp - lastTime) / 1000;
     lastTime = timestamp;
 
+    // Update global simulation time
+    state.time += dt;
+
     // Update Game Logic
     game.update(dt);
 

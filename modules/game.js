@@ -15,10 +15,14 @@ export function createGame({ state, noise }) {
     // Generate terrain based on noise
     const n = noise.sample(x, y, 0); // Static terrain for now
     
-    if (n < -0.2) return TILE_WATER;
-    if (n < -0.1) return TILE_SAND;
-    if (n < 0.4) return TILE_GRASS;
-    if (n < 0.7) return TILE_FOREST;
+    // Apply non-linear transformation (Hyperbolic Tangent) to consolidate noise 
+    // and steepen gradients, creating cliff-like features.
+    const h = Math.tanh(n * 3.0);
+    
+    if (h < -0.2) return TILE_WATER;
+    if (h < -0.1) return TILE_SAND;
+    if (h < 0.4) return TILE_GRASS;
+    if (h < 0.7) return TILE_FOREST;
     return TILE_MOUNTAIN;
   }
 
