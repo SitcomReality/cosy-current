@@ -1,0 +1,76 @@
+/* Layout and containers */
+#game_container {
+  position: relative;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  max-width: 1440px;
+}
+
+#gamefield {
+  height: 500px;
+}
+#maptiles {
+  height: 500px;
+  width: 1000px;
+  position: relative;
+}
+
+#gamecover {
+  pointer-events: none;
+  border: 20px solid #3c3c3c99;
+  position: absolute;
+  height: 500px;
+  top: 0;
+  left: 0;
+  width: 1000px;
+  transition: background-color 2s;
+  z-index: 999999;
+}
+#gamecover.cover_closed {
+  background-color: #333F;
+}
+
+#gamehud { margin-top: 70px; }
+
+#minimap_container {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+#minimap {
+  height: 380px;
+  width: 380px;
+  border: 1px solid #888;
+}
+#minimap_hud { margin-top: 10px; width: 360px; }
+#minimap_hud .menu-section {
+  height: auto;
+  padding: 0 2px 3px 2px;
+  margin: 0 0 4px 0;
+  text-align: center;
+}
+#minimap_hud input {
+  font-size: 0.6rem;
+  line-height: 1;
+  width: 40px;
+  text-align: center;
+  margin: auto;
+}
+
+/* Map overlay */
+#mapoverlay {
+  position: absolute;
+  height: 530px;
+  top: 0;
+  left: 0;
+  width: 1296px;
+  pointer-events: none;
+}
+#top_layer_effects, #cloudlayer {
+  height: 100%;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+#gamecontrols { margin-top: 10px; }
