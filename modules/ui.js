@@ -51,5 +51,17 @@ export function createUI({ container, state, renderer, noise }) {
     container.appendChild(wrapper);
   }
 
-  return { bind };
+  function update() {
+    const fundsEl = document.getElementById('ui-funds');
+    const popEl = document.getElementById('ui-pop');
+
+    if (fundsEl) {
+      fundsEl.textContent = Math.floor(state.funds).toString();
+    }
+    if (popEl) {
+      popEl.textContent = state.population.toString();
+    }
+  }
+
+  return { bind, update };
 }

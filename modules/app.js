@@ -16,30 +16,38 @@ export function initApp({ canvas, controls }) {
 
   // Input Handling (Vanilla JS)
   const keys = {};
-  window.addEventListener('keydown', e => keys[e.code] = true);
-  window.addEventListener('keyup', e => keys[e.code] = false);
+  window.addEventListener('keydown', e => { keys[e.code] = true; });
+  window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-  let lastTime = 0;
+  let lastTime = performance.now();
+
   function loop(timestamp) {
     const dt = (timestamp - lastTime) / 1000;
     lastTime = timestamp;
 
     // Update Game Logic
     game.update(dt);
-    
-    // Update Input
-    const speed = 10 * dt; // Camera speed
+
+    // Update Input / camera
+    const speed = 10 * dt; // Camera speed in tiles per second
     if (keys['ArrowUp'] || keys['KeyW']) state.camera.y -= speed;
     if (keys['ArrowDown'] || keys['KeyS']) state.camera.y += speed;
     if (keys['ArrowLeft'] || keys['KeyA']) state.camera.x -= speed;
     if (keys['ArrowRight'] || keys['KeyD']) state.camera.x += speed;
 
-    // UI Updates (could be throttled)
-    ui.update(dt);
+    // UI Updates
+    if (typeof ui.update === 'function') {
+      ui.update(dt);
+    }
 
     // Render
     renderer.renderFrame(timestamp);
 
     requestAnimationFrame(loop);
   }
+
+  requestAnimationFrame(loop);
+
+  return { state, noise, game, renderer, ui };
+}
 
