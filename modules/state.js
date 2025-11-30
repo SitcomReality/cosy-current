@@ -6,8 +6,11 @@ export function createAppState() {
     pixelRatio: window.devicePixelRatio || 1,
     animationId: null,
 
+    // App Flow
+    isPlaying: false,
+
     // Game Settings
-    tileSize: 32, // Pixels per tile
+    tileSize: 48, // Larger tiles for better visibility
     
     // World State
     camera: { x: 0, y: 0 },
@@ -20,8 +23,8 @@ export function createAppState() {
     
     // Noise Settings
     noiseType: 'fbm-perlin',
-    scale: 0.05,
-    speed: 1.0,
+    scale: 0.03, // Smoother default
+    speed: 0.5, // Slower default
     time: 0
   };
 }

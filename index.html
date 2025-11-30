@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Idle Browser Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Terra Gen: Idle Realm</title>
     
     <!-- Modular CSS -->
     <link href="styles/base.css" rel="stylesheet" />
@@ -15,19 +15,62 @@
     <script type="module" src="main.js"></script>
   </head>
   <body>
-    <div class="topbar menu">
-      <div class="menu-item">Funds: <span id="ui-funds">0</span></div>
-      <div class="menu-item">Pop: <span id="ui-pop">0</span></div>
-      
-      <div class="menu-item" id="game_fps">FPS: 0</div>
-    </div>
-
-    <div id="game_container">
+    <div id="app">
       <canvas id="main-canvas"></canvas>
       
-      <div id="gamehud" class="overlay-hud">
-        <div id="controls"></div>
-        <div class="instructions">WASD / Arrow Keys to move view</div>
+      <div id="ui-layer">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active-flex">
+          <div class="title-container">
+            <h1 class="game-title">Terra Gen</h1>
+            <p class="game-subtitle">Procedural Realm Simulator</p>
+          </div>
+          <div class="start-actions">
+            <button id="btn-start" class="btn-large pulse">Initialize World</button>
+          </div>
+          <div class="version">v0.2.0 Alpha</div>
+        </div>
+
+        <!-- In-Game HUD -->
+        <div id="game-hud" class="screen">
+          <div class="hud-bar top-bar">
+            <div class="stat-group">
+              <span class="stat-label">FUNDS</span>
+              <span class="stat-value" id="ui-funds">0</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+              <span class="stat-label">POPULATION</span>
+              <span class="stat-value" id="ui-pop">0</span>
+            </div>
+          </div>
+
+          <div class="hud-bar bottom-bar">
+            <div class="controls-hint">
+              <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
+              <span>to move camera</span>
+            </div>
+            <button id="btn-settings-toggle" class="btn-icon" aria-label="Settings">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Settings Modal -->
+          <div id="settings-modal" class="modal hidden">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h2>Generation Settings</h2>
+                <button id="btn-close-settings" class="btn-close">&times;</button>
+              </div>
+              <div id="settings-controls-container" class="modal-body">
+                <!-- Controls injected by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>

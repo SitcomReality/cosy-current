@@ -207,3 +207,184 @@
   font-size: 2rem;
   margin-top: 45%;
 }
+
+/* Typography */
+.game-title {
+  font-size: 4rem;
+  margin: 0;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  font-weight: 800;
+  text-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.game-subtitle {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin: 0;
+  text-align: center;
+}
+
+.version {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  opacity: 0.5;
+}
+
+/* Buttons */
+button {
+  cursor: pointer;
+  border: none;
+  font-family: var(--font-main);
+  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.btn-large {
+  padding: 1rem 3rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: white;
+  background-color: var(--accent-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.btn-large:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+}
+.btn-large:active {
+  transform: translateY(0);
+}
+
+.btn-icon {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-icon:hover {
+  background: var(--border-color);
+}
+
+.btn-close {
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 2rem;
+  line-height: 1;
+  padding: 0 0.5rem;
+}
+.btn-close:hover {
+  color: white;
+}
+
+/* HUD Elements */
+.stat-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+.stat-divider {
+  width: 1px;
+  height: 30px;
+  background: var(--border-color);
+  margin: 0 1.5rem;
+}
+
+.controls-hint {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  background: var(--glass-bg);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+}
+.key {
+  display: inline-block;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.8em;
+  font-weight: bold;
+  margin: 0 2px;
+  color: white;
+}
+
+/* Modal Content */
+.modal-content {
+  background: #161b22;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+.modal-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.modal-body {
+  padding: 1.5rem;
+}
+
+/* Form Controls in Settings */
+.control-row {
+  margin-bottom: 1rem;
+}
+.control-row label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+.control-row select, 
+.control-row input[type="range"] {
+  width: 100%;
+  background: #0d1117;
+  border: 1px solid var(--border-color);
+  color: white;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .game-title { font-size: 2.5rem; }
+  .hud-bar { padding: 1rem; }
+  .stat-value { font-size: 1.2rem; }
+  .stat-divider { margin: 0 1rem; }
+  .controls-hint { display: none; } /* Hide generic controls on mobile, maybe replace later */
+}
