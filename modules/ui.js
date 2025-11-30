@@ -58,15 +58,7 @@ export function createUI({ container, state, renderer, noise, game }) {
       settingsContainer.appendChild(div);
     };
 
-    // Terrain Scale
-    const scaleInput = document.createElement('input');
-    scaleInput.type = 'range';
-    scaleInput.min = '0.004';
-    scaleInput.max = '0.05';
-    scaleInput.step = '0.001';
-    scaleInput.value = state.scale;
-    scaleInput.addEventListener('input', () => state.scale = parseFloat(scaleInput.value));
-    createRow('Terrain Scale', scaleInput);
+    // Removed Terrain Scale control (default now set in state)
 
     // Time / evolution speed
     const speedInput = document.createElement('input');

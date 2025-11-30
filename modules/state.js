@@ -39,7 +39,7 @@ export function createAppState() {
     // Noise Settings
     // We keep scale/speed configurable but use a single terrain technique internally
     noiseType: 'fbm-perlin',
-    scale: 0.008, // Larger, smoother features for natural landscapes
+    scale: 0.05, // Increased default scale for larger, smoother features
     speed: 0.2, // Slower time evolution
     time: 0
   };
