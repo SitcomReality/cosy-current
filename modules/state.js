@@ -10,7 +10,7 @@ export function createAppState() {
     isPlaying: false,
 
     // Game Settings
-    tileSize: 12, 
+    tileSize: 64, // Increased from 12 to 64 for zoom/performance
     
     // World State
     camera: { x: 0, y: 0 },
@@ -25,7 +25,7 @@ export function createAppState() {
       y: 0,
       angle: 0, // Radians
       speed: 0, // Tiles per second
-      targetSpeed: 8.0, // Faster for larger world
+      targetSpeed: 2.5, // Reduced from 8.0 for slower pacing with larger tiles
       roadState: 'cruising' // cruising, intersection
     },
     

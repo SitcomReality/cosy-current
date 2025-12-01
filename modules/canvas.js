@@ -13,6 +13,12 @@ export function createRenderer({ canvas, state, game }) {
     [game.CONSTANTS.TILE_ROAD]: '#334155'        // Road (Dark Slate)
   };
 
+  // Optimization: Chunk Caching
+  // Instead of calculating noise for every pixel every frame, we render
+  // blocks of tiles (chunks) to offscreen canvases and draw those.
+  const CHUNK_SIZE = 16; // 16x16 tiles per chunk
+  const chunkCache = new Map(); // key: "x,y", value: { canvas, lastUsed }
+
   function resize() {
     const dpr = state.pixelRatio;
     state.width = window.innerWidth;
@@ -21,10 +27,73 @@ export function createRenderer({ canvas, state, game }) {
     canvas.height = state.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
+    
+    // Invalidate cache on resize if tile scaling depends on it (it doesn't currently, but safe practice)
+    chunkCache.clear();
+  }
+
+  function getChunk(cx, cy) {
+    const key = `${cx},${cy}`;
+    if (chunkCache.has(key)) {
+      const data = chunkCache.get(key);
+      data.lastUsed = performance.now();
+      return data.canvas;
+    }
+
+    // Generate Chunk
+    const pxSize = CHUNK_SIZE * state.tileSize;
+    const cCanvas = document.createElement('canvas');
+    cCanvas.width = pxSize;
+    cCanvas.height = pxSize;
+    const cCtx = cCanvas.getContext('2d', { alpha: false });
+
+    // Fill logic
+    const startX = cx * CHUNK_SIZE;
+    const startY = cy * CHUNK_SIZE;
+    const tileSize = state.tileSize;
+    // slightly larger to prevent bleeding lines
+    const drawSize = tileSize + 1;
+
+    for (let y = 0; y < CHUNK_SIZE; y++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const worldX = startX + x;
+        const worldY = startY + y;
+        
+        const tileType = game.getTile(worldX, worldY);
+        const drawX = x * tileSize;
+        const drawY = y * tileSize;
+
+        cCtx.fillStyle = COLORS[tileType] || '#f0f';
+
+        if (tileType === game.CONSTANTS.TILE_ROAD) {
+          cCtx.fillRect(drawX, drawY, drawSize, drawSize);
+        } else {
+          // Terrain Detail
+          const h = game.getHeight(worldX, worldY);
+          const shade = (h - 0.5) * 0.5; // -0.25 to 0.25
+
+          // Base
+          cCtx.fillRect(drawX, drawY, drawSize, drawSize);
+
+          // Simple flat shading overlay
+          if (shade > 0) {
+             cCtx.fillStyle = `rgba(255,255,255,${shade})`;
+             cCtx.fillRect(drawX, drawY, drawSize, drawSize);
+          } else {
+             cCtx.fillStyle = `rgba(0,0,0,${-shade})`;
+             cCtx.fillRect(drawX, drawY, drawSize, drawSize);
+          }
+        }
+      }
+    }
+
+    chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now() });
+    return cCanvas;
   }
 
   function renderFrame(timestamp) {
-    // Clear background
+    // 1. Draw Background (Chunks)
+    // Clear not strictly necessary if chunks cover screen, but good for safety
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
 
@@ -34,82 +103,72 @@ export function createRenderer({ canvas, state, game }) {
     }
 
     const tileSize = state.tileSize;
-    // Overdraw slightly to ensure no gaps and smoother look
-    const drawSize = tileSize + 1; 
-    
     const centerX = state.width / 2;
     const centerY = state.height / 2;
     
-    // Calculate View
-    const colsVisible = Math.ceil(state.width / tileSize) + 4;
-    const rowsVisible = Math.ceil(state.height / tileSize) + 4;
-    const startCol = Math.floor(state.camera.x - colsVisible/2);
-    const endCol = Math.floor(state.camera.x + colsVisible/2);
-    const startRow = Math.floor(state.camera.y - rowsVisible/2);
-    const endRow = Math.floor(state.camera.y + rowsVisible/2);
+    // Viewport Calculations
+    // How many chunks fit on screen?
+    // We expand slightly to ensure edges are drawn
+    const visibleWidth = state.width;
+    const visibleHeight = state.height;
+    
+    // Convert Camera Center to Chunk Coordinates
+    const chunkPixels = CHUNK_SIZE * tileSize;
+    
+    // Top-Left of screen in world pixels (relative to camera)
+    // Camera is at center.
+    // screen 0,0 corresponds to world: camX*tile - width/2
+    const viewLeftTile = state.camera.x - (visibleWidth / 2) / tileSize;
+    const viewRightTile = state.camera.x + (visibleWidth / 2) / tileSize;
+    const viewTopTile = state.camera.y - (visibleHeight / 2) / tileSize;
+    const viewBottomTile = state.camera.y + (visibleHeight / 2) / tileSize;
 
-    // 1. Render Terrain
-    // We use circles for terrain to break the blocky grid look
-    for (let y = startRow; y <= endRow; y++) {
-      for (let x = startCol; x <= endCol; x++) {
-        // Basic Tile
-        const tileType = game.getTile(x, y);
-        const screenX = Math.floor((x - state.camera.x) * tileSize + centerX);
-        const screenY = Math.floor((y - state.camera.y) * tileSize + centerY);
+    const startChunkX = Math.floor(viewLeftTile / CHUNK_SIZE);
+    const endChunkX = Math.floor(viewRightTile / CHUNK_SIZE);
+    const startChunkY = Math.floor(viewTopTile / CHUNK_SIZE);
+    const endChunkY = Math.floor(viewBottomTile / CHUNK_SIZE);
+
+    // Draw Chunks
+    for (let cy = startChunkY; cy <= endChunkY; cy++) {
+      for (let cx = startChunkX; cx <= endChunkX; cx++) {
+        const chunkImg = getChunk(cx, cy);
         
-        ctx.fillStyle = COLORS[tileType] || '#f0f';
+        // Calculate position on screen
+        // Chunk origin in world tiles: cx * 16
+        // World tile to Screen: (world - cam) * size + center
+        const chunkWorldX = cx * CHUNK_SIZE;
+        const chunkWorldY = cy * CHUNK_SIZE;
         
-        if (tileType === game.CONSTANTS.TILE_ROAD) {
-           // Draw Road as connected blocks
-           // Roads are flat, no shading
-           ctx.fillRect(screenX, screenY, drawSize, drawSize);
-           
-           // Add lane markings? 
-           // Too detailed for this scale probably, but let's try a subtle dot
-           // ctx.fillStyle = '#475569';
-           // ctx.fillRect(screenX + tileSize/2 - 1, screenY + tileSize/2 - 1, 2, 2);
-        } else {
-           // Draw Terrain as overlapping circles for organic look
-           const h = game.getHeight(x, y);
-           
-           // Shading
-           const shade = (h - 0.5) * 0.5; // -0.25 to 0.25
-           // Apply shade to base color (simple opacity overlay)
-           
-           ctx.beginPath();
-           // Draw slightly larger circle to blend
-           ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize * 0.7, 0, Math.PI*2);
-           ctx.fill();
-           
-           // Fill gaps with rect behind?
-           // Performance-wise, drawing rect AND circle is heavy.
-           // Let's just draw rects but with color variation? 
-           // User explicitly asked for "smoother". 
-           // Let's just use the Rect but with very slight random offset? No.
-           // Let's stick to the rects but rely on the noise scale being smoother now.
-           // The "Blocky" complaint was likely due to 32px tiles and high freq noise.
-           // Now we have 12px tiles and low freq noise. It will look like pixel art map.
-           
-           ctx.fillRect(screenX, screenY, drawSize, drawSize);
-           
-           // Shadow layer
-           if (shade > 0) {
-             ctx.fillStyle = `rgba(255,255,255,${shade})`;
-             ctx.fillRect(screenX, screenY, drawSize, drawSize);
-           } else {
-             ctx.fillStyle = `rgba(0,0,0,${-shade})`;
-             ctx.fillRect(screenX, screenY, drawSize, drawSize);
-           }
+        const screenX = (chunkWorldX - state.camera.x) * tileSize + centerX;
+        const screenY = (chunkWorldY - state.camera.y) * tileSize + centerY;
+
+        // Round to avoid subpixel gaps between chunks if browser anti-aliases
+        // But allow subpixel movement?
+        // For performance and seamlessness, drawing rounded coordinates prevents seams.
+        // Camera smoothness might suffer slightly but prevents "grid lines".
+        ctx.drawImage(chunkImg, Math.floor(screenX), Math.floor(screenY));
+      }
+    }
+    
+    // Prune Cache (every ~60 frames)
+    if (Math.random() < 0.02) {
+      const now = performance.now();
+      for (const [key, val] of chunkCache) {
+        if (now - val.lastUsed > 2000) { // 2 seconds unused
+          chunkCache.delete(key);
         }
       }
     }
 
     // 2. Render Entities (Towns, Relics)
+    // We can't bake these into chunks because they might interact/animate (or we might want to later)
     state.entities.forEach(ent => {
        const screenX = (ent.x - state.camera.x) * tileSize + centerX;
        const screenY = (ent.y - state.camera.y) * tileSize + centerY;
        
-       if (screenX < -tileSize || screenX > state.width || screenY < -tileSize || screenY > state.height) return;
+       // Cull
+       if (screenX < -tileSize*2 || screenX > state.width + tileSize*2 || 
+           screenY < -tileSize*2 || screenY > state.height + tileSize*2) return;
 
        if (ent.type === game.CONSTANTS.ENTITY_CITY) {
          // Neon Castle
@@ -120,8 +179,9 @@ export function createRenderer({ canvas, state, game }) {
 
          ctx.fillStyle = '#10b981';
          ctx.fillRect(screenX, screenY, tileSize, tileSize);
+         // Detail
          ctx.fillStyle = '#065f46';
-         ctx.fillRect(screenX + tileSize/2 - 2, screenY + tileSize/4 - 10, 4, 10); // Tower
+         ctx.fillRect(screenX + tileSize/2 - tileSize*0.1, screenY, tileSize*0.2, tileSize*0.6); 
        } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
          // Ancient Tech
          ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
@@ -147,51 +207,50 @@ export function createRenderer({ canvas, state, game }) {
     ctx.translate(px, py);
     ctx.rotate(p.angle);
     
-    const carScale = 1.5; // Car is larger than a single tile now
+    const carScale = 1.0; 
+    const carLen = tileSize * 1.5;
+    const carWid = tileSize * 0.8;
     
     // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(-tileSize*carScale/2 + 2, -tileSize*carScale/4 + 2, tileSize*carScale, tileSize*carScale/2);
+    ctx.fillRect(-carLen/2 + 4, -carWid/2 + 4, carLen, carWid);
 
     // Body
     ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(-tileSize*carScale/2, -tileSize*carScale/4, tileSize*carScale, tileSize*carScale/2);
+    ctx.fillRect(-carLen/2, -carWid/2, carLen, carWid);
+    
+    // Detail / Windows
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(-carLen/4, -carWid/3, carLen/2, carWid/1.5);
     
     // Engine Glow
     ctx.fillStyle = '#0ea5e9';
     ctx.shadowColor = '#0ea5e9';
     ctx.shadowBlur = 10;
-    ctx.fillRect(-tileSize/2 - 4, -tileSize/4 + 2, 4, tileSize/2 - 4);
+    ctx.fillRect(-carLen/2 - 4, -carWid/4, 4, carWid/2);
     
     // Headlights
     ctx.fillStyle = '#fef08a';
     ctx.shadowColor = '#fef08a';
     ctx.shadowBlur = 15;
     ctx.beginPath();
-    ctx.moveTo(tileSize/2, -5);
-    ctx.lineTo(tileSize + 20, -15);
-    ctx.lineTo(tileSize + 20, 15);
-    ctx.lineTo(tileSize/2, 5);
+    ctx.moveTo(carLen/2, -carWid/4);
+    ctx.lineTo(carLen/2 + carLen/2, -carWid/1.5);
+    ctx.lineTo(carLen/2 + carLen/2, carWid/1.5);
+    ctx.lineTo(carLen/2, carWid/4);
     ctx.fill();
 
     ctx.restore();
   }
 
   function drawMenuBackground(t) {
-    const scale = 200;
-    ctx.globalAlpha = 0.1;
-    ctx.fillStyle = '#0f172a';
-    const offset = t * 0.02;
-    for(let i=0; i<5; i++) {
-      ctx.beginPath();
-      ctx.arc(
-        (Math.sin(offset + i) * 0.5 + 0.5) * state.width,
-        (Math.cos(offset * 0.7 + i) * 0.5 + 0.5) * state.height,
-        100 + i * 50, 0, Math.PI*2
-      );
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1.0;
+    // Simple animated gradient for better performance than the circles
+    const hue = (t * 0.01) % 360;
+    const grad = ctx.createLinearGradient(0, 0, state.width, state.height);
+    grad.addColorStop(0, `hsl(${hue}, 20%, 10%)`);
+    grad.addColorStop(1, `hsl(${hue + 40}, 30%, 5%)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, state.width, state.height);
   }
 
   function start() {
