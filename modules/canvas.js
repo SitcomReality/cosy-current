@@ -3,14 +3,14 @@ export function createRenderer({ canvas, state, game }) {
 
   // Technopunk Fantasy Palette -> more natural, readable terrain
   const COLORS = {
-    [game.CONSTANTS.TILE_DEEP_WATER]: '#0f172a', // Deep ocean
-    [game.CONSTANTS.TILE_WATER]: '#0ea5e9',      // Coastal water
-    [game.CONSTANTS.TILE_SAND]: '#fdba74',       // Sand / shore
+    // Map renderer colors to the current tile set used by game.js
+    [game.CONSTANTS.TILE_RIVER_DEEP]: '#0f172a', // Deep river/ocean
+    [game.CONSTANTS.TILE_RIVER_SHALLOW]: '#0ea5e9', // Shallow river
+    [game.CONSTANTS.TILE_BANK]: '#fdba74',       // Bank / shore
     [game.CONSTANTS.TILE_GRASS]: '#22c55e',      // Grasslands
     [game.CONSTANTS.TILE_FOREST]: '#15803d',     // Forest
-    [game.CONSTANTS.TILE_ROCK]: '#64748b',       // Rock / highland
-    [game.CONSTANTS.TILE_SNOW]: '#f8fafc',       // Snow peaks
-    [game.CONSTANTS.TILE_ROAD]: '#334155'        // Road (Dark Slate)
+    [game.CONSTANTS.TILE_HILL]: '#64748b',       // Hill / highland
+    [game.CONSTANTS.TILE_MOUNTAIN]: '#94a3b8'    // Mountain (formerly rock/snow)
   };
 
   // Optimization: Chunk Caching

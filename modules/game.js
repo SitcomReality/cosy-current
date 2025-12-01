@@ -12,7 +12,7 @@ export function createGame({ state, noise }) {
   const TILE_FOREST = 4;
   const TILE_HILL = 5;
   const TILE_MOUNTAIN = 6;
-  const TILE_SNOW = 7; 
+  // (TILE_SNOW removed; mountainous areas use TILE_MOUNTAIN)
 
   // Constants
   const INTERACTION_RADIUS = 35.0; // Increased to cover river width + bank
@@ -68,7 +68,7 @@ export function createGame({ state, noise }) {
     if (h < 0.55) return TILE_FOREST;
     if (h < 0.75) return TILE_HILL;
     if (h < 0.90) return TILE_MOUNTAIN;
-    return TILE_SNOW;
+    return TILE_MOUNTAIN;
   }
 
   function spawnEntity(x, y, type) {
@@ -217,8 +217,8 @@ export function createGame({ state, noise }) {
     const tileType = getTile(p.x, p.y);
     const collectionRate = 1.0 * dt; // Units per second
 
-    if (tileType === TILE_ROCK) state.resources.scrap += collectionRate * 2;
-    else if (tileType === TILE_FOREST) state.resources.bio += collectionRate * 2;
+    // Scrap no longer comes from the removed "rock" tile; keep resource flows simple:
+    if (tileType === TILE_FOREST) state.resources.bio += collectionRate * 2;
     else if (tileType === TILE_GRASS) state.resources.bio += collectionRate;
     
     // Fuel consumption (very slow)
@@ -291,7 +291,7 @@ export function createGame({ state, noise }) {
     spawnEntity,
     update,
     CONSTANTS: {
-      TILE_RIVER_DEEP, TILE_RIVER_SHALLOW, TILE_BANK, TILE_GRASS, TILE_FOREST, TILE_HILL, TILE_MOUNTAIN, TILE_SNOW,
+      TILE_RIVER_DEEP, TILE_RIVER_SHALLOW, TILE_BANK, TILE_GRASS, TILE_FOREST, TILE_HILL, TILE_MOUNTAIN,
       ENTITY_CITY, ENTITY_RELIC
     }
   };
