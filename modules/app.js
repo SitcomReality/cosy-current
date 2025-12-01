@@ -106,6 +106,9 @@ export function initApp({ canvas, controls }) {
 
     game.update(dt);
 
+    // Renderer updates (water FX etc.)
+    if (renderer.update) renderer.update(dt);
+
     // 2. Player Input (Steering) - MOVED TO GAME UPDATE or biased above
     // We removed the direct angle manipulation here to let the road logic handle "snapping"
     // while still allowing influence.

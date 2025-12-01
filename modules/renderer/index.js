@@ -1,6 +1,7 @@
 import { createChunkManager } from './chunk.js';
 import { getVertexOffset } from './vertex.js';
 import { convexHull, floodFill } from './hull.js';
+import { createWaterFX } from './water_fx.js';
 
 // This file composes the modular renderer pieces into the original public API
 export function createRenderer({ canvas, state, game, noise }) {
@@ -8,9 +9,10 @@ export function createRenderer({ canvas, state, game, noise }) {
 
   // Stylized Vector Palette
   const COLORS = {
-    [game.CONSTANTS.TILE_RIVER_DEEP]: '#1e3a8a',    // Deeper Blue
-    [game.CONSTANTS.TILE_RIVER_SHALLOW]: '#38bdf8', // Bright Blue
-    [game.CONSTANTS.TILE_BANK]: '#fbbf24',          // Sandy/Gold
+    // Warmer, clearer water palette
+    [game.CONSTANTS.TILE_RIVER_DEEP]: '#3b82f6',    // lively deep blue
+    [game.CONSTANTS.TILE_RIVER_SHALLOW]: '#7dd3fc', // sky/shore blue
+    [game.CONSTANTS.TILE_BANK]: '#fde047',          // sandy gold
     [game.CONSTANTS.TILE_GRASS]: '#4ade80',         // Vibrant Green
     [game.CONSTANTS.TILE_FOREST]: '#166534',        // Deep Green
     [game.CONSTANTS.TILE_HILL]: '#94a3b8',          // Grey Blue
@@ -19,6 +21,7 @@ export function createRenderer({ canvas, state, game, noise }) {
 
   const CHUNK_SIZE = 16;
   const chunkManager = createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, getVertexOffset });
+  const waterFX = createWaterFX();
 
   function resize() {
     const dpr = state.pixelRatio;
@@ -29,6 +32,12 @@ export function createRenderer({ canvas, state, game, noise }) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
     chunkManager.clearCache();
+  }
+
+  // Per-frame update called from app loop
+  function update(dt) {
+    // Advance water effects (wakes)
+    waterFX.update(dt, state.player);
   }
 
   function drawMenuBackground(t) {
@@ -83,6 +92,9 @@ export function createRenderer({ canvas, state, game, noise }) {
       }
     }
 
+    // Water FX (wakes, shore ripples) drawn above terrain and beneath entities
+    waterFX.render(ctx, state.camera, state.tileSize, centerX, centerY);
+
     // Prune cache occasionally
     chunkManager.pruneCache();
 
@@ -125,34 +137,30 @@ export function createRenderer({ canvas, state, game, noise }) {
     const py = (p.y - state.camera.y) * tileSize + centerY;
 
     ctx.save();
+    // Draw raft (low-poly wooden logs with small cabin)
     ctx.translate(px, py);
     ctx.rotate(p.angle);
-
-    const carLen = tileSize * 1.5;
-    const carWid = tileSize * 0.8;
-
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(-carLen/2 + 4, -carWid/2 + 4, carLen, carWid);
-
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(-carLen/2, -carWid/2, carLen, carWid);
-
-    ctx.fillStyle = '#334155';
-    ctx.fillRect(-carLen/4, -carWid/3, carLen/2, carWid/1.5);
-
-    ctx.fillStyle = '#0ea5e9';
-    ctx.shadowColor = '#0ea5e9';
-    ctx.shadowBlur = 10;
-    ctx.fillRect(-carLen/2 - 4, -carWid/4, 4, carWid/2);
-
-    ctx.fillStyle = '#fef08a';
-    ctx.shadowColor = '#fef08a';
-    ctx.shadowBlur = 15;
+    const raftW = tileSize * 1.2;
+    const raftH = tileSize * 0.9;
+    // Logs base
+    ctx.fillStyle = '#6b4226';
+    for (let i = -1; i <= 1; i++) {
+      ctx.fillRect(-raftW/2, (i * 6) - raftH/2, raftW, Math.max(8, tileSize * 0.12));
+    }
+    // Deck
+    ctx.fillStyle = '#8b5e3c';
+    ctx.fillRect(-raftW/2 + 6, -raftH/2 + 6, raftW - 12, raftH - 12);
+    // Cabin
+    const cabW = raftW * 0.5;
+    const cabH = raftH * 0.45;
+    ctx.fillStyle = '#f3e7d7';
+    ctx.fillRect(-cabW/2, -cabH/2, cabW, cabH);
+    ctx.fillStyle = '#7a4b2b';
+    ctx.fillRect(-cabW/2, -cabH/2, cabW, cabH*0.25); // roof ledge
+    // Lantern glow
+    ctx.fillStyle = 'rgba(255, 210, 100, 0.6)';
     ctx.beginPath();
-    ctx.moveTo(carLen/2, -carWid/4);
-    ctx.lineTo(carLen/2 + carLen/2, -carWid/1.5);
-    ctx.lineTo(carLen/2 + carLen/2, carWid/1.5);
-    ctx.lineTo(carLen/2, carWid/4);
+    ctx.arc(cabW/2 - 6, 0, Math.max(2, tileSize*0.04), 0, Math.PI*2);
     ctx.fill();
 
     ctx.restore();
@@ -171,5 +179,5 @@ export function createRenderer({ canvas, state, game, noise }) {
     chunkManager.clearCache();
   }
 
-  return { start, stop, resize, renderFrame, clearCache };
+  return { start, stop, resize, renderFrame, clearCache, update };
 }

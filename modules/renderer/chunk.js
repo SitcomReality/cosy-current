@@ -93,7 +93,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
     for (let y = 0; y < CHUNK_SIZE; y++) {
       for (let x = 0; x < CHUNK_SIZE; x++) {
         const tileType = tileGrid[y][x];
-        if (visited[y][x] || tileType === 0 || (game.CONSTANTS.TILE_ROAD && tileType === game.CONSTANTS.TILE_ROAD)) continue;
+        // Render all tile types (including water) so hulls cover river areas.
+        // Keep roads handled earlier if present.
+        if (visited[y][x] || (game.CONSTANTS.TILE_ROAD && tileType === game.CONSTANTS.TILE_ROAD)) continue;
 
         const { cells, avgH } = floodFill(tileGrid, heightGrid, visited, x, y, tileType, CHUNK_SIZE);
 
@@ -129,6 +131,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         cCtx.closePath();
         cCtx.fill();
 
+        // Add subtle water texture / glimmer for river tiles
         if (shadeAmt !== 0) {
           cCtx.fillStyle = shadeAmt > 0
             ? `rgba(255,255,255,${Math.min(0.5, shadeAmt)})`
