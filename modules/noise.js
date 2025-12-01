@@ -106,6 +106,22 @@ export function createNoiseEngine(state) {
     return sample(x, y, 0);
   }
 
+  // Expose road info for game logic (compatibility wrapper)
+  // Returns an object compatible with game.getRoadInfo usage:
+  // { distX, distY, value, isRoad, isIntersection, gx, gy }
+  function getRoadInfo(x, y) {
+    const r = getRiverSystem(x, y);
+    return {
+      distX: r.distX,
+      distY: r.distY,
+      value: r.value,
+      isRoad: r.isRiver,
+      isIntersection: r.isIntersection,
+      gx: r.gx,
+      gy: r.gy
+    };
+  }
+
   function setConfig(cfg = {}) {
     config = Object.assign({}, config, cfg);
   }
@@ -118,6 +134,7 @@ export function createNoiseEngine(state) {
     sample,
     sample2D,
     getRiverSystem,
+    getRoadInfo,
     setSeed,
     setConfig,
     getConfig
