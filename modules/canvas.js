@@ -103,7 +103,7 @@ export function createRenderer({ canvas, state, game, noise }) {
   }
 
   // Render a vector cell covering CONNECTION_SPAN x CONNECTION_SPAN tiles
-  function renderVectorCell(cCtx, cellWorldX, cellWorldY, localX, localY) {
+  function renderVectorCell(cCtx, cellWorldX, cellWorldY, chunkOriginX, chunkOriginY) {
     const tileSize = state.tileSize;
     const span = CONNECTION_SPAN;
 
@@ -162,17 +162,21 @@ export function createRenderer({ canvas, state, game, noise }) {
 
     const fillColor = getTerrainColor(dominantType, avgHeight);
 
+    // Convert world-pixel coordinates to chunk-local pixels by subtracting chunk origin (in pixels)
+    const originPxX = chunkOriginX * tileSize;
+    const originPxY = chunkOriginY * tileSize;
+
     // Draw the polygon
     cCtx.fillStyle = fillColor;
     cCtx.beginPath();
-    cCtx.moveTo(tl.x - localX * tileSize, tl.y - localY * tileSize);
-    cCtx.lineTo(midTop.x - localX * tileSize, midTop.y - localY * tileSize);
-    cCtx.lineTo(tr.x - localX * tileSize, tr.y - localY * tileSize);
-    cCtx.lineTo(midRight.x - localX * tileSize, midRight.y - localY * tileSize);
-    cCtx.lineTo(br.x - localX * tileSize, br.y - localY * tileSize);
-    cCtx.lineTo(midBottom.x - localX * tileSize, midBottom.y - localY * tileSize);
-    cCtx.lineTo(bl.x - localX * tileSize, bl.y - localY * tileSize);
-    cCtx.lineTo(midLeft.x - localX * tileSize, midLeft.y - localY * tileSize);
+    cCtx.moveTo(tl.x - originPxX, tl.y - originPxY);
+    cCtx.lineTo(midTop.x - originPxX, midTop.y - originPxY);
+    cCtx.lineTo(tr.x - originPxX, tr.y - originPxY);
+    cCtx.lineTo(midRight.x - originPxX, midRight.y - originPxY);
+    cCtx.lineTo(br.x - originPxX, br.y - originPxY);
+    cCtx.lineTo(midBottom.x - originPxX, midBottom.y - originPxY);
+    cCtx.lineTo(bl.x - originPxX, bl.y - originPxY);
+    cCtx.lineTo(midLeft.x - originPxX, midLeft.y - originPxY);
     cCtx.closePath();
     cCtx.fill();
 
@@ -181,10 +185,10 @@ export function createRenderer({ canvas, state, game, noise }) {
       cCtx.strokeStyle = 'rgba(255,255,255,0.08)';
       cCtx.lineWidth = 1;
       cCtx.beginPath();
-      cCtx.moveTo(midTop.x - localX * tileSize, midTop.y - localY * tileSize);
-      cCtx.lineTo(midRight.x - localX * tileSize, midRight.y - localY * tileSize);
-      cCtx.lineTo(midBottom.x - localX * tileSize, midBottom.y - localY * tileSize);
-      cCtx.lineTo(midLeft.x - localX * tileSize, midLeft.y - localY * tileSize);
+      cCtx.moveTo(midTop.x - originPxX, midTop.y - originPxY);
+      cCtx.lineTo(midRight.x - originPxX, midRight.y - originPxY);
+      cCtx.lineTo(midBottom.x - originPxX, midBottom.y - originPxY);
+      cCtx.lineTo(midLeft.x - originPxX, midLeft.y - originPxY);
       cCtx.closePath();
       cCtx.stroke();
     }
@@ -225,7 +229,8 @@ export function createRenderer({ canvas, state, game, noise }) {
         const worldY = startY + y;
 
         // Skip invisible or out-of-world checks are optional; game world may be infinite.
-        renderVectorCell(cCtx, worldX, worldY, x, y);
+        // pass chunk origin so the renderer can convert world pixel coords to chunk-local coords
+        renderVectorCell(cCtx, worldX, worldY, startX, startY);
       }
     }
 
