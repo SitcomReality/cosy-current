@@ -25,7 +25,7 @@ export function createWaterEffects({ state, game, noise }) {
     if (!isWater) return;
 
     const intensity = Math.min(1, speed / 5);
-    const baseSpread = 1.5; // tiles
+    const baseSpread = 2.3; // tiles
 
     // Create V-shaped wake pattern with straight line segments
     for (let side of [-1, 1]) {
