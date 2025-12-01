@@ -29,15 +29,21 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
     }
 
     const pxSize = CHUNK_SIZE * state.tileSize;
+    // Add a small padding (bleed) around chunks so geometry that sits on edges
+    // lines up between adjacent chunks and avoids 1px seams due to rounding.
+    const PAD = 2; // pixels of overlap on each side
     const cCanvas = document.createElement('canvas');
-    cCanvas.width = pxSize;
-    cCanvas.height = pxSize;
+    cCanvas.width = pxSize + PAD * 2;
+    cCanvas.height = pxSize + PAD * 2;
     const cCtx = cCanvas.getContext('2d', { alpha: false });
 
+    // startX/Y are world tile coordinates for the top-left of the chunk content (without padding)
     const startX = cx * CHUNK_SIZE;
     const startY = cy * CHUNK_SIZE;
     const tileSize = state.tileSize;
 
+    // We generate the same CHUNK_SIZE x CHUNK_SIZE logical tiles but render them
+    // offset by PAD pixels to leave a 1-2px overlap with neighbor chunks.
     const tileGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(0));
     const heightGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(0));
     const visited = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(false));
@@ -62,7 +68,8 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         // If game no longer defines TILE_ROAD, skip
         if (game.CONSTANTS.TILE_ROAD && tileType === game.CONSTANTS.TILE_ROAD) {
           cCtx.fillStyle = COLORS[tileType] || '#f0f';
-          cCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          // Draw with PAD offset so edges have bleed
+          cCtx.fillRect(PAD + x * tileSize, PAD + y * tileSize, tileSize, tileSize);
           visited[y][x] = true;
         }
       }
@@ -101,8 +108,10 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
           const p = hull[i];
           const wx = startX + p.x;
           const wy = startY + p.y;
-          const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
-          const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
+          // Apply PAD offset when rasterizing into the chunk canvas so polygons
+          // extend into the padding area and align with neighbors.
+          const px = PAD + p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
+          const py = PAD + p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
           if (i === 0) cCtx.moveTo(px, py);
           else cCtx.lineTo(px, py);
         }
@@ -116,8 +125,8 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
             const p = hull[i];
             const wx = startX + p.x;
             const wy = startY + p.y;
-            const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
-            const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
+            const px = PAD + p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
+            const py = PAD + p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
             if (i === 0) cCtx.moveTo(px, py);
             else cCtx.lineTo(px, py);
           }
@@ -133,8 +142,8 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
             const p = hull[i];
             const wx = startX + p.x;
             const wy = startY + p.y;
-            const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
-            const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
+            const px = PAD + p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
+            const py = PAD + p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
             if (i === 0) cCtx.moveTo(px, py);
             else cCtx.lineTo(px, py);
           }
@@ -144,7 +153,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
       }
     }
 
-    chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now() });
+    chunkCache.set(key, { canvas: cCanvas, pad: PAD, lastUsed: performance.now() });
     return cCanvas;
   }
 
