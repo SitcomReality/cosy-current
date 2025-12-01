@@ -68,28 +68,55 @@ export function createWaterEffects({ state, game, noise }) {
 
           const tile = game.getTile(tx, ty);
           if (tile === game.CONSTANTS.TILE_BANK) {
-            // Check if adjacent to water
-            const hasWater = [
-              game.getTile(tx - 1, ty),
-              game.getTile(tx + 1, ty),
-              game.getTile(tx, ty - 1),
-              game.getTile(tx, ty + 1)
-            ].some(t => t === game.CONSTANTS.TILE_RIVER_DEEP || t === game.CONSTANTS.TILE_RIVER_SHALLOW);
+            // Find adjacent water tiles and directions
+            const waterTiles = [];
+            const neighbors = [
+              { dx: -1, dy: 0 },
+              { dx: 1, dy: 0 },
+              { dx: 0, dy: -1 },
+              { dx: 0, dy: 1 }
+            ];
 
-            if (hasWater && Math.random() < 0.1) {
-              // Spawn a wave segment
-              const angle = Math.random() * Math.PI * 2;
+            for (const { dx: dirX, dy: dirY } of neighbors) {
+              const nx = tx + dirX;
+              const ny = ty + dirY;
+              const neighborTile = game.getTile(nx, ny);
+              if (neighborTile === game.CONSTANTS.TILE_RIVER_DEEP || neighborTile === game.CONSTANTS.TILE_RIVER_SHALLOW) {
+                // Store water tile coordinates (nx, ny) and direction vector (dirX, dirY) from bank to water
+                waterTiles.push({ nx, ny, dirX, dirY });
+              }
+            }
+
+            if (waterTiles.length > 0 && Math.random() < 0.2) { 
+              // Pick a random water neighbor to spawn the wave from
+              const { nx, ny, dirX, dirY } = waterTiles[Math.floor(Math.random() * waterTiles.length)];
+
+              // 1. Position the wave starting point near the boundary, inside the water tile.
+              // Start near the center of the water tile (nx+0.5, ny+0.5) but offset towards the bank boundary (0.3 tiles).
+              // We add (Math.random() - 0.5) * 0.2 for random displacement within the near-bank area.
+              const startX = nx + 0.5 - dirX * 0.3 + (Math.random() - 0.5) * 0.2;
+              const startY = ny + 0.5 - dirY * 0.3 + (Math.random() - 0.5) * 0.2;
+              
+              // 2. Determine wave segment angle: should be roughly parallel to the shoreline.
+              // Shoreline direction is perpendicular to the vector pointing from bank to water (dirX, dirY).
+              const tanX = -dirY;
+              const tanY = dirX;
+              const shoreAngle = Math.atan2(tanY, tanX); 
+              
+              // Add perturbation to the segment angle
+              let segmentAngle = shoreAngle + (Math.random() - 0.5) * 0.4;
+              
               const length = MIN_LINE_LENGTH * (0.5 + Math.random() * 1.5);
 
               shorelineWaves.push({
-                x: tx + Math.random(),
-                y: ty + Math.random(),
-                angle: angle,
+                x: startX,
+                y: startY,
+                angle: segmentAngle,
                 length: length,
-                width: 0.5 + Math.random(),
+                width: 0.5 + Math.random() * 1.5,
                 life: 1.5,
                 maxLife: 1.5,
-                opacity: 0.3
+                opacity: 0.4
               });
             }
           }
