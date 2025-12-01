@@ -26,7 +26,8 @@ export function createAppState() {
       angle: 0, // Radians
       speed: 0, // Tiles per second
       targetSpeed: 2.5, // Reduced from 8.0 for slower pacing with larger tiles
-      roadState: 'cruising' // cruising, intersection
+      roadState: 'cruising', // cruising, intersection
+      targetAngle: 0 // Smoothed steering target
     },
     
     resources: {

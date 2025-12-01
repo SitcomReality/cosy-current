@@ -15,7 +15,7 @@ export function createGame({ state, noise }) {
   const TILE_ROAD = 7; // New Type
 
   // Constants
-  const STEER_STRENGTH = 4.0; 
+  const STEER_STRENGTH = 2.0; 
   const INTERACTION_RADIUS = 3.0; // Tiles
 
   // Helper to get raw height 0..1 from noise
@@ -62,63 +62,80 @@ export function createGame({ state, noise }) {
     });
   }
 
+  // Helper: shortest signed angle difference
+  function shortestAngleDiff(a, b) {
+    let diff = b - a;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    return diff;
+  }
+
   // Logic to determine road direction
   function getRoadVector(x, y, currentAngle) {
       // Sample nearby points to find gradient of the distance field
       const d = 0.5; // Sampling delta
       const info = noise.getRoadInfo(x, y);
-      
-      // If we are deep in an intersection, we need to choose a path based on state/input
-      // But generally, we follow the "channel" we are in (distX or distY)
-      
-      // Which channel are we in? 
+
+      // Which channel are we in?
       // If distX < distY, we are in the vertical channel (following Y axis in warped space)
-      // Tangent is along the line of constant distX.
-      
       const trackingX = info.distX < info.distY;
-      
-      // Calculate gradient of the field we are tracking
-      const v0 = trackingX ? noise.getRoadInfo(x, y).distX : noise.getRoadInfo(x, y).distY;
-      const vx = trackingX ? noise.getRoadInfo(x + d, y).distX : noise.getRoadInfo(x + d, y).distY;
-      const vy = trackingX ? noise.getRoadInfo(x, y + d).distX : noise.getRoadInfo(x, y + d).distY;
-      
-      const gradX = (vx - v0) / d;
-      const gradY = (vy - v0) / d;
-      
+
+      // Calculate gradient of the field we are tracking using a single set of samples
+      const baseInfo = noise.getRoadInfo(x, y);
+      const infoX = noise.getRoadInfo(x + d, y);
+      const infoY = noise.getRoadInfo(x, y + d);
+
+      const v0 = trackingX ? baseInfo.distX : baseInfo.distY;
+      const vx = trackingX ? infoX.distX : infoX.distY;
+      const vy = trackingX ? infoY.distX : infoY.distY;
+
+      let gradX = (vx - v0) / d;
+      let gradY = (vy - v0) / d;
+
+      // Clamp gradient to avoid extreme values near edges that cause jitter
+      const gradLen = Math.hypot(gradX, gradY);
+      if (gradLen > 0.0001) {
+        const maxGrad = 1.0;
+        const scale = Math.min(1.0, maxGrad / gradLen);
+        gradX *= scale;
+        gradY *= scale;
+      } else {
+        gradX = 0;
+        gradY = 0;
+      }
+
       // Gradient points AWAY from center (dist increases).
-      // We want tangent. Tangent is perpendicular to gradient.
-      // T = {-gradY, gradX} or {gradY, -gradX}
-      
+      // We want tangent: perpendicular to gradient.
       let tx = -gradY;
       let ty = gradX;
-      
-      // Normalize
+
+      // Normalize tangent
       const len = Math.hypot(tx, ty);
       if (len > 0.001) {
-          tx /= len;
-          ty /= len;
+        tx /= len;
+        ty /= len;
       } else {
-          // Fallback if flat
-          tx = Math.cos(currentAngle);
-          ty = Math.sin(currentAngle);
+        // Fallback if flat
+        tx = Math.cos(currentAngle);
+        ty = Math.sin(currentAngle);
       }
-      
+
       // Ensure we don't flip 180 degrees instantly; pick direction closest to current heading
       const dot = tx * Math.cos(currentAngle) + ty * Math.sin(currentAngle);
       if (dot < 0) {
-          tx = -tx;
-          ty = -ty;
+        tx = -tx;
+        ty = -ty;
       }
-      
+
       // Center pull vector (move towards road center)
       // Gradient points OUT, so -Gradient points IN.
-      // We blend tangent (flow) with gradient (centering)
-      const centerStrength = Math.min(1.0, info.value); // Stronger pull when further out
-      
+      const centerStrength = Math.min(0.6, info.value); // Softer pull when near center
+      const centerWeight = 0.35; // Reduce centering influence to avoid over-correction
+
       // Desired velocity is mostly tangent, some centering
-      const mx = tx * 0.8 - gradX * 0.5 * centerStrength;
-      const my = ty * 0.8 - gradY * 0.5 * centerStrength;
-      
+      const mx = tx * 0.9 - gradX * centerWeight * centerStrength;
+      const my = ty * 0.9 - gradY * centerWeight * centerStrength;
+
       return Math.atan2(my, mx);
   }
 
@@ -128,46 +145,38 @@ export function createGame({ state, noise }) {
     const p = state.player;
     const road = noise.getRoadInfo(p.x, p.y);
 
+    // Initialize targetAngle the first time
+    if (p.targetAngle === undefined || Number.isNaN(p.targetAngle)) {
+      p.targetAngle = p.angle;
+    }
+
     // --- Input Bias ---
-    // User can influence decision at intersection
-    let userTurn = 0;
-    // We assume global 'keys' are not available here directly, but we can read from state if we stored input
-    // For now, let's assume the main loop updates state.input or similar. 
-    // Actually, we'll just check if angle is being forced in the main loop and let the game logic correct it.
-    // But better: let the game logic handle the "steering" completely.
-    
-    // We'll use a targetAngle.
-    let targetAngle = p.angle;
+    // User can influence decision at intersection via p.angle (updated from outside)
+    let targetAngle = p.targetAngle;
     
     if (road.isRoad) {
         // We are on road, autonomous driving engaged
         if (road.isIntersection) {
-             // We are at a junction.
-             // If we were just cruising, this is a new event.
-             // Randomly pick a direction?
-             // The getRoadVector logic tends to keep going straight through intersections 
-             // because the gradient of the orthogonal road is high (it's a wall).
-             // However, at the exact center, both gradients are low.
-             
-             // To support "A/D" to turn:
-             // We need to know if the user wants to turn. 
-             // Let's rely on the main app loop modifying `p.angle` slightly with A/D,
-             // and `getRoadVector` will snap to the new valid path closest to that angle.
-             
-             // So here, we just follow the vector.
-             targetAngle = getRoadVector(p.x, p.y, p.angle);
+             // At junction: still follow road vector, but will be biased by player angle externally
+             const desired = getRoadVector(p.x, p.y, p.angle);
+             // Smoothly blend current target toward desired to avoid snap turns
+             const diff = shortestAngleDiff(targetAngle, desired);
+             targetAngle = targetAngle + diff * Math.min(1, 5 * dt);
         } else {
             // Just follow the road
-            targetAngle = getRoadVector(p.x, p.y, p.angle);
+            const desired = getRoadVector(p.x, p.y, p.angle);
+            const diff = shortestAngleDiff(targetAngle, desired);
+            targetAngle = targetAngle + diff * Math.min(1, 3 * dt);
         }
         
-        // Apply steering
-        // Shortest angular distance
-        let diff = targetAngle - p.angle;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        
-        p.angle += diff * STEER_STRENGTH * dt;
+        p.targetAngle = targetAngle;
+
+        // Apply steering toward smoothed targetAngle with a max turn rate
+        const angleDiff = shortestAngleDiff(p.angle, p.targetAngle);
+        const maxTurnRate = 2.5; // radians per second
+        const maxStep = maxTurnRate * dt;
+        const clamped = Math.max(-maxStep, Math.min(maxStep, angleDiff));
+        p.angle += clamped;
         
         // Speed
         if (p.speed < p.targetSpeed) p.speed += dt * 5;
@@ -177,8 +186,6 @@ export function createGame({ state, noise }) {
         // Slow down
         p.speed = Math.max(1.0, p.speed - dt * 2);
         // Manual steering allowed? Or auto-steer back to road?
-        // Let's search for road
-        // Simple circle search
         // For now, just keep going straight-ish but slower
     }
 
