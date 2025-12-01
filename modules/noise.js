@@ -20,11 +20,11 @@ export function createNoiseEngine(state) {
     lacunarity: 2.1
   };
 
-  // Road Generation Constants
-  const ROAD_SCALE = 0.002;     // Very large scale for the grid
-  const ROAD_WARP = 60.0;       // How much the grid wiggles
-  const ROAD_SPACING = 200.0;   // Tiles between roads
-  const ROAD_WIDTH = 6.0;       // Half-width of road in tiles
+  // Road Generation Constants -> River Generation Constants
+  const RIVER_SCALE = 0.0015;    // Scale for the river network grid
+  const RIVER_WARP = 150.0;      // High warp for meandering rivers
+  const RIVER_SPACING = 300.0;   // Tiles between river branches
+  const RIVER_WIDTH = 25.0;      // Half-width of river channel in tiles
 
   // We now always use a single, tuned FBM-Perlin setup
   let config = Object.assign({}, DEFAULT_CONFIG);
@@ -59,49 +59,44 @@ export function createNoiseEngine(state) {
     return v;
   }
 
-  // --- Road System ---
-  // Returns { distance, type, vector }
-  // distance: 0 = center, 1 = edge, >1 = offroad
-  function getRoadInfo(x, y) {
-    // 1. Domain Warping
-    // We warp the coordinate space to make the grid irregular
-    const wx = x + simplex3(x * ROAD_SCALE, y * ROAD_SCALE, 0) * ROAD_WARP;
-    const wy = y + simplex3(x * ROAD_SCALE + 100, y * ROAD_SCALE + 100, 0) * ROAD_WARP;
+  // --- River System ---
+  // Returns { value, isRiver, isIntersection, distX, distY, ... }
+  // value: Normalized distance from center (0=center, 1=bank edge)
+  function getRiverSystem(x, y) {
+    // 1. Domain Warping for organic river paths
+    const wx = x + simplex3(x * RIVER_SCALE, y * RIVER_SCALE, 0) * RIVER_WARP;
+    const wy = y + simplex3(x * RIVER_SCALE + 100, y * RIVER_SCALE + 100, 0) * RIVER_WARP;
 
     // 2. Distance to nearest grid lines
-    // Coordinates in "Grid Space"
-    const gx = wx / ROAD_SPACING;
-    const gy = wy / ROAD_SPACING;
+    const gx = wx / RIVER_SPACING;
+    const gy = wy / RIVER_SPACING;
 
-    // Distance to nearest integer line (0..0.5)
+    // Distance to nearest integer line
     const dx = Math.abs(gx - Math.round(gx)); 
     const dy = Math.abs(gy - Math.round(gy));
 
     // Convert back to world units
-    const distX = dx * ROAD_SPACING;
-    const distY = dy * ROAD_SPACING;
+    const distX = dx * RIVER_SPACING;
+    const distY = dy * RIVER_SPACING;
 
-    // 3. Determine Road Status
-    // We are on a road if either dist is small.
-    // Intersection if BOTH are small.
-    
-    // Smooth union for distance field? simple min is fine
+    // 3. Determine River Status
+    // River is the union of the grid lines (Voronoi edges in this metric)
     const minDist = Math.min(distX, distY);
     
-    // Normalized distance (0 at center, 1 at edge)
-    const normDist = minDist / ROAD_WIDTH;
+    // Normalized distance (0 at center, 1.0 at defined width edge)
+    // We allow it to go > 1.0 for terrain generation purposes
+    const normDist = minDist / RIVER_WIDTH;
 
-    // Intersection factor (1 = center of intersection, 0 = far from intersection)
-    // Intersection happens when both distX and distY are < ROAD_WIDTH * 1.5 roughly
-    const intersectionMetric = Math.max(0, 1 - (Math.max(distX, distY) / (ROAD_WIDTH * 3)));
+    // Intersection factor
+    const intersectionMetric = Math.max(0, 1 - (Math.max(distX, distY) / (RIVER_WIDTH * 4.0)));
 
     return {
-      value: normDist, // < 1.0 means on road
-      isRoad: normDist < 1.0,
+      value: normDist, 
+      isRiver: normDist < 1.0,
       isIntersection: intersectionMetric > 0.1,
       distX,
       distY,
-      gx, // warped grid coords, useful for deterministic random choices
+      gx, 
       gy
     };
   }
@@ -122,7 +117,7 @@ export function createNoiseEngine(state) {
   return {
     sample,
     sample2D,
-    getRoadInfo,
+    getRiverSystem,
     setSeed,
     setConfig,
     getConfig

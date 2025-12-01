@@ -4,51 +4,70 @@ export function createGame({ state, noise }) {
   const ENTITY_CITY = 'city';
   const ENTITY_RELIC = 'relic';
 
-  // Tile Types (based on height)
-  const TILE_DEEP_WATER = 0;
-  const TILE_WATER = 1;
-  const TILE_SAND = 2;
+  // Tile Types (repurposed for River Biome)
+  const TILE_RIVER_DEEP = 0;
+  const TILE_RIVER_SHALLOW = 1;
+  const TILE_BANK = 2;        // Mud/Sand/Reeds
   const TILE_GRASS = 3;
   const TILE_FOREST = 4;
-  const TILE_ROCK = 5;
-  const TILE_SNOW = 6;
-  const TILE_ROAD = 7; // New Type
+  const TILE_HILL = 5;
+  const TILE_MOUNTAIN = 6;
+  const TILE_SNOW = 7; 
 
   // Constants
-  const STEER_STRENGTH = 2.0; 
-  const INTERACTION_RADIUS = 3.0; // Tiles
+  const INTERACTION_RADIUS = 35.0; // Increased to cover river width + bank
 
   // Helper to get raw height 0..1 from noise
+  // In this theme, the river network DEFINES the heightmap.
+  // Rivers are at height 0, terrain slopes up away from them.
   function getHeight(x, y) {
-    // Terrain base
-    const raw = noise.sample(x, y, 0);
-    let h = (raw + 1) * 0.5;
-    h = h * h * (3 - 2 * h); // Smoothstep
+    const river = noise.getRiverSystem(x, y);
+    
+    // Base height is distance from river center
+    // river.value is 0 at center, 1 at bank edge.
+    // We scale this up so terrain gets quite high far from rivers
+    let baseH = river.value * 0.15; 
 
-    // Flatten terrain under roads?
-    const road = noise.getRoadInfo(x, y);
-    if (road.isRoad) {
-       // Lerp height towards a "safe" level (e.g. 0.4) based on how close to road center
-       const roadWeight = 1.0 - Math.min(1, road.value); // 1 at center, 0 at edge
-       h = h * (1 - roadWeight) + 0.45 * roadWeight;
+    // Add noise texture
+    // We use lower frequency noise for large features
+    const n1 = noise.sample(x * 0.5, y * 0.5, 0); // High freq detail
+    const n2 = noise.sample(x * 0.1, y * 0.1, 100); // Low freq swell
+
+    // Combine: Elevation increases with distance from river + noise
+    let h = baseH + (n1 * 0.05) + (n2 * 0.15);
+    
+    // Clamp to 0..1
+    // Shift up slightly so rivers aren't always exactly 0
+    h += 0.1;
+    
+    // Ensure river channel is definitely low
+    if (river.value < 0.8) {
+        // Smoothly carve the channel
+        // If we are inside the river width, suppress height
+        const depth = 1.0 - (river.value / 0.8);
+        h -= depth * 0.2; // Dig down
     }
 
-    return h;
+    return Math.max(0, Math.min(1, h));
   }
 
   function getTile(x, y) {
-    const road = noise.getRoadInfo(x, y);
-    if (road.isRoad) return TILE_ROAD;
-
+    const river = noise.getRiverSystem(x, y);
     const h = getHeight(x, y);
-    
-    // Tuned bands for more natural coastlines and biomes
-    if (h < 0.20) return TILE_DEEP_WATER;
-    if (h < 0.32) return TILE_WATER;
-    if (h < 0.37) return TILE_SAND;
-    if (h < 0.60) return TILE_GRASS;
-    if (h < 0.72) return TILE_FOREST;
-    if (h < 0.88) return TILE_ROCK;
+
+    // River Channel Logic
+    // Even if noise pushes land up, the river 'force' cuts through
+    if (river.value < 0.6) return TILE_RIVER_DEEP;
+    if (river.value < 1.0) return TILE_RIVER_SHALLOW;
+
+    // Banks
+    if (river.value < 1.3) return TILE_BANK;
+
+    // Land Biomes based on height
+    if (h < 0.35) return TILE_GRASS;
+    if (h < 0.55) return TILE_FOREST;
+    if (h < 0.75) return TILE_HILL;
+    if (h < 0.90) return TILE_MOUNTAIN;
     return TILE_SNOW;
   }
 
@@ -272,7 +291,7 @@ export function createGame({ state, noise }) {
     spawnEntity,
     update,
     CONSTANTS: {
-      TILE_DEEP_WATER, TILE_WATER, TILE_SAND, TILE_GRASS, TILE_FOREST, TILE_ROCK, TILE_SNOW,
+      TILE_RIVER_DEEP, TILE_RIVER_SHALLOW, TILE_BANK, TILE_GRASS, TILE_FOREST, TILE_HILL, TILE_MOUNTAIN, TILE_SNOW,
       ENTITY_CITY, ENTITY_RELIC
     }
   };
