@@ -15,188 +15,77 @@ export function createRenderer({ canvas, state, game, noise }) {
   const CHUNK_SIZE = 16; 
   const chunkCache = new Map(); 
 
-  // Deterministic vertex offset for low-poly look
-  function getVertexOffset(x, y, corner) {
-    // Use simple hash-like function for deterministic pseudo-random offsets
-    const seed = (x * 73856093) ^ (y * 19349663) ^ (corner * 83492791);
-    const hash = Math.sin(seed) * 43758.5453123;
-    const offset = (hash - Math.floor(hash)) * 0.3; // 0 to 0.3 range
-    return offset;
+  // Pseudo-random vertex perturbation (world grid coords)
+  function getVertexOffset(wx, wy, comp) {
+    const seed = (wx * 73856093 ^ wy * 19349663) ^ comp;
+    const hash = Math.sin(seed * 12.9898) * 43758.5453;
+    return ((hash % 1) - 0.5) * 0.4; // -0.2 to 0.2 grid units
   }
 
-  // Choose diagonal direction deterministically
-  function getDiagonalDir(x, y) {
-    // Checkerboard-like pattern with some noise
-    const hash = ((x * 73) ^ (y * 31)) % 2;
-    return hash === 0 ? 'tl-br' : 'tr-bl';
-  }
+  // Monotone chain convex hull (grid units)
+  function convexHull(pts) {
+    if (pts.length < 3) return [];
+    const sorted = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
+    const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 
-  // =========================
-  // Vector Terrain Extensions
-  // =========================
-
-  // Config (tweakable)
-  const CONNECTION_SPAN = 2; // how many tiles grouped per vector cell
-  const NOISE_INTENSITY = 0.35;
-  const HEIGHT_AMPLITUDE = () => state.tileSize * 0.6;
-
-  // Simple deterministic pseudo-noise for vertex placement
-  function noise2D(x, y) {
-    const sx = x * 0.3;
-    const sy = y * 0.3;
-    return (Math.sin(sx + y) * Math.cos(sy) + Math.sin(sx * 0.7) * Math.cos(sy * 0.7)) / 2;
-  }
-
-  // Vertex cache shared across chunks (per frame/chunk generation may reset)
-  if (!state.vertexCache) state.vertexCache = new Map();
-
-  // Get average height for a region (used for vertex displacement)
-  function getAverageHeight(x, y, size) {
-    let total = 0;
-    let count = 0;
-    for (let iy = 0; iy < size; iy++) {
-      for (let ix = 0; ix < size; ix++) {
-        const wx = Math.floor(x) + ix;
-        const wy = Math.floor(y) + iy;
-        total += (game.getHeight(wx, wy) || 0);
-        count++;
+    const build = (points) => {
+      const hull = [];
+      for (let p of points) {
+        while (hull.length >= 2 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) {
+          hull.pop();
+        }
+        hull.push(p);
       }
-    }
-    return count ? total / count : 0;
+      return hull;
+    };
+
+    const lower = build(sorted);
+    const upper = build(sorted.slice().reverse());
+
+    // Concat without duplicates
+    const hull = [...lower.slice(0, -1), ...upper.slice(0, -1)];
+    return hull.length >= 3 ? hull : [];
   }
 
-  // Shared vertex generation using connection span
-  function getSharedVertex(worldX, worldY) {
-    const gridX = Math.floor(worldX / CONNECTION_SPAN) * CONNECTION_SPAN;
-    const gridY = Math.floor(worldY / CONNECTION_SPAN) * CONNECTION_SPAN;
-    const key = `${gridX},${gridY}`;
-    if (!state.vertexCache.has(key)) {
-      const baseX = gridX + CONNECTION_SPAN / 2;
-      const baseY = gridY + CONNECTION_SPAN / 2;
+  // 4-connected floodfill (returns cells & avg height)
+  function floodFill(tileGrid, heightGrid, visited, sx, sy, tileType) {
+    const cells = [];
+    let sumH = 0;
+    const stack = [[sx, sy]];
+    const dirs = [[0,1],[1,0],[0,-1],[-1,0]];
 
-      const height = getAverageHeight(gridX, gridY, CONNECTION_SPAN);
-      const nx = noise2D(gridX, gridY);
-      const ny = noise2D(gridX + 123, gridY + 456);
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      if (cx < 0 || cx >= CHUNK_SIZE || cy < 0 || cy >= CHUNK_SIZE ||
+          visited[cy][cx] || tileGrid[cy][cx] !== tileType) continue;
 
-      const displaceX = nx * NOISE_INTENSITY * state.tileSize;
-      const displaceY = ny * NOISE_INTENSITY * state.tileSize;
+      visited[cy][cx] = true;
+      cells.push({ x: cx, y: cy });
+      sumH += heightGrid[cy][cx];
 
-      state.vertexCache.set(key, {
-        x: baseX * state.tileSize + displaceX,
-        y: baseY * state.tileSize - height * HEIGHT_AMPLITUDE() + displaceY
-      });
-    }
-    return state.vertexCache.get(key);
-  }
-
-  // Height-aware shading helper
-  function getTerrainColor(tileType, height) {
-    const base = COLORS[tileType] || '#f0f';
-    const shade = (height - 0.5) * 0.6;
-    const r = parseInt(base.slice(1, 3), 16);
-    const g = parseInt(base.slice(3, 5), 16);
-    const b = parseInt(base.slice(5, 7), 16);
-    const nr = Math.min(255, Math.max(0, Math.round(r + shade * 255)));
-    const ng = Math.min(255, Math.max(0, Math.round(g + shade * 255)));
-    const nb = Math.min(255, Math.max(0, Math.round(b + shade * 255)));
-    return `rgb(${nr},${ng},${nb})`;
-  }
-
-  // Render a vector cell covering CONNECTION_SPAN x CONNECTION_SPAN tiles
-  function renderVectorCell(cCtx, cellWorldX, cellWorldY, chunkOriginX, chunkOriginY) {
-    const tileSize = state.tileSize;
-    const span = CONNECTION_SPAN;
-
-    // World tile coords (integers)
-    const wx = Math.floor(cellWorldX);
-    const wy = Math.floor(cellWorldY);
-
-    // Shared vertices at the 4 corners (in world tile coordinates)
-    const tl = getSharedVertex(wx, wy);
-    const tr = getSharedVertex(wx + span, wy);
-    const bl = getSharedVertex(wx, wy + span);
-    const br = getSharedVertex(wx + span, wy + span);
-
-    // Midpoints with noise-driven offsets
-    const midTop = {
-      x: (tl.x + tr.x) / 2 + noise2D(wx, wy) * NOISE_INTENSITY * tileSize,
-      y: (tl.y + tr.y) / 2
-    };
-    const midRight = {
-      x: (tr.x + br.x) / 2,
-      y: (tr.y + br.y) / 2 + noise2D(wx + span, wy) * NOISE_INTENSITY * tileSize
-    };
-    const midBottom = {
-      x: (bl.x + br.x) / 2 - noise2D(wx, wy + span) * NOISE_INTENSITY * tileSize,
-      y: (bl.y + br.y) / 2
-    };
-    const midLeft = {
-      x: (tl.x + bl.x) / 2,
-      y: (tl.y + bl.y) / 2 - noise2D(wx + span, wy + span) * NOISE_INTENSITY * tileSize
-    };
-
-    // Determine dominant tile type and average height for the region
-    let dominantType = game.CONSTANTS.TILE_GRASS;
-    let totalHeight = 0;
-    let counts = {};
-    for (let yy = 0; yy < span; yy++) {
-      for (let xx = 0; xx < span; xx++) {
-        const tx = wx + xx;
-        const ty = wy + yy;
-        const type = game.getTile(tx, ty);
-        const h = game.getHeight(tx, ty) || 0;
-        totalHeight += h;
-        counts[type] = (counts[type] || 0) + 1;
-      }
-    }
-    const avgHeight = totalHeight / (span * span);
-
-    // pick most common tile type
-    let maxCount = 0;
-    for (const t in counts) {
-      if (counts[t] > maxCount) {
-        maxCount = counts[t];
-        dominantType = parseInt(t, 10);
+      for (let [dx, dy] of dirs) {
+        stack.push([cx + dx, cy + dy]);
       }
     }
 
-    const fillColor = getTerrainColor(dominantType, avgHeight);
-
-    // Convert world-pixel coordinates to chunk-local pixels by subtracting chunk origin (in pixels)
-    const originPxX = chunkOriginX * tileSize;
-    const originPxY = chunkOriginY * tileSize;
-
-    // Draw the polygon
-    cCtx.fillStyle = fillColor;
-    cCtx.beginPath();
-    cCtx.moveTo(tl.x - originPxX, tl.y - originPxY);
-    cCtx.lineTo(midTop.x - originPxX, midTop.y - originPxY);
-    cCtx.lineTo(tr.x - originPxX, tr.y - originPxY);
-    cCtx.lineTo(midRight.x - originPxX, midRight.y - originPxY);
-    cCtx.lineTo(br.x - originPxX, br.y - originPxY);
-    cCtx.lineTo(midBottom.x - originPxX, midBottom.y - originPxY);
-    cCtx.lineTo(bl.x - originPxX, bl.y - originPxY);
-    cCtx.lineTo(midLeft.x - originPxX, midLeft.y - originPxY);
-    cCtx.closePath();
-    cCtx.fill();
-
-    // Optional highlights for large tiles
-    if (state.tileSize > 48) {
-      cCtx.strokeStyle = 'rgba(255,255,255,0.08)';
-      cCtx.lineWidth = 1;
-      cCtx.beginPath();
-      cCtx.moveTo(midTop.x - originPxX, midTop.y - originPxY);
-      cCtx.lineTo(midRight.x - originPxX, midRight.y - originPxY);
-      cCtx.lineTo(midBottom.x - originPxX, midBottom.y - originPxY);
-      cCtx.lineTo(midLeft.x - originPxX, midLeft.y - originPxY);
-      cCtx.closePath();
-      cCtx.stroke();
-    }
+    return {
+      cells,
+      avgH: cells.length > 0 ? sumH / cells.length : 0
+    };
   }
 
-  // ==============================
-  // Vector-aware Chunk Generator
-  // ==============================
+  function resize() {
+    const dpr = state.pixelRatio;
+    state.width = window.innerWidth;
+    state.height = window.innerHeight;
+    canvas.width = state.width * dpr;
+    canvas.height = state.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    
+    chunkCache.clear();
+  }
+
   function getChunk(cx, cy) {
     const key = `${cx},${cy}`;
     if (chunkCache.has(key)) {
@@ -212,57 +101,123 @@ export function createRenderer({ canvas, state, game, noise }) {
     cCanvas.height = pxSize;
     const cCtx = cCanvas.getContext('2d', { alpha: false });
 
-    // Reset vertex cache for this chunk so vertices are consistent inside chunk and shared across cells
-    // We keep a global vertex cache in state to share across chunk renders in one frame, but clear per-chunk here
-    // to limit memory growth (caller may clear globally on zoom).
-    // For smoother seams across chunks, you could omit this clear; for now we reuse state.vertexCache across chunks.
-    // state.vertexCache = new Map();
-
+    // Fill logic
     const startX = cx * CHUNK_SIZE;
     const startY = cy * CHUNK_SIZE;
     const tileSize = state.tileSize;
 
-    // Render vector cells in CONNECTION_SPAN blocks
-    for (let y = 0; y < CHUNK_SIZE; y += CONNECTION_SPAN) {
-      for (let x = 0; x < CHUNK_SIZE; x += CONNECTION_SPAN) {
+    // Precompute grids for chunk
+    const tileGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(0));
+    const heightGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(0));
+    const visited = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(false));
+
+    for (let y = 0; y < CHUNK_SIZE; y++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
         const worldX = startX + x;
         const worldY = startY + y;
 
-        // Skip invisible or out-of-world checks are optional; game world may be infinite.
-        // pass chunk origin so the renderer can convert world pixel coords to chunk-local coords
-        renderVectorCell(cCtx, worldX, worldY, startX, startY);
+        const tileType = game.getTile(worldX, worldY);
+        tileGrid[y][x] = tileType;
+        heightGrid[y][x] = game.getHeight(worldX, worldY);
       }
     }
 
-    // Optionally overlay rivers/roads as small markers for clarity
-    if (state.showRoads) {
-      for (let y = 0; y < CHUNK_SIZE; y++) {
-        for (let x = 0; x < CHUNK_SIZE; x++) {
-          const worldX = startX + x;
-          const worldY = startY + y;
-          const tile = game.getTile(worldX, worldY);
-          if (tile === game.CONSTANTS.TILE_RIVER_DEEP || tile === game.CONSTANTS.TILE_RIVER_SHALLOW) {
-            cCtx.fillStyle = 'rgba(255,255,255,0.06)';
-            cCtx.fillRect(x * tileSize + tileSize * 0.2, y * tileSize + tileSize * 0.2, tileSize * 0.6, tileSize * 0.6);
+    const perturbScale = tileSize * 0.15;
+
+    // Phase 1: Crisp roads
+    for (let y = 0; y < CHUNK_SIZE; y++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const tileType = tileGrid[y][x];
+        if (tileType === game.CONSTANTS.TILE_ROAD) {
+          cCtx.fillStyle = COLORS[tileType] || '#f0f';
+          cCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          visited[y][x] = true; // Mark to skip in terrain
+        }
+      }
+    }
+
+    // Phase 2: Hull polygons for terrain components
+    for (let y = 0; y < CHUNK_SIZE; y++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const tileType = tileGrid[y][x];
+        if (visited[y][x] || tileType === 0 || tileType === game.CONSTANTS.TILE_ROAD) continue;
+
+        const { cells, avgH } = floodFill(tileGrid, heightGrid, visited, x, y, tileType);
+
+        // Collect unique corners (chunk-local grid 0..CHUNK_SIZE)
+        const corners = new Set();
+        for (let { x: cxCell, y: cyCell } of cells) {
+          corners.add(`${cxCell},${cyCell}`);
+          corners.add(`${cxCell + 1},${cyCell}`);
+          corners.add(`${cxCell},${cyCell + 1}`);
+          corners.add(`${cxCell + 1},${cyCell + 1}`);
+        }
+
+        const points = Array.from(corners, s => {
+          const [px, py] = s.split(',').map(Number);
+          return { x: px, y: py };
+        });
+
+        const hull = convexHull(points);
+        if (hull.length < 3) continue;
+
+        const baseColor = COLORS[tileType] || '#f0f';
+        const shadeAmt = (avgH - 0.5) * 0.4;
+
+        // Base fill
+        cCtx.fillStyle = baseColor;
+        cCtx.beginPath();
+        for (let i = 0; i < hull.length; i++) {
+          const p = hull[i];
+          const wx = startX + p.x;
+          const wy = startY + p.y;
+          const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
+          const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
+          if (i === 0) cCtx.moveTo(px, py);
+          else cCtx.lineTo(px, py);
+        }
+        cCtx.closePath();
+        cCtx.fill();
+
+        // Height shading overlay
+        if (shadeAmt !== 0) {
+          cCtx.fillStyle = shadeAmt > 0 ? `rgba(255,255,255,${Math.min(0.5, shadeAmt)})` : `rgba(0,0,0,${Math.min(0.5, -shadeAmt)})`;
+          cCtx.beginPath();
+          for (let i = 0; i < hull.length; i++) {
+            const p = hull[i];
+            const wx = startX + p.x;
+            const wy = startY + p.y;
+            const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
+            const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
+            if (i === 0) cCtx.moveTo(px, py);
+            else cCtx.lineTo(px, py);
           }
+          cCtx.closePath();
+          cCtx.fill();
+        }
+
+        // Optional subtle outline for large tilesizes
+        if (tileSize > 48) {
+          cCtx.strokeStyle = 'rgba(0,0,0,0.08)';
+          cCtx.lineWidth = 1;
+          cCtx.beginPath();
+          for (let i = 0; i < hull.length; i++) {
+            const p = hull[i];
+            const wx = startX + p.x;
+            const wy = startY + p.y;
+            const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
+            const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
+            if (i === 0) cCtx.moveTo(px, py);
+            else cCtx.lineTo(px, py);
+          }
+          cCtx.closePath();
+          cCtx.stroke();
         }
       }
     }
 
     chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now() });
     return cCanvas;
-  }
-
-  function resize() {
-    const dpr = state.pixelRatio;
-    state.width = window.innerWidth;
-    state.height = window.innerHeight;
-    canvas.width = state.width * dpr;
-    canvas.height = state.height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    
-    chunkCache.clear();
   }
 
   function renderFrame(timestamp) {
@@ -439,7 +394,6 @@ export function createRenderer({ canvas, state, game, noise }) {
   // Clear chunk cache when zoom level (tileSize) changes
   function clearCache() {
     chunkCache.clear();
-    state.vertexCache = new Map();
   }
 
   return { start, stop, resize, renderFrame, clearCache };
