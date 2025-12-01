@@ -1,5 +1,5 @@
 import { createAppState } from './state.js';
-import { createRenderer } from './canvas.js';
+import { createRenderer } from './renderer/index.js';
 import { createUI } from './ui.js';
 import { createNoiseEngine } from './noise.js';
 import { createGame } from './game.js';
