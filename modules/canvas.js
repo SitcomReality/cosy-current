@@ -19,6 +19,51 @@ export function createRenderer({ canvas, state, game }) {
   const CHUNK_SIZE = 16; // 16x16 tiles per chunk
   const chunkCache = new Map(); // key: "x,y", value: { canvas, lastUsed }
 
+  // Helper: convert hex color to RGB
+  function hexToRgb(hex) {
+    if (!hex) return { r: 255, g: 0, b: 255 }; // Fallback magenta
+    const h = hex.startsWith('#') ? hex.slice(1) : hex;
+    if (h.length === 3) {
+      const r = parseInt(h[0] + h[0], 16);
+      const g = parseInt(h[1] + h[1], 16);
+      const b = parseInt(h[2] + h[2], 16);
+      return { r, g, b };
+    }
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return { r, g, b };
+  }
+
+  // Compute a smoothly blended base RGB color for a tile by sampling around its center
+  function getBlendedTileColor(worldX, worldY) {
+    // Sample at four sub-tile offsets to soften hard tile boundaries
+    const samples = [
+      { sx: worldX + 0.25, sy: worldY + 0.25 },
+      { sx: worldX + 0.75, sy: worldY + 0.25 },
+      { sx: worldX + 0.25, sy: worldY + 0.75 },
+      { sx: worldX + 0.75, sy: worldY + 0.75 }
+    ];
+
+    let rAcc = 0, gAcc = 0, bAcc = 0, count = 0;
+    for (const s of samples) {
+      const t = game.getTile(s.sx, s.sy);
+      const hex = COLORS[t] || '#ff00ff';
+      const { r, g, b } = hexToRgb(hex);
+      rAcc += r;
+      gAcc += g;
+      bAcc += b;
+      count++;
+    }
+
+    if (count === 0) return { r: 255, g: 0, b: 255 };
+    return {
+      r: rAcc / count,
+      g: gAcc / count,
+      b: bAcc / count
+    };
+  }
+
   function resize() {
     const dpr = state.pixelRatio;
     state.width = window.innerWidth;
@@ -59,30 +104,25 @@ export function createRenderer({ canvas, state, game }) {
         const worldX = startX + x;
         const worldY = startY + y;
         
-        const tileType = game.getTile(worldX, worldY);
+        // Smoothly blend terrain colors within the tile to conceal the underlying grid
+        const baseRgb = getBlendedTileColor(worldX, worldY);
         const drawX = x * tileSize;
         const drawY = y * tileSize;
 
-        cCtx.fillStyle = COLORS[tileType] || '#f0f';
+        // Base blended color
+        cCtx.fillStyle = `rgb(${baseRgb.r | 0}, ${baseRgb.g | 0}, ${baseRgb.b | 0})`;
+        cCtx.fillRect(drawX, drawY, drawSize, drawSize);
 
-        if (tileType === game.CONSTANTS.TILE_ROAD) {
+        // Terrain Detail / Shading
+        const h = game.getHeight(worldX + 0.5, worldY + 0.5);
+        const shade = (h - 0.5) * 0.5; // -0.25 to 0.25
+
+        if (shade > 0) {
+          cCtx.fillStyle = `rgba(255,255,255,${shade})`;
           cCtx.fillRect(drawX, drawY, drawSize, drawSize);
-        } else {
-          // Terrain Detail
-          const h = game.getHeight(worldX, worldY);
-          const shade = (h - 0.5) * 0.5; // -0.25 to 0.25
-
-          // Base
+        } else if (shade < 0) {
+          cCtx.fillStyle = `rgba(0,0,0,${-shade})`;
           cCtx.fillRect(drawX, drawY, drawSize, drawSize);
-
-          // Simple flat shading overlay
-          if (shade > 0) {
-             cCtx.fillStyle = `rgba(255,255,255,${shade})`;
-             cCtx.fillRect(drawX, drawY, drawSize, drawSize);
-          } else {
-             cCtx.fillStyle = `rgba(0,0,0,${-shade})`;
-             cCtx.fillRect(drawX, drawY, drawSize, drawSize);
-          }
         }
       }
     }
