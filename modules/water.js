@@ -6,10 +6,10 @@ export function createWaterEffects({ state, game, noise }) {
   const shorelineWaves = [];
 
   const WAKE_SEGMENT_LIFE = 2.0; // seconds
-  const WAKE_SPAWN_INTERVAL = 0.05; // spawn new segment every N seconds
+  const WAKE_SPAWN_INTERVAL = 0.1; // spawn new segment every N seconds
   // All distances in this module are expressed in world "tile" units and
   // converted to pixels in render() using the current tileSize.
-  const MIN_LINE_LENGTH = 0.25; // tiles
+  const MIN_LINE_LENGTH = 1; // tiles
 
   let wakeTimer = 0;
 
@@ -25,7 +25,7 @@ export function createWaterEffects({ state, game, noise }) {
     if (!isWater) return;
 
     const intensity = Math.min(1, speed / 5);
-    const baseSpread = 0.8; // tiles
+    const baseSpread = 1.5; // tiles
 
     // Create V-shaped wake pattern with straight line segments
     for (let side of [-1, 1]) {
