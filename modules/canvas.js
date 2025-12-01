@@ -31,18 +31,168 @@ export function createRenderer({ canvas, state, game, noise }) {
     return hash === 0 ? 'tl-br' : 'tr-bl';
   }
 
-  function resize() {
-    const dpr = state.pixelRatio;
-    state.width = window.innerWidth;
-    state.height = window.innerHeight;
-    canvas.width = state.width * dpr;
-    canvas.height = state.height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    
-    chunkCache.clear();
+  // =========================
+  // Vector Terrain Extensions
+  // =========================
+
+  // Config (tweakable)
+  const CONNECTION_SPAN = 2; // how many tiles grouped per vector cell
+  const NOISE_INTENSITY = 0.35;
+  const HEIGHT_AMPLITUDE = () => state.tileSize * 0.6;
+
+  // Simple deterministic pseudo-noise for vertex placement
+  function noise2D(x, y) {
+    const sx = x * 0.3;
+    const sy = y * 0.3;
+    return (Math.sin(sx + y) * Math.cos(sy) + Math.sin(sx * 0.7) * Math.cos(sy * 0.7)) / 2;
   }
 
+  // Vertex cache shared across chunks (per frame/chunk generation may reset)
+  if (!state.vertexCache) state.vertexCache = new Map();
+
+  // Get average height for a region (used for vertex displacement)
+  function getAverageHeight(x, y, size) {
+    let total = 0;
+    let count = 0;
+    for (let iy = 0; iy < size; iy++) {
+      for (let ix = 0; ix < size; ix++) {
+        const wx = Math.floor(x) + ix;
+        const wy = Math.floor(y) + iy;
+        total += (game.getHeight(wx, wy) || 0);
+        count++;
+      }
+    }
+    return count ? total / count : 0;
+  }
+
+  // Shared vertex generation using connection span
+  function getSharedVertex(worldX, worldY) {
+    const gridX = Math.floor(worldX / CONNECTION_SPAN) * CONNECTION_SPAN;
+    const gridY = Math.floor(worldY / CONNECTION_SPAN) * CONNECTION_SPAN;
+    const key = `${gridX},${gridY}`;
+    if (!state.vertexCache.has(key)) {
+      const baseX = gridX + CONNECTION_SPAN / 2;
+      const baseY = gridY + CONNECTION_SPAN / 2;
+
+      const height = getAverageHeight(gridX, gridY, CONNECTION_SPAN);
+      const nx = noise2D(gridX, gridY);
+      const ny = noise2D(gridX + 123, gridY + 456);
+
+      const displaceX = nx * NOISE_INTENSITY * state.tileSize;
+      const displaceY = ny * NOISE_INTENSITY * state.tileSize;
+
+      state.vertexCache.set(key, {
+        x: baseX * state.tileSize + displaceX,
+        y: baseY * state.tileSize - height * HEIGHT_AMPLITUDE() + displaceY
+      });
+    }
+    return state.vertexCache.get(key);
+  }
+
+  // Height-aware shading helper
+  function getTerrainColor(tileType, height) {
+    const base = COLORS[tileType] || '#f0f';
+    const shade = (height - 0.5) * 0.6;
+    const r = parseInt(base.slice(1, 3), 16);
+    const g = parseInt(base.slice(3, 5), 16);
+    const b = parseInt(base.slice(5, 7), 16);
+    const nr = Math.min(255, Math.max(0, Math.round(r + shade * 255)));
+    const ng = Math.min(255, Math.max(0, Math.round(g + shade * 255)));
+    const nb = Math.min(255, Math.max(0, Math.round(b + shade * 255)));
+    return `rgb(${nr},${ng},${nb})`;
+  }
+
+  // Render a vector cell covering CONNECTION_SPAN x CONNECTION_SPAN tiles
+  function renderVectorCell(cCtx, cellWorldX, cellWorldY, localX, localY) {
+    const tileSize = state.tileSize;
+    const span = CONNECTION_SPAN;
+
+    // World tile coords (integers)
+    const wx = Math.floor(cellWorldX);
+    const wy = Math.floor(cellWorldY);
+
+    // Shared vertices at the 4 corners (in world tile coordinates)
+    const tl = getSharedVertex(wx, wy);
+    const tr = getSharedVertex(wx + span, wy);
+    const bl = getSharedVertex(wx, wy + span);
+    const br = getSharedVertex(wx + span, wy + span);
+
+    // Midpoints with noise-driven offsets
+    const midTop = {
+      x: (tl.x + tr.x) / 2 + noise2D(wx, wy) * NOISE_INTENSITY * tileSize,
+      y: (tl.y + tr.y) / 2
+    };
+    const midRight = {
+      x: (tr.x + br.x) / 2,
+      y: (tr.y + br.y) / 2 + noise2D(wx + span, wy) * NOISE_INTENSITY * tileSize
+    };
+    const midBottom = {
+      x: (bl.x + br.x) / 2 - noise2D(wx, wy + span) * NOISE_INTENSITY * tileSize,
+      y: (bl.y + br.y) / 2
+    };
+    const midLeft = {
+      x: (tl.x + bl.x) / 2,
+      y: (tl.y + bl.y) / 2 - noise2D(wx + span, wy + span) * NOISE_INTENSITY * tileSize
+    };
+
+    // Determine dominant tile type and average height for the region
+    let dominantType = game.CONSTANTS.TILE_GRASS;
+    let totalHeight = 0;
+    let counts = {};
+    for (let yy = 0; yy < span; yy++) {
+      for (let xx = 0; xx < span; xx++) {
+        const tx = wx + xx;
+        const ty = wy + yy;
+        const type = game.getTile(tx, ty);
+        const h = game.getHeight(tx, ty) || 0;
+        totalHeight += h;
+        counts[type] = (counts[type] || 0) + 1;
+      }
+    }
+    const avgHeight = totalHeight / (span * span);
+
+    // pick most common tile type
+    let maxCount = 0;
+    for (const t in counts) {
+      if (counts[t] > maxCount) {
+        maxCount = counts[t];
+        dominantType = parseInt(t, 10);
+      }
+    }
+
+    const fillColor = getTerrainColor(dominantType, avgHeight);
+
+    // Draw the polygon
+    cCtx.fillStyle = fillColor;
+    cCtx.beginPath();
+    cCtx.moveTo(tl.x - localX * tileSize, tl.y - localY * tileSize);
+    cCtx.lineTo(midTop.x - localX * tileSize, midTop.y - localY * tileSize);
+    cCtx.lineTo(tr.x - localX * tileSize, tr.y - localY * tileSize);
+    cCtx.lineTo(midRight.x - localX * tileSize, midRight.y - localY * tileSize);
+    cCtx.lineTo(br.x - localX * tileSize, br.y - localY * tileSize);
+    cCtx.lineTo(midBottom.x - localX * tileSize, midBottom.y - localY * tileSize);
+    cCtx.lineTo(bl.x - localX * tileSize, bl.y - localY * tileSize);
+    cCtx.lineTo(midLeft.x - localX * tileSize, midLeft.y - localY * tileSize);
+    cCtx.closePath();
+    cCtx.fill();
+
+    // Optional highlights for large tiles
+    if (state.tileSize > 48) {
+      cCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+      cCtx.lineWidth = 1;
+      cCtx.beginPath();
+      cCtx.moveTo(midTop.x - localX * tileSize, midTop.y - localY * tileSize);
+      cCtx.lineTo(midRight.x - localX * tileSize, midRight.y - localY * tileSize);
+      cCtx.lineTo(midBottom.x - localX * tileSize, midBottom.y - localY * tileSize);
+      cCtx.lineTo(midLeft.x - localX * tileSize, midLeft.y - localY * tileSize);
+      cCtx.closePath();
+      cCtx.stroke();
+    }
+  }
+
+  // ==============================
+  // Vector-aware Chunk Generator
+  // ==============================
   function getChunk(cx, cy) {
     const key = `${cx},${cy}`;
     if (chunkCache.has(key)) {
@@ -58,121 +208,56 @@ export function createRenderer({ canvas, state, game, noise }) {
     cCanvas.height = pxSize;
     const cCtx = cCanvas.getContext('2d', { alpha: false });
 
-    // Fill logic
+    // Reset vertex cache for this chunk so vertices are consistent inside chunk and shared across cells
+    // We keep a global vertex cache in state to share across chunk renders in one frame, but clear per-chunk here
+    // to limit memory growth (caller may clear globally on zoom).
+    // For smoother seams across chunks, you could omit this clear; for now we reuse state.vertexCache across chunks.
+    // state.vertexCache = new Map();
+
     const startX = cx * CHUNK_SIZE;
     const startY = cy * CHUNK_SIZE;
     const tileSize = state.tileSize;
 
-    for (let y = 0; y < CHUNK_SIZE; y++) {
-      for (let x = 0; x < CHUNK_SIZE; x++) {
+    // Render vector cells in CONNECTION_SPAN blocks
+    for (let y = 0; y < CHUNK_SIZE; y += CONNECTION_SPAN) {
+      for (let x = 0; x < CHUNK_SIZE; x += CONNECTION_SPAN) {
         const worldX = startX + x;
         const worldY = startY + y;
-        
-        const tileType = game.getTile(worldX, worldY);
-        const baseX = x * tileSize;
-        const baseY = y * tileSize;
 
-        const baseColor = COLORS[tileType] || '#f0f';
+        // Skip invisible or out-of-world checks are optional; game world may be infinite.
+        renderVectorCell(cCtx, worldX, worldY, x, y);
+      }
+    }
 
-        // Get height for shading
-        const h = game.getHeight(worldX, worldY);
-        const shade = (h - 0.5) * 0.4; // -0.2 to 0.2
-
-        // Apply shading to base color
-        let fillColor = baseColor;
-        if (shade > 0) {
-          const r = parseInt(baseColor.slice(1, 3), 16);
-          const g = parseInt(baseColor.slice(3, 5), 16);
-          const b = parseInt(baseColor.slice(5, 7), 16);
-          const nr = Math.min(255, r + shade * 255);
-          const ng = Math.min(255, g + shade * 255);
-          const nb = Math.min(255, b + shade * 255);
-          fillColor = `rgb(${nr}, ${ng}, ${nb})`;
-        } else if (shade < 0) {
-          const r = parseInt(baseColor.slice(1, 3), 16);
-          const g = parseInt(baseColor.slice(3, 5), 16);
-          const b = parseInt(baseColor.slice(5, 7), 16);
-          const nr = Math.max(0, r + shade * 255);
-          const ng = Math.max(0, g + shade * 255);
-          const nb = Math.max(0, b + shade * 255);
-          fillColor = `rgb(${nr}, ${ng}, ${nb})`;
-        }
-
-        // Define corner vertices with slight perturbation for organic feel
-        const perturbScale = tileSize * 0.15;
-        const tl = {
-          x: baseX + getVertexOffset(worldX, worldY, 0) * perturbScale,
-          y: baseY + getVertexOffset(worldX, worldY, 1) * perturbScale
-        };
-        const tr = {
-          x: baseX + tileSize - getVertexOffset(worldX + 1, worldY, 0) * perturbScale,
-          y: baseY + getVertexOffset(worldX + 1, worldY, 1) * perturbScale
-        };
-        const bl = {
-          x: baseX + getVertexOffset(worldX, worldY + 1, 0) * perturbScale,
-          y: baseY + tileSize - getVertexOffset(worldX, worldY + 1, 1) * perturbScale
-        };
-        const br = {
-          x: baseX + tileSize - getVertexOffset(worldX + 1, worldY + 1, 0) * perturbScale,
-          y: baseY + tileSize - getVertexOffset(worldX + 1, worldY + 1, 1) * perturbScale
-        };
-
-        // Split tile into two triangles along diagonal
-        const diag = getDiagonalDir(worldX, worldY);
-        
-        cCtx.fillStyle = fillColor;
-
-        if (diag === 'tl-br') {
-          // Triangle 1: top-left, top-right, bottom-right
-          cCtx.beginPath();
-          cCtx.moveTo(tl.x, tl.y);
-          cCtx.lineTo(tr.x, tr.y);
-          cCtx.lineTo(br.x, br.y);
-          cCtx.closePath();
-          cCtx.fill();
-
-          // Triangle 2: top-left, bottom-right, bottom-left
-          cCtx.beginPath();
-          cCtx.moveTo(tl.x, tl.y);
-          cCtx.lineTo(br.x, br.y);
-          cCtx.lineTo(bl.x, bl.y);
-          cCtx.closePath();
-          cCtx.fill();
-        } else {
-          // Triangle 1: top-left, top-right, bottom-left
-          cCtx.beginPath();
-          cCtx.moveTo(tl.x, tl.y);
-          cCtx.lineTo(tr.x, tr.y);
-          cCtx.lineTo(bl.x, bl.y);
-          cCtx.closePath();
-          cCtx.fill();
-
-          // Triangle 2: top-right, bottom-right, bottom-left
-          cCtx.beginPath();
-          cCtx.moveTo(tr.x, tr.y);
-          cCtx.lineTo(br.x, br.y);
-          cCtx.lineTo(bl.x, bl.y);
-          cCtx.closePath();
-          cCtx.fill();
-        }
-
-        // Optional: Draw subtle edge lines for definition
-        if (tileSize > 48) {
-          cCtx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
-          cCtx.lineWidth = 0.5;
-          cCtx.beginPath();
-          cCtx.moveTo(tl.x, tl.y);
-          cCtx.lineTo(tr.x, tr.y);
-          cCtx.lineTo(br.x, br.y);
-          cCtx.lineTo(bl.x, bl.y);
-          cCtx.closePath();
-          cCtx.stroke();
+    // Optionally overlay rivers/roads as small markers for clarity
+    if (state.showRoads) {
+      for (let y = 0; y < CHUNK_SIZE; y++) {
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+          const worldX = startX + x;
+          const worldY = startY + y;
+          const tile = game.getTile(worldX, worldY);
+          if (tile === game.CONSTANTS.TILE_RIVER_DEEP || tile === game.CONSTANTS.TILE_RIVER_SHALLOW) {
+            cCtx.fillStyle = 'rgba(255,255,255,0.06)';
+            cCtx.fillRect(x * tileSize + tileSize * 0.2, y * tileSize + tileSize * 0.2, tileSize * 0.6, tileSize * 0.6);
+          }
         }
       }
     }
 
     chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now() });
     return cCanvas;
+  }
+
+  function resize() {
+    const dpr = state.pixelRatio;
+    state.width = window.innerWidth;
+    state.height = window.innerHeight;
+    canvas.width = state.width * dpr;
+    canvas.height = state.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    
+    chunkCache.clear();
   }
 
   function renderFrame(timestamp) {
@@ -349,6 +434,7 @@ export function createRenderer({ canvas, state, game, noise }) {
   // Clear chunk cache when zoom level (tileSize) changes
   function clearCache() {
     chunkCache.clear();
+    state.vertexCache = new Map();
   }
 
   return { start, stop, resize, renderFrame, clearCache };
