@@ -75,7 +75,22 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         const worldX = startX + x;
         const worldY = startY + y;
 
-        const tileType = game.getTile(worldX, worldY);
+        let tileType = game.getTile(worldX, worldY);
+        
+        // Gradient Shallow Water: Banding
+        // Subdivide shallow water into "contour bands" based on river distance
+        // so we can render a gradient perpendicular to the river path.
+        if (tileType === game.CONSTANTS.TILE_RIVER_SHALLOW) {
+           const info = noise.getRiverSystem(worldX, worldY);
+           // Shallow zone roughly 0.6 (Deep edge) to 1.0 (Bank edge).
+           // Map this range to 5 discrete bands for the hull generator.
+           const val = Math.max(0.6, Math.min(1.0, info.value));
+           const t = (val - 0.6) / 0.4;
+           const band = Math.floor(t * 5);
+           // Use special ID range 100+ for these bands
+           tileType = 100 + Math.min(4, Math.max(0, band));
+        }
+
         tileGrid[y][x] = tileType;
         heightGrid[y][x] = game.getHeight(worldX, worldY);
       }
@@ -102,45 +117,6 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
       const ox = getVertexOffset(worldX, worldY, 0) * perturbScale;
       const oy = getVertexOffset(worldX, worldY, 1) * perturbScale;
       return { x: baseX + ox, y: baseY + oy };
-    }
-
-    // Precompute handy tile constants for readability
-    const TILE_RIVER_DEEP = game.CONSTANTS.TILE_RIVER_DEEP;
-    const TILE_RIVER_SHALLOW = game.CONSTANTS.TILE_RIVER_SHALLOW;
-    const TILE_BANK = game.CONSTANTS.TILE_BANK;
-
-    // Derived colors for shallow water blending:
-    // - bankMix: sand color slightly pulled toward deep water so it still feels wet
-    // - deepColor: base deep-water color
-    const deepColor = COLORS[TILE_RIVER_DEEP];
-    const bankColor = COLORS[TILE_BANK];
-    const bankMix = lerpColorHex(bankColor, deepColor, 0.4);
-
-    // Phase 0: per-tile shallow water rendering with depth gradient
-    // Shallow tiles fade from light, sand-tinted water near banks
-    // to almost deep-water color where they border the deep channel.
-    for (let y = 0; y < CHUNK_SIZE; y++) {
-      for (let x = 0; x < CHUNK_SIZE; x++) {
-        const tileType = tileGrid[y][x];
-        if (tileType === TILE_RIVER_SHALLOW) {
-          const worldX = startX + x + 0.5;
-          const worldY = startY + y + 0.5;
-          const riverInfo = noise.getRiverSystem(worldX, worldY);
-
-          // riverInfo.value is 0 at river center, ~0.6 at deep/shallow edge, ~1 at bank edge.
-          // Normalize so t = 0 at deep edge (close to deep water), t = 1 at bank edge (close to sand).
-          let t = (riverInfo.value - 0.6) / 0.4;
-          if (!Number.isFinite(t)) t = 0;
-          t = Math.max(0, Math.min(1, t));
-
-          const color = lerpColorHex(deepColor, bankMix, t);
-          cCtx.fillStyle = color;
-          cCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-
-          // Mark as visited so hull-based phase does not re-render shallow tiles
-          visited[y][x] = true;
-        }
-      }
     }
 
     // Phase 1: Crisp roads (compatibility: previously TILE_ROAD existed; check constant)
@@ -182,9 +158,21 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         const hull = convexHull(points);
         if (hull.length < 3) continue;
 
-        // Base color: each tile type uses a single flat color; shallow water
-        // tiles are handled in the dedicated shallow-water pass above.
-        let baseColor = COLORS[tileType] || '#f0f';
+        // Base color lookup
+        let baseColor = COLORS[tileType];
+
+        // Handle gradient bands for shallow water (types 100-104)
+        // Interpolate between Deep Water color and Shallow Water color based on band index
+        if (!baseColor && tileType >= 100 && tileType <= 104) {
+           const band = tileType - 100;
+           // t=0 is next to Deep Water, t=1 is next to Bank
+           const t = (band + 0.5) / 5.0; 
+           const colDeep = COLORS[game.CONSTANTS.TILE_RIVER_DEEP];
+           const colShallow = COLORS[game.CONSTANTS.TILE_RIVER_SHALLOW];
+           baseColor = lerpColorHex(colDeep, colShallow, t);
+        }
+
+        baseColor = baseColor || '#f0f';
 
         const shadeAmt = (avgH - 0.5) * 0.4;
 
