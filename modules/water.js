@@ -29,7 +29,8 @@ export function createWaterEffects({ state, game, noise }) {
 
     // Create V-shaped wake pattern with straight line segments
     for (let side of [-1, 1]) {
-      const wakeAngle = angle + side * (Math.PI / 6); // 30 degree spread
+      // Invert side wake direction so segments point backwards relative to movement
+      const wakeAngle = angle + Math.PI + side * (Math.PI / 6); // flipped 180° plus spread
       const length = MIN_LINE_LENGTH * (1 + Math.random() * 2) * intensity;
       const width = 1 + intensity * 2;
 
