@@ -4,7 +4,7 @@ export function createGame({ state, noise }) {
   const ENTITY_CITY = 'city';
   const ENTITY_RELIC = 'relic';
 
-  // Tile Types (repurposed for River Biome)
+  // Tile Types (River Biome)
   const TILE_RIVER_DEEP = 0;
   const TILE_RIVER_SHALLOW = 1;
   const TILE_BANK = 2;        // Mud/Sand/Reeds
@@ -12,7 +12,6 @@ export function createGame({ state, noise }) {
   const TILE_FOREST = 4;
   const TILE_HILL = 5;
   const TILE_MOUNTAIN = 6;
-  // (TILE_SNOW removed; mountainous areas use TILE_MOUNTAIN)
 
   // Constants
   const INTERACTION_RADIUS = 35.0; // Increased to cover river width + bank
@@ -89,20 +88,20 @@ export function createGame({ state, noise }) {
     return diff;
   }
 
-  // Logic to determine road direction
-  function getRoadVector(x, y, currentAngle) {
+  // Logic to determine river flow direction
+  function getRiverVector(x, y, currentAngle) {
       // Sample nearby points to find gradient of the distance field
       const d = 0.5; // Sampling delta
-      const info = noise.getRoadInfo(x, y);
+      const info = noise.getRiverSystem(x, y);
 
       // Which channel are we in?
       // If distX < distY, we are in the vertical channel (following Y axis in warped space)
       const trackingX = info.distX < info.distY;
 
       // Calculate gradient of the field we are tracking using a single set of samples
-      const baseInfo = noise.getRoadInfo(x, y);
-      const infoX = noise.getRoadInfo(x + d, y);
-      const infoY = noise.getRoadInfo(x, y + d);
+      const baseInfo = noise.getRiverSystem(x, y);
+      const infoX = noise.getRiverSystem(x + d, y);
+      const infoY = noise.getRiverSystem(x, y + d);
 
       const v0 = trackingX ? baseInfo.distX : baseInfo.distY;
       const vx = trackingX ? infoX.distX : infoX.distY;
@@ -146,7 +145,7 @@ export function createGame({ state, noise }) {
         ty = -ty;
       }
 
-      // Center pull vector (move towards road center)
+      // Center pull vector (move towards river center)
       // Gradient points OUT, so -Gradient points IN.
       const centerStrength = Math.min(0.6, info.value); // Softer pull when near center
       const centerWeight = 0.35; // Reduce centering influence to avoid over-correction
@@ -162,7 +161,7 @@ export function createGame({ state, noise }) {
     if (!state.isPlaying) return;
 
     const p = state.player;
-    const road = noise.getRoadInfo(p.x, p.y);
+    const river = noise.getRiverSystem(p.x, p.y);
 
     // Initialize targetAngle the first time
     if (p.targetAngle === undefined || Number.isNaN(p.targetAngle)) {
@@ -173,17 +172,17 @@ export function createGame({ state, noise }) {
     // User can influence decision at intersection via p.angle (updated from outside)
     let targetAngle = p.targetAngle;
     
-    if (road.isRoad) {
-        // We are on road, autonomous driving engaged
-        if (road.isIntersection) {
-             // At junction: still follow road vector, but will be biased by player angle externally
-             const desired = getRoadVector(p.x, p.y, p.angle);
+    if (river.isRiver) {
+        // We are in the river, follow the flow
+        if (river.isIntersection) {
+             // At junction: still follow river vector, but will be biased by player angle externally
+             const desired = getRiverVector(p.x, p.y, p.angle);
              // Smoothly blend current target toward desired to avoid snap turns
              const diff = shortestAngleDiff(targetAngle, desired);
              targetAngle = targetAngle + diff * Math.min(1, 5 * dt);
         } else {
-            // Just follow the road
-            const desired = getRoadVector(p.x, p.y, p.angle);
+            // Just follow the river flow
+            const desired = getRiverVector(p.x, p.y, p.angle);
             const diff = shortestAngleDiff(targetAngle, desired);
             targetAngle = targetAngle + diff * Math.min(1, 3 * dt);
         }
@@ -201,10 +200,10 @@ export function createGame({ state, noise }) {
         if (p.speed < p.targetSpeed) p.speed += dt * 5;
         
     } else {
-        // Offroad!
+        // Grounded on land!
         // Slow down
-        p.speed = Math.max(1.0, p.speed - dt * 2);
-        // Manual steering allowed? Or auto-steer back to road?
+        p.speed = Math.max(0.5, p.speed - dt * 2);
+        // Manual steering allowed? Or auto-steer back to river?
         // For now, just keep going straight-ish but slower
     }
 
@@ -217,7 +216,6 @@ export function createGame({ state, noise }) {
     const tileType = getTile(p.x, p.y);
     const collectionRate = 1.0 * dt; // Units per second
 
-    // Scrap no longer comes from the removed "rock" tile; keep resource flows simple:
     if (tileType === TILE_FOREST) state.resources.bio += collectionRate * 2;
     else if (tileType === TILE_GRASS) state.resources.bio += collectionRate;
     
@@ -266,20 +264,20 @@ export function createGame({ state, noise }) {
   }
 
   // Initial Player Spawn logic
-  // Find a road!
+  // Find a river!
   let foundSpot = false;
   let attempts = 0;
   while(!foundSpot && attempts < 200) {
     const tx = (Math.random() - 0.5) * 5000;
     const ty = (Math.random() - 0.5) * 5000;
-    const info = noise.getRoadInfo(tx, ty);
+    const info = noise.getRiverSystem(tx, ty);
     
-    if (info.isRoad && !info.isIntersection) {
+    if (info.isRiver && !info.isIntersection) {
       state.player.x = tx;
       state.player.y = ty;
       
-      // Align with road
-      state.player.angle = getRoadVector(tx, ty, 0);
+      // Align with river flow
+      state.player.angle = getRiverVector(tx, ty, 0);
       foundSpot = true;
     }
     attempts++;

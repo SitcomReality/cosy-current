@@ -1,18 +1,17 @@
 import { createChunkManager } from './chunk.js';
 import { getVertexOffset } from './vertex.js';
 import { convexHull, floodFill } from './hull.js';
-import { createWaterFX } from './water_fx.js';
+import { createWaterEffects } from '../water.js';
 
 // This file composes the modular renderer pieces into the original public API
 export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  // Stylized Vector Palette
+  // Stylized Vector Palette - Fixed river colors
   const COLORS = {
-    // Warmer, clearer water palette
-    [game.CONSTANTS.TILE_RIVER_DEEP]: '#3b82f6',    // lively deep blue
-    [game.CONSTANTS.TILE_RIVER_SHALLOW]: '#7dd3fc', // sky/shore blue
-    [game.CONSTANTS.TILE_BANK]: '#fde047',          // sandy gold
+    [game.CONSTANTS.TILE_RIVER_DEEP]: '#0c4a6e',    // Deep Blue Water
+    [game.CONSTANTS.TILE_RIVER_SHALLOW]: '#0ea5e9', // Bright Blue Water
+    [game.CONSTANTS.TILE_BANK]: '#fbbf24',          // Sandy/Gold
     [game.CONSTANTS.TILE_GRASS]: '#4ade80',         // Vibrant Green
     [game.CONSTANTS.TILE_FOREST]: '#166534',        // Deep Green
     [game.CONSTANTS.TILE_HILL]: '#94a3b8',          // Grey Blue
@@ -21,7 +20,7 @@ export function createRenderer({ canvas, state, game, noise }) {
 
   const CHUNK_SIZE = 16;
   const chunkManager = createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, getVertexOffset });
-  const waterFX = createWaterFX();
+  const waterEffects = createWaterEffects({ state, game, noise });
 
   function resize() {
     const dpr = state.pixelRatio;
@@ -32,12 +31,6 @@ export function createRenderer({ canvas, state, game, noise }) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
     chunkManager.clearCache();
-  }
-
-  // Per-frame update called from app loop
-  function update(dt) {
-    // Advance water effects (wakes)
-    waterFX.update(dt, state.player);
   }
 
   function drawMenuBackground(t) {
@@ -87,16 +80,14 @@ export function createRenderer({ canvas, state, game, noise }) {
         const screenX = (chunkWorldX - state.camera.x) * tileSize + centerX;
         const screenY = (chunkWorldY - state.camera.y) * tileSize + centerY;
 
-        // Use consistent rounding so adjacent chunks meet exactly with no pixel gaps
         ctx.drawImage(chunkImg, Math.round(screenX), Math.round(screenY));
       }
     }
 
-    // Water FX (wakes, shore ripples) drawn above terrain and beneath entities
-    waterFX.render(ctx, state.camera, state.tileSize, centerX, centerY);
-
-    // Prune cache occasionally
     chunkManager.pruneCache();
+
+    // Render water effects (wakes, waves) after terrain, before entities
+    waterEffects.render(ctx, state.camera, tileSize);
 
     // Entities
     state.entities.forEach(ent => {
@@ -131,37 +122,55 @@ export function createRenderer({ canvas, state, game, noise }) {
        }
     });
 
-    // Player
+    // Player - Houseboat/Raft
     const p = state.player;
     const px = (p.x - state.camera.x) * tileSize + centerX;
     const py = (p.y - state.camera.y) * tileSize + centerY;
 
     ctx.save();
-    // Draw raft (low-poly wooden logs with small cabin)
     ctx.translate(px, py);
     ctx.rotate(p.angle);
-    const raftW = tileSize * 1.2;
-    const raftH = tileSize * 0.9;
-    // Logs base
-    ctx.fillStyle = '#6b4226';
-    for (let i = -1; i <= 1; i++) {
-      ctx.fillRect(-raftW/2, (i * 6) - raftH/2, raftW, Math.max(8, tileSize * 0.12));
+
+    const raftLen = tileSize * 1.8;
+    const raftWid = tileSize * 1.2;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-raftLen/2 + 3, -raftWid/2 + 3, raftLen, raftWid);
+
+    // Main deck (wood planks)
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(-raftLen/2, -raftWid/2, raftLen, raftWid);
+
+    // Plank lines
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const x = -raftLen/2 + (i / 4) * raftLen;
+      ctx.beginPath();
+      ctx.moveTo(x, -raftWid/2);
+      ctx.lineTo(x, raftWid/2);
+      ctx.stroke();
     }
-    // Deck
-    ctx.fillStyle = '#8b5e3c';
-    ctx.fillRect(-raftW/2 + 6, -raftH/2 + 6, raftW - 12, raftH - 12);
-    // Cabin
-    const cabW = raftW * 0.5;
-    const cabH = raftH * 0.45;
-    ctx.fillStyle = '#f3e7d7';
-    ctx.fillRect(-cabW/2, -cabH/2, cabW, cabH);
-    ctx.fillStyle = '#7a4b2b';
-    ctx.fillRect(-cabW/2, -cabH/2, cabW, cabH*0.25); // roof ledge
-    // Lantern glow
-    ctx.fillStyle = 'rgba(255, 210, 100, 0.6)';
+
+    // Cabin structure
+    ctx.fillStyle = '#fef3c7';
+    const cabinW = raftLen * 0.4;
+    const cabinH = raftWid * 0.6;
+    ctx.fillRect(-cabinW/2, -cabinH/2, cabinW, cabinH);
+
+    // Cabin window
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fillRect(-cabinW/4, -cabinH/4, cabinW/2, cabinH/3);
+
+    // Bow light (navigation)
+    ctx.fillStyle = '#fef08a';
+    ctx.shadowColor = '#fef08a';
+    ctx.shadowBlur = 8;
     ctx.beginPath();
-    ctx.arc(cabW/2 - 6, 0, Math.max(2, tileSize*0.04), 0, Math.PI*2);
+    ctx.arc(raftLen/2 - 5, 0, 3, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
 
     ctx.restore();
   }
@@ -179,5 +188,5 @@ export function createRenderer({ canvas, state, game, noise }) {
     chunkManager.clearCache();
   }
 
-  return { start, stop, resize, renderFrame, clearCache, update };
+  return { start, stop, resize, renderFrame, clearCache, waterEffects };
 }

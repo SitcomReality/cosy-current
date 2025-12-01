@@ -94,7 +94,7 @@ export function initApp({ canvas, controls }) {
 
     // 1. Update Game Logic
     // Apply steering input bias to player angle BEFORE update
-    // The game logic will try to snap this to the road
+    // The game logic will try to snap this to the river
     if (state.player && state.isPlaying) {
         if (keys['KeyA'] || keys['ArrowLeft']) {
             state.player.angle -= 3.0 * dt;
@@ -105,13 +105,11 @@ export function initApp({ canvas, controls }) {
     }
 
     game.update(dt);
-
-    // Renderer updates (water FX etc.)
-    if (renderer.update) renderer.update(dt);
-
-    // 2. Player Input (Steering) - MOVED TO GAME UPDATE or biased above
-    // We removed the direct angle manipulation here to let the road logic handle "snapping"
-    // while still allowing influence.
+    
+    // Update water effects
+    if (renderer.waterEffects) {
+      renderer.waterEffects.update(dt);
+    }
 
     // 3. Camera Control
     const camSpeed = 20 * dt;

@@ -20,7 +20,7 @@ export function createNoiseEngine(state) {
     lacunarity: 2.1
   };
 
-  // Road Generation Constants -> River Generation Constants
+  // River Generation Constants
   const RIVER_SCALE = 0.0015;    // Scale for the river network grid
   const RIVER_WARP = 150.0;      // High warp for meandering rivers
   const RIVER_SPACING = 300.0;   // Tiles between river branches
@@ -117,16 +117,15 @@ export function createNoiseEngine(state) {
     return sample(x, y, 0);
   }
 
-  // Expose road info for game logic (compatibility wrapper)
-  // Returns an object compatible with game.getRoadInfo usage:
-  // { distX, distY, value, isRoad, isIntersection, gx, gy }
+  // Expose river info for game logic (compatibility wrapper)
+  // Returns an object compatible with game usage
   function getRoadInfo(x, y) {
     const r = getRiverSystem(x, y);
     return {
       distX: r.distX,
       distY: r.distY,
       value: r.value,
-      isRoad: r.isRiver,
+      isRoad: r.isRiver, // "road" is actually river in this context
       isIntersection: r.isIntersection,
       gx: r.gx,
       gy: r.gy
@@ -145,7 +144,7 @@ export function createNoiseEngine(state) {
     sample,
     sample2D,
     getRiverSystem,
-    getRoadInfo,
+    getRoadInfo, // Compatibility - actually returns river info
     setSeed,
     setConfig,
     getConfig
