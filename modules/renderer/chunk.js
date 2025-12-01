@@ -104,6 +104,45 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
       return { x: baseX + ox, y: baseY + oy };
     }
 
+    // Precompute handy tile constants for readability
+    const TILE_RIVER_DEEP = game.CONSTANTS.TILE_RIVER_DEEP;
+    const TILE_RIVER_SHALLOW = game.CONSTANTS.TILE_RIVER_SHALLOW;
+    const TILE_BANK = game.CONSTANTS.TILE_BANK;
+
+    // Derived colors for shallow water blending:
+    // - bankMix: sand color slightly pulled toward deep water so it still feels wet
+    // - deepColor: base deep-water color
+    const deepColor = COLORS[TILE_RIVER_DEEP];
+    const bankColor = COLORS[TILE_BANK];
+    const bankMix = lerpColorHex(bankColor, deepColor, 0.4);
+
+    // Phase 0: per-tile shallow water rendering with depth gradient
+    // Shallow tiles fade from light, sand-tinted water near banks
+    // to almost deep-water color where they border the deep channel.
+    for (let y = 0; y < CHUNK_SIZE; y++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const tileType = tileGrid[y][x];
+        if (tileType === TILE_RIVER_SHALLOW) {
+          const worldX = startX + x + 0.5;
+          const worldY = startY + y + 0.5;
+          const riverInfo = noise.getRiverSystem(worldX, worldY);
+
+          // riverInfo.value is 0 at river center, ~0.6 at deep/shallow edge, ~1 at bank edge.
+          // Normalize so t = 0 at deep edge (close to deep water), t = 1 at bank edge (close to sand).
+          let t = (riverInfo.value - 0.6) / 0.4;
+          if (!Number.isFinite(t)) t = 0;
+          t = Math.max(0, Math.min(1, t));
+
+          const color = lerpColorHex(deepColor, bankMix, t);
+          cCtx.fillStyle = color;
+          cCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+
+          // Mark as visited so hull-based phase does not re-render shallow tiles
+          visited[y][x] = true;
+        }
+      }
+    }
+
     // Phase 1: Crisp roads (compatibility: previously TILE_ROAD existed; check constant)
     for (let y = 0; y < CHUNK_SIZE; y++) {
       for (let x = 0; x < CHUNK_SIZE; x++) {
@@ -144,7 +183,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         if (hull.length < 3) continue;
 
         // Base color: each tile type uses a single flat color; shallow water
-        // no longer blends toward sand or deep water so it forms one uniform band.
+        // tiles are handled in the dedicated shallow-water pass above.
         let baseColor = COLORS[tileType] || '#f0f';
 
         const shadeAmt = (avgH - 0.5) * 0.4;
