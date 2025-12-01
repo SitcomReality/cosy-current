@@ -19,6 +19,34 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
     }
   }
 
+  // Simple hex color helpers for shallow-water blending
+  function hexToRgb(hex) {
+    if (!hex) return { r: 0, g: 0, b: 0 };
+    let h = hex.replace('#', '');
+    if (h.length === 3) {
+      h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    }
+    const num = parseInt(h, 16);
+    return {
+      r: (num >> 16) & 255,
+      g: (num >> 8) & 255,
+      b: num & 255
+    };
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function lerpColorHex(aHex, bHex, t) {
+    const a = hexToRgb(aHex);
+    const b = hexToRgb(bHex);
+    const r = Math.round(lerp(a.r, b.r, t));
+    const g = Math.round(lerp(a.g, b.g, t));
+    const bch = Math.round(lerp(a.b, b.b, t));
+    return `rgb(${r},${g},${bch})`;
+  }
+
   // Generate or return existing chunk canvas
   function getChunk(cx, cy) {
     const key = `${cx},${cy}`;
@@ -115,7 +143,36 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         const hull = convexHull(points);
         if (hull.length < 3) continue;
 
-        const baseColor = COLORS[tileType] || '#f0f';
+        // Base color, with special handling for shallow water to blend toward sand or deep water
+        let baseColor = COLORS[tileType] || '#f0f';
+
+        if (tileType === game.CONSTANTS.TILE_RIVER_SHALLOW) {
+          // Approximate the polygon's center in world coordinates
+          let sumX = 0;
+          let sumY = 0;
+          for (let i = 0; i < cells.length; i++) {
+            sumX += cells[i].x + 0.5;
+            sumY += cells[i].y + 0.5;
+          }
+          const centerLocalX = cells.length ? sumX / cells.length : 0.5;
+          const centerLocalY = cells.length ? sumY / cells.length : 0.5;
+          const worldCenterX = startX + centerLocalX;
+          const worldCenterY = startY + centerLocalY;
+
+          const riverInfo = noise.getRiverSystem(worldCenterX, worldCenterY);
+          // river.value: ~0.6 near deep edge, ~1.0 near bank for shallow tiles
+          let t = (riverInfo.value - 0.6) / (1.0 - 0.6);
+          if (!isFinite(t)) t = 0;
+          t = Math.max(0, Math.min(1, t));
+
+          const deepColor = COLORS[game.CONSTANTS.TILE_RIVER_DEEP] || baseColor;
+          const bankColor = COLORS[game.CONSTANTS.TILE_BANK] || baseColor;
+
+          // Blend: t=0 -> deeper blue, t=1 -> sandy edge; this makes shallow water feel like
+          // submerged sand that darkens smoothly into depth.
+          baseColor = lerpColorHex(deepColor, bankColor, t * 0.85);
+        }
+
         const shadeAmt = (avgH - 0.5) * 0.4;
 
         cCtx.fillStyle = baseColor;
