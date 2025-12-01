@@ -4,12 +4,12 @@ import { createUI } from './ui.js';
 import { createNoiseEngine } from './noise.js';
 import { createGame } from './game.js';
 
-export function initApp({ terrainCanvas, waterCanvas, controls }) {
+export function initApp({ canvas, controls }) {
   const state = createAppState();
   const noise = createNoiseEngine(state);
   const game = createGame({ state, noise });
   // Pass noise to renderer for terrain perturbation effects
-  const renderer = createRenderer({ terrainCanvas, waterCanvas, state, game, noise });
+  const renderer = createRenderer({ canvas, state, game, noise });
   const ui = createUI({ container: controls, state, renderer, noise, game });
 
   renderer.start();
@@ -24,7 +24,7 @@ export function initApp({ terrainCanvas, waterCanvas, controls }) {
   window.addEventListener('keyup', e => { keys[e.code] = false; });
 
   // Mouse wheel zoom handling (scroll to zoom in/out)
-  terrainCanvas.addEventListener('wheel', (e) => {
+  canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const zoomStep = 0.1;
     const factor = e.deltaY > 0 ? (1 - zoomStep) : (1 + zoomStep);
@@ -53,7 +53,7 @@ export function initApp({ terrainCanvas, waterCanvas, controls }) {
   }
 
   // Start panning on middle mouse button down
-  terrainCanvas.addEventListener('mousedown', (e) => {
+  canvas.addEventListener('mousedown', (e) => {
     if (e.button === 1) {
       e.preventDefault();
       isPanning = true;
@@ -94,7 +94,7 @@ export function initApp({ terrainCanvas, waterCanvas, controls }) {
 
     // 1. Update Game Logic
     // Apply steering input bias to player angle BEFORE update
-    // The game logic will try to snap this to the river path
+    // The game logic will try to snap this to the road
     if (state.player && state.isPlaying) {
         if (keys['KeyA'] || keys['ArrowLeft']) {
             state.player.angle -= 3.0 * dt;
@@ -106,6 +106,10 @@ export function initApp({ terrainCanvas, waterCanvas, controls }) {
 
     game.update(dt);
 
+    // 2. Player Input (Steering) - MOVED TO GAME UPDATE or biased above
+    // We removed the direct angle manipulation here to let the road logic handle "snapping"
+    // while still allowing influence.
+
     // 3. Camera Control
     const camSpeed = 20 * dt;
     let manualCam = false;
@@ -116,7 +120,7 @@ export function initApp({ terrainCanvas, waterCanvas, controls }) {
     const timeSinceInput = (timestamp - state.lastInputTime) / 1000;
     
     if (state.cameraLocked) {
-        // Soft lock: follow player (houseboat/raft drifting along river)
+        // Soft lock: follow player
         const targetX = state.player.x;
         const targetY = state.player.y;
         

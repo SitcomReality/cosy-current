@@ -4,18 +4,17 @@ import { initApp } from './modules/app.js';
 
 // Initialize the app once the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  const terrainCanvas = document.getElementById('main-canvas');
-  const waterCanvas = document.getElementById('water-canvas');
+  const canvas = document.getElementById('main-canvas');
   // The UI layer in index.html is #ui-layer — use it so UI controls (Start button, settings)
   // are properly bound. Previously we looked for a non-existent #controls element.
   const controls = document.getElementById('ui-layer') || document.body;
 
-  if (!terrainCanvas || !waterCanvas) {
-    console.warn('Game canvases not found in DOM.');
+  if (!canvas) {
+    console.warn('Game canvas not found in DOM.');
     return;
   }
 
-  initApp({ terrainCanvas, waterCanvas, controls });
+  initApp({ canvas, controls });
 });
 
 // Tombstones for legacy, removed code from the original main.js:
