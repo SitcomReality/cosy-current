@@ -8,6 +8,7 @@ export function initApp({ canvas, controls }) {
   const state = createAppState();
   const noise = createNoiseEngine(state);
   const game = createGame({ state, noise });
+  // Pass noise to renderer for terrain perturbation effects
   const renderer = createRenderer({ canvas, state, game, noise });
   const ui = createUI({ container: controls, state, renderer, noise, game });
 
