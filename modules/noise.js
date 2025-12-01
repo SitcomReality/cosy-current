@@ -24,7 +24,10 @@ export function createNoiseEngine(state) {
   const RIVER_SCALE = 0.0015;    // Scale for the river network grid
   const RIVER_WARP = 150.0;      // High warp for meandering rivers
   const RIVER_SPACING = 300.0;   // Tiles between river branches
-  const RIVER_WIDTH = 25.0;      // Half-width of river channel in tiles
+
+  // Base & variation: we'll compute a local width per-location using low-frequency FBM
+  const RIVER_BASE = 7.5;   // central tendency (mode near 7-8)
+  const RIVER_VAR = 2.5;    // +/- range to reach ~5..10
 
   // We now always use a single, tuned FBM-Perlin setup
   let config = Object.assign({}, DEFAULT_CONFIG);
@@ -67,6 +70,14 @@ export function createNoiseEngine(state) {
     const wx = x + simplex3(x * RIVER_SCALE, y * RIVER_SCALE, 0) * RIVER_WARP;
     const wy = y + simplex3(x * RIVER_SCALE + 100, y * RIVER_SCALE + 100, 0) * RIVER_WARP;
 
+    // 1.5 Compute a local river half-width using low-frequency FBM so width varies smoothly
+    // Use a different coordinate offset and low frequency so widths change slowly over space.
+    // fbm3 returns roughly -1..1; map that to +/- RIVER_VAR around RIVER_BASE and clamp.
+    const widthNoise = fbm3(wx * 0.0025, wy * 0.0025, 300, perlin3, { octaves: 3, persistence: 0.6, lacunarity: 2 });
+    let localHalfWidth = RIVER_BASE + widthNoise * RIVER_VAR;
+    // Keep widths within reasonable bounds (half-width)
+    localHalfWidth = Math.max(5, Math.min(10, localHalfWidth));
+
     // 2. Distance to nearest grid lines
     const gx = wx / RIVER_SPACING;
     const gy = wy / RIVER_SPACING;
@@ -83,12 +94,11 @@ export function createNoiseEngine(state) {
     // River is the union of the grid lines (Voronoi edges in this metric)
     const minDist = Math.min(distX, distY);
     
-    // Normalized distance (0 at center, 1.0 at defined width edge)
-    // We allow it to go > 1.0 for terrain generation purposes
-    const normDist = minDist / RIVER_WIDTH;
+    // Use localHalfWidth (in tiles) for normalization so rivers vary in width
+    const normDist = minDist / localHalfWidth;
 
-    // Intersection factor
-    const intersectionMetric = Math.max(0, 1 - (Math.max(distX, distY) / (RIVER_WIDTH * 4.0)));
+    // Intersection factor uses the local width so wider sections create broader intersection zones
+    const intersectionMetric = Math.max(0, 1 - (Math.max(distX, distY) / (localHalfWidth * 4.0)));
 
     return {
       value: normDist, 
@@ -97,7 +107,8 @@ export function createNoiseEngine(state) {
       distX,
       distY,
       gx, 
-      gy
+      gy,
+      localHalfWidth
     };
   }
 
