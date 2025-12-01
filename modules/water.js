@@ -34,14 +34,20 @@ export function createWaterEffects({ state, game, noise }) {
       const length = MIN_LINE_LENGTH * (1 + Math.random() * 2) * intensity;
       const width = 1 + intensity * 2;
 
-      // Offset from center
+      // Lateral offset from the centerline; we'll expand this over lifetime in render()
       const offsetDist = baseSpread * 0.3;
-      const ox = Math.cos(angle + side * Math.PI / 2) * offsetDist;
-      const oy = Math.sin(angle + side * Math.PI / 2) * offsetDist;
+      const perpX = Math.cos(angle + side * Math.PI / 2);
+      const perpY = Math.sin(angle + side * Math.PI / 2);
 
       wakeSegments.push({
-        x: x + ox,
-        y: y + oy,
+        // Center of the wake pair (boat centerline)
+        centerX: x,
+        centerY: y,
+        // Perpendicular direction for this side (+1 / -1 baked into perpX/perpY)
+        perpX,
+        perpY,
+        baseOffset: offsetDist,
+
         angle: wakeAngle,
         length: length,
         width: width,
@@ -51,10 +57,14 @@ export function createWaterEffects({ state, game, noise }) {
       });
     }
 
-    // Center trail
+    // Center trail (no lateral spread)
     wakeSegments.push({
-      x: x,
-      y: y,
+      centerX: x,
+      centerY: y,
+      perpX: 0,
+      perpY: 0,
+      baseOffset: 0,
+
       angle: angle + Math.PI,
       length: MIN_LINE_LENGTH * 0.5 * intensity,
       width: 1,
@@ -151,8 +161,16 @@ export function createWaterEffects({ state, game, noise }) {
       const fadeOut = Math.min(1, t * 2);
       const fade = Math.min(fadeIn, fadeOut);
 
-      const screenX = (seg.x - camera.x) * tileSize + centerX;
-      const screenY = (seg.y - camera.y) * tileSize + centerY;
+      // Expand lateral offset from 1x at birth to 2x at death
+      const spreadFactor = 1 + (1 - t); // 1 -> 2 over lifetime
+      const lateralOffset = (seg.baseOffset || 0) * spreadFactor;
+
+      // Compute world-space start point for this segment
+      const worldX = seg.centerX + (seg.perpX || 0) * lateralOffset;
+      const worldY = seg.centerY + (seg.perpY || 0) * lateralOffset;
+
+      const screenX = (worldX - camera.x) * tileSize + centerX;
+      const screenY = (worldY - camera.y) * tileSize + centerY;
 
       // seg.length is in tiles, so convert to pixels using tileSize
       const endX = screenX + Math.cos(seg.angle) * seg.length * tileSize;
