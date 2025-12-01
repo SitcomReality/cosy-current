@@ -22,6 +22,20 @@ export function initApp({ canvas, controls }) {
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
 
+  // Mouse wheel zoom handling (scroll to zoom in/out)
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomStep = 0.1;
+    const factor = e.deltaY > 0 ? (1 - zoomStep) : (1 + zoomStep);
+    const currentSize = state.tileSize;
+    const newSize = Math.max(32, Math.min(128, currentSize * factor));
+    if (Math.abs(newSize - currentSize) > 0.5) {
+      state.tileSize = newSize;
+      if (renderer.clearCache) renderer.clearCache();
+      state.lastInputTime = performance.now();
+    }
+  }, { passive: false });
+
   let lastTime = performance.now();
 
   // --- MMB panning support ---

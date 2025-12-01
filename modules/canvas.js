@@ -262,5 +262,10 @@ export function createRenderer({ canvas, state, game }) {
     window.removeEventListener('resize', resize);
   }
 
-  return { start, stop, resize, renderFrame };
+  // Clear chunk cache when zoom level (tileSize) changes
+  function clearCache() {
+    chunkCache.clear();
+  }
+
+  return { start, stop, resize, renderFrame, clearCache };
 }
