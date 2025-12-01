@@ -75,14 +75,11 @@ export function createRenderer({ canvas, state, game, noise }) {
         const chunkWorldX = cx * CHUNK_SIZE;
         const chunkWorldY = cy * CHUNK_SIZE;
 
-        // Account for chunk padding when placing on screen so the visible content
-        // aligns exactly with neighboring chunks (subtract PAD).
-        const PAD = (chunkImg && chunkImg.width > CHUNK_SIZE * tileSize) ? Math.floor((chunkImg.width - CHUNK_SIZE * tileSize) / 2) : 0;
-        const screenX = (chunkWorldX - state.camera.x) * tileSize + centerX - PAD;
-        const screenY = (chunkWorldY - state.camera.y) * tileSize + centerY - PAD;
+        const screenX = (chunkWorldX - state.camera.x) * tileSize + centerX;
+        const screenY = (chunkWorldY - state.camera.y) * tileSize + centerY;
 
-        // Use integer draw positions to avoid subpixel seams
-        ctx.drawImage(chunkImg, Math.floor(screenX), Math.floor(screenY));
+        // Use consistent rounding so adjacent chunks meet exactly with no pixel gaps
+        ctx.drawImage(chunkImg, Math.round(screenX), Math.round(screenY));
       }
     }
 
