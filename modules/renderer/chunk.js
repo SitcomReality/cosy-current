@@ -143,35 +143,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         const hull = convexHull(points);
         if (hull.length < 3) continue;
 
-        // Base color, with special handling for shallow water to blend toward sand or deep water
+        // Base color: each tile type uses a single flat color; shallow water
+        // no longer blends toward sand or deep water so it forms one uniform band.
         let baseColor = COLORS[tileType] || '#f0f';
-
-        if (tileType === game.CONSTANTS.TILE_RIVER_SHALLOW) {
-          // Approximate the polygon's center in world coordinates
-          let sumX = 0;
-          let sumY = 0;
-          for (let i = 0; i < cells.length; i++) {
-            sumX += cells[i].x + 0.5;
-            sumY += cells[i].y + 0.5;
-          }
-          const centerLocalX = cells.length ? sumX / cells.length : 0.5;
-          const centerLocalY = cells.length ? sumY / cells.length : 0.5;
-          const worldCenterX = startX + centerLocalX;
-          const worldCenterY = startY + centerLocalY;
-
-          const riverInfo = noise.getRiverSystem(worldCenterX, worldCenterY);
-          // river.value: ~0.6 near deep edge, ~1.0 near bank for shallow tiles
-          let t = (riverInfo.value - 0.6) / (1.0 - 0.6);
-          if (!isFinite(t)) t = 0;
-          t = Math.max(0, Math.min(1, t));
-
-          const deepColor = COLORS[game.CONSTANTS.TILE_RIVER_DEEP] || baseColor;
-          const bankColor = COLORS[game.CONSTANTS.TILE_BANK] || baseColor;
-
-          // Blend: t=0 -> deeper blue, t=1 -> sandy edge; this makes shallow water feel like
-          // submerged sand that darkens smoothly into depth.
-          baseColor = lerpColorHex(deepColor, bankColor, t * 0.85);
-        }
 
         const shadeAmt = (avgH - 0.5) * 0.4;
 

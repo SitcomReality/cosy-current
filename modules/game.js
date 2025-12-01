@@ -47,7 +47,22 @@ export function createGame({ state, noise }) {
         h -= depth * 0.2; // Dig down
     }
 
-    return Math.max(0, Math.min(1, h));
+    // Clamp continuous height
+    h = Math.max(0, Math.min(1, h));
+
+    // Quantize height into a small set of discrete levels so terrain
+    // consists of flat bands with fixed heights.
+    const LEVELS = [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95];
+    let closest = LEVELS[0];
+    let bestDist = Math.abs(h - closest);
+    for (let i = 1; i < LEVELS.length; i++) {
+      const d = Math.abs(h - LEVELS[i]);
+      if (d < bestDist) {
+        bestDist = d;
+        closest = LEVELS[i];
+      }
+    }
+    return closest;
   }
 
   function getTile(x, y) {
