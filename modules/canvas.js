@@ -1,16 +1,15 @@
-export function createRenderer({ canvas, state, game }) {
+export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  // Technopunk Fantasy Palette -> more natural, readable terrain
-  const COLORS = {
-    // Map renderer colors to the current tile set used by game.js
-    [game.CONSTANTS.TILE_RIVER_DEEP]: '#0f172a', // Deep river/ocean
-    [game.CONSTANTS.TILE_RIVER_SHALLOW]: '#0ea5e9', // Shallow river
-    [game.CONSTANTS.TILE_BANK]: '#fdba74',       // Bank / shore
-    [game.CONSTANTS.TILE_GRASS]: '#22c55e',      // Grasslands
-    [game.CONSTANTS.TILE_FOREST]: '#15803d',     // Forest
-    [game.CONSTANTS.TILE_HILL]: '#64748b',       // Hill / highland
-    [game.CONSTANTS.TILE_MOUNTAIN]: '#94a3b8'    // Mountain (formerly rock/snow)
+  // Color Definitions (R, G, B)
+  const PALETTE = {
+    DEEP_WATER: [15, 23, 42],   // #0f172a
+    WATER:      [14, 165, 233], // #0ea5e9
+    BANK:       [210, 180, 140], // #d2b48c - Tan/Sand
+    GRASS:      [34, 197, 94],  // #22c55e
+    FOREST:     [21, 128, 61],  // #15803d
+    HILL:       [100, 116, 139], // #64748b
+    SNOW:       [241, 245, 249]  // #f1f5f9
   };
 
   // Optimization: Chunk Caching
@@ -19,50 +18,10 @@ export function createRenderer({ canvas, state, game }) {
   const CHUNK_SIZE = 16; // 16x16 tiles per chunk
   const chunkCache = new Map(); // key: "x,y", value: { canvas, lastUsed }
 
-  // Helper: convert hex color to RGB
-  function hexToRgb(hex) {
-    if (!hex) return { r: 255, g: 0, b: 255 }; // Fallback magenta
-    const h = hex.startsWith('#') ? hex.slice(1) : hex;
-    if (h.length === 3) {
-      const r = parseInt(h[0] + h[0], 16);
-      const g = parseInt(h[1] + h[1], 16);
-      const b = parseInt(h[2] + h[2], 16);
-      return { r, g, b };
-    }
-    const r = parseInt(h.slice(0, 2), 16);
-    const g = parseInt(h.slice(2, 4), 16);
-    const b = parseInt(h.slice(4, 6), 16);
-    return { r, g, b };
-  }
-
-  // Compute a smoothly blended base RGB color for a tile by sampling around its center
-  function getBlendedTileColor(worldX, worldY) {
-    // Sample at four sub-tile offsets to soften hard tile boundaries
-    const samples = [
-      { sx: worldX + 0.25, sy: worldY + 0.25 },
-      { sx: worldX + 0.75, sy: worldY + 0.25 },
-      { sx: worldX + 0.25, sy: worldY + 0.75 },
-      { sx: worldX + 0.75, sy: worldY + 0.75 }
-    ];
-
-    let rAcc = 0, gAcc = 0, bAcc = 0, count = 0;
-    for (const s of samples) {
-      const t = game.getTile(s.sx, s.sy);
-      const hex = COLORS[t] || '#ff00ff';
-      const { r, g, b } = hexToRgb(hex);
-      rAcc += r;
-      gAcc += g;
-      bAcc += b;
-      count++;
-    }
-
-    if (count === 0) return { r: 255, g: 0, b: 255 };
-    return {
-      r: rAcc / count,
-      g: gAcc / count,
-      b: bAcc / count
-    };
-  }
+  // Rendering Fidelity
+  // Samples per game tile. Higher = smoother, slower. 
+  // 8 is a good balance for pixel-art-ish but smooth feel.
+  const SAMPLES_PER_TILE = 8; 
 
   function resize() {
     const dpr = state.pixelRatio;
@@ -71,10 +30,66 @@ export function createRenderer({ canvas, state, game }) {
     canvas.width = state.width * dpr;
     canvas.height = state.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.imageSmoothingEnabled = false;
+    // Use bilinear smoothing for that painted look
+    ctx.imageSmoothingEnabled = true;
     
     // Invalidate cache on resize if tile scaling depends on it (it doesn't currently, but safe practice)
     chunkCache.clear();
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * Math.min(1, Math.max(0, t));
+  }
+
+  function lerpColor(c1, c2, t) {
+    // simple RGB lerp
+    const r = Math.round(lerp(c1[0], c2[0], t));
+    const g = Math.round(lerp(c1[1], c2[1], t));
+    const b = Math.round(lerp(c1[2], c2[2], t));
+    return [r, g, b];
+  }
+
+  // Get color at specific world coordinates
+  function getTerrainColor(wx, wy) {
+    const river = noise.getRiverSystem(wx, wy);
+    const h = game.getHeight(wx, wy);
+
+    let c = [0,0,0];
+
+    // River Logic
+    if (river.value < 1.2) {
+      if (river.value < 0.5) {
+        // Center channel (deep)
+        c = lerpColor(PALETTE.DEEP_WATER, PALETTE.WATER, river.value * 2.0);
+      } else if (river.value < 1.0) {
+        // Shallow
+        c = lerpColor(PALETTE.WATER, PALETTE.BANK, (river.value - 0.5) * 2.0);
+      } else {
+        // Wet Bank
+        c = lerpColor(PALETTE.BANK, PALETTE.GRASS, (river.value - 1.0) * 5.0);
+      }
+    } else {
+      // Land Logic based on Height
+      // Height is roughly 0..1, typically starting around 0.1 near rivers
+      if (h < 0.3) {
+        c = lerpColor(PALETTE.GRASS, PALETTE.FOREST, (h - 0.1) * 5.0);
+      } else if (h < 0.6) {
+        c = lerpColor(PALETTE.FOREST, PALETTE.HILL, (h - 0.3) * 3.33);
+      } else if (h < 0.85) {
+        c = lerpColor(PALETTE.HILL, PALETTE.SNOW, (h - 0.6) * 4.0);
+      } else {
+        c = PALETTE.SNOW;
+      }
+    }
+    
+    // Apply a simple noise overlay for texture
+    const noiseVal = noise.sample2D(wx * 20, wy * 20); // High frequency
+    const tint = 10 * noiseVal;
+    return [
+      Math.max(0, Math.min(255, c[0] + tint)),
+      Math.max(0, Math.min(255, c[1] + tint)),
+      Math.max(0, Math.min(255, c[2] + tint))
+    ];
   }
 
   function getChunk(cx, cy) {
@@ -85,55 +100,71 @@ export function createRenderer({ canvas, state, game }) {
       return data.canvas;
     }
 
-    // Generate Chunk
-    const pxSize = CHUNK_SIZE * state.tileSize;
-    const cCanvas = document.createElement('canvas');
-    cCanvas.width = pxSize;
-    cCanvas.height = pxSize;
-    const cCtx = cCanvas.getContext('2d', { alpha: false });
+    // Generate Chunk Texture
+    // We create a small texture (SAMPLES_PER_TILE pixels per world tile)
+    // and let the canvas upscaling smooth it out.
+    const texSize = CHUNK_SIZE * SAMPLES_PER_TILE;
+    const texCanvas = document.createElement('canvas');
+    texCanvas.width = texSize;
+    texCanvas.height = texSize;
+    const texCtx = texCanvas.getContext('2d', { alpha: false });
+    const imgData = texCtx.createImageData(texSize, texSize);
+    const data = imgData.data;
 
-    // Fill logic
     const startX = cx * CHUNK_SIZE;
     const startY = cy * CHUNK_SIZE;
-    const tileSize = state.tileSize;
-    // slightly larger to prevent bleeding lines
-    const drawSize = tileSize + 1;
 
-    for (let y = 0; y < CHUNK_SIZE; y++) {
-      for (let x = 0; x < CHUNK_SIZE; x++) {
-        const worldX = startX + x;
-        const worldY = startY + y;
-        
-        // Smoothly blend terrain colors within the tile to conceal the underlying grid
-        const baseRgb = getBlendedTileColor(worldX, worldY);
-        const drawX = x * tileSize;
-        const drawY = y * tileSize;
+    // Fill pixels
+    for (let y = 0; y < texSize; y++) {
+      for (let x = 0; x < texSize; x++) {
+        // Map pixel to world coordinate
+        // + 0.5 to sample center of sub-pixel
+        const wx = startX + (x + 0.5) / SAMPLES_PER_TILE;
+        const wy = startY + (y + 0.5) / SAMPLES_PER_TILE;
 
-        // Base blended color
-        cCtx.fillStyle = `rgb(${baseRgb.r | 0}, ${baseRgb.g | 0}, ${baseRgb.b | 0})`;
-        cCtx.fillRect(drawX, drawY, drawSize, drawSize);
+        const [r, g, b] = getTerrainColor(wx, wy);
 
-        // Terrain Detail / Shading
-        const h = game.getHeight(worldX + 0.5, worldY + 0.5);
-        const shade = (h - 0.5) * 0.5; // -0.25 to 0.25
-
-        if (shade > 0) {
-          cCtx.fillStyle = `rgba(255,255,255,${shade})`;
-          cCtx.fillRect(drawX, drawY, drawSize, drawSize);
-        } else if (shade < 0) {
-          cCtx.fillStyle = `rgba(0,0,0,${-shade})`;
-          cCtx.fillRect(drawX, drawY, drawSize, drawSize);
-        }
+        const idx = (y * texSize + x) * 4;
+        data[idx] = r;
+        data[idx+1] = g;
+        data[idx+2] = b;
+        data[idx+3] = 255;
       }
     }
+
+    texCtx.putImageData(imgData, 0, 0);
+
+    // Now assume this small texture is the chunk.
+    // We can draw it directly in renderFrame with scaling, 
+    // OR scale it up here to a cached canvas of the correct display size.
+    // Scaling here prevents blurriness changes during zoom if we want a fixed look,
+    // but scaling in renderFrame is more efficient for memory if tileSize is huge.
+    // Given the request for "smooth", let's cache the result at the current tileSize
+    // so we don't rely on browser upscaling of a tiny texture every frame which might
+    // look too blurry or pixelated depending on the browser's smoothing algorithm.
+    // ACTUALLY: The request is to conceal the grid. A high-quality upscale here is best.
+    
+    // Create final cached canvas
+    // We make it slightly larger (1px border) or just standard? 
+    // Standard is fine, we rely on the texture being smooth.
+    const finalSize = CHUNK_SIZE * state.tileSize;
+    const cCanvas = document.createElement('canvas');
+    cCanvas.width = finalSize;
+    cCanvas.height = finalSize;
+    const cCtx = cCanvas.getContext('2d');
+    
+    cCtx.imageSmoothingEnabled = true;
+    cCtx.imageSmoothingQuality = 'high';
+    cCtx.drawImage(texCanvas, 0, 0, finalSize, finalSize);
+
+    // Optional: Draw Grid lines? No, we want to conceal grid.
 
     chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now() });
     return cCanvas;
   }
 
   function renderFrame(timestamp) {
-    // 1. Draw Background (Chunks)
-    // Clear not strictly necessary if chunks cover screen, but good for safety
+    // 1. Draw Background
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
 
@@ -146,18 +177,13 @@ export function createRenderer({ canvas, state, game }) {
     const centerX = state.width / 2;
     const centerY = state.height / 2;
     
-    // Viewport Calculations
-    // How many chunks fit on screen?
-    // We expand slightly to ensure edges are drawn
+    // Ensure smoothing is on for the main canvas to blend chunks
+    ctx.imageSmoothingEnabled = true;
+
+    // Calculate Viewport
     const visibleWidth = state.width;
     const visibleHeight = state.height;
     
-    // Convert Camera Center to Chunk Coordinates
-    const chunkPixels = CHUNK_SIZE * tileSize;
-    
-    // Top-Left of screen in world pixels (relative to camera)
-    // Camera is at center.
-    // screen 0,0 corresponds to world: camX*tile - width/2
     const viewLeftTile = state.camera.x - (visibleWidth / 2) / tileSize;
     const viewRightTile = state.camera.x + (visibleWidth / 2) / tileSize;
     const viewTopTile = state.camera.y - (visibleHeight / 2) / tileSize;
@@ -173,72 +199,72 @@ export function createRenderer({ canvas, state, game }) {
       for (let cx = startChunkX; cx <= endChunkX; cx++) {
         const chunkImg = getChunk(cx, cy);
         
-        // Calculate position on screen
-        // Chunk origin in world tiles: cx * 16
-        // World tile to Screen: (world - cam) * size + center
         const chunkWorldX = cx * CHUNK_SIZE;
         const chunkWorldY = cy * CHUNK_SIZE;
         
         const screenX = (chunkWorldX - state.camera.x) * tileSize + centerX;
         const screenY = (chunkWorldY - state.camera.y) * tileSize + centerY;
 
-        // Round to avoid subpixel gaps between chunks if browser anti-aliases
-        // But allow subpixel movement?
-        // For performance and seamlessness, drawing rounded coordinates prevents seams.
-        // Camera smoothness might suffer slightly but prevents "grid lines".
-        ctx.drawImage(chunkImg, Math.floor(screenX), Math.floor(screenY));
+        // Use Math.round to position chunks to prevent sub-pixel gaps 
+        // that let the background bleed through
+        const w = Math.ceil(CHUNK_SIZE * tileSize);
+        ctx.drawImage(chunkImg, Math.floor(screenX), Math.floor(screenY), w, w);
       }
     }
     
-    // Prune Cache (every ~60 frames)
+    // Prune Cache
     if (Math.random() < 0.02) {
       const now = performance.now();
       for (const [key, val] of chunkCache) {
-        if (now - val.lastUsed > 2000) { // 2 seconds unused
+        if (now - val.lastUsed > 3000) {
           chunkCache.delete(key);
         }
       }
     }
 
-    // 2. Render Entities (Towns, Relics)
-    // We can't bake these into chunks because they might interact/animate (or we might want to later)
+    // 2. Render Entities
     state.entities.forEach(ent => {
        const screenX = (ent.x - state.camera.x) * tileSize + centerX;
        const screenY = (ent.y - state.camera.y) * tileSize + centerY;
        
-       // Cull
        if (screenX < -tileSize*2 || screenX > state.width + tileSize*2 || 
            screenY < -tileSize*2 || screenY > state.height + tileSize*2) return;
 
        if (ent.type === game.CONSTANTS.ENTITY_CITY) {
-         // Neon Castle
-         ctx.fillStyle = 'rgba(16, 185, 129, 0.2)'; // Glow
-         ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize * 2, 0, Math.PI*2);
-         ctx.fill();
-
+         // City
+         const r = tileSize * 0.8;
          ctx.fillStyle = '#10b981';
-         ctx.fillRect(screenX, screenY, tileSize, tileSize);
-         // Detail
-         ctx.fillStyle = '#065f46';
-         ctx.fillRect(screenX + tileSize/2 - tileSize*0.1, screenY, tileSize*0.2, tileSize*0.6); 
-       } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
-         // Ancient Tech
-         ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+         ctx.shadowColor = '#10b981';
+         ctx.shadowBlur = 20;
          ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize * 2, 0, Math.PI*2);
+         ctx.arc(screenX, screenY, r, 0, Math.PI*2);
          ctx.fill();
-
+         ctx.shadowBlur = 0;
+         
+         // Icon
+         ctx.fillStyle = '#064e3b';
+         ctx.fillRect(screenX - r/2, screenY - r/2, r, r);
+       } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
+         // Relic
+         const r = tileSize * 0.6;
          ctx.fillStyle = '#f59e0b';
+         ctx.shadowColor = '#f59e0b';
+         ctx.shadowBlur = 15;
          ctx.beginPath();
-         ctx.moveTo(screenX + tileSize/2, screenY);
-         ctx.lineTo(screenX + tileSize, screenY + tileSize);
-         ctx.lineTo(screenX, screenY + tileSize);
+         ctx.arc(screenX, screenY, r, 0, Math.PI*2);
+         ctx.fill();
+         ctx.shadowBlur = 0;
+         
+         ctx.fillStyle = '#78350f';
+         ctx.beginPath();
+         ctx.moveTo(screenX, screenY - r/2);
+         ctx.lineTo(screenX + r/2, screenY + r/2);
+         ctx.lineTo(screenX - r/2, screenY + r/2);
          ctx.fill();
        }
     });
 
-    // 3. Render Player (Caravan)
+    // 3. Render Player (Houseboat)
     const p = state.player;
     const px = (p.x - state.camera.x) * tileSize + centerX;
     const py = (p.y - state.camera.y) * tileSize + centerY;
@@ -247,44 +273,38 @@ export function createRenderer({ canvas, state, game }) {
     ctx.translate(px, py);
     ctx.rotate(p.angle);
     
-    const carScale = 1.0; 
-    const carLen = tileSize * 1.5;
-    const carWid = tileSize * 0.8;
+    // Boat Dimensions
+    const boatLen = tileSize * 1.2;
+    const boatWid = tileSize * 0.6;
     
     // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(-carLen/2 + 4, -carWid/2 + 4, carLen, carWid);
-
-    // Body
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(-carLen/2, -carWid/2, carLen, carWid);
-    
-    // Detail / Windows
-    ctx.fillStyle = '#334155';
-    ctx.fillRect(-carLen/4, -carWid/3, carLen/2, carWid/1.5);
-    
-    // Engine Glow
-    ctx.fillStyle = '#0ea5e9';
-    ctx.shadowColor = '#0ea5e9';
-    ctx.shadowBlur = 10;
-    ctx.fillRect(-carLen/2 - 4, -carWid/4, 4, carWid/2);
-    
-    // Headlights
-    ctx.fillStyle = '#fef08a';
-    ctx.shadowColor = '#fef08a';
-    ctx.shadowBlur = 15;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
-    ctx.moveTo(carLen/2, -carWid/4);
-    ctx.lineTo(carLen/2 + carLen/2, -carWid/1.5);
-    ctx.lineTo(carLen/2 + carLen/2, carWid/1.5);
-    ctx.lineTo(carLen/2, carWid/4);
+    ctx.ellipse(4, 4, boatLen/2, boatWid/2, 0, 0, Math.PI*2);
     ctx.fill();
+
+    // Hull
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, boatLen/2, boatWid/2, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Deck/Cabin
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(-boatLen/4, -boatWid/4, boatLen/2, boatWid/2);
+    
+    // Light
+    ctx.fillStyle = '#fef08a';
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.arc(boatLen/2, 0, boatWid/3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
 
     ctx.restore();
   }
 
   function drawMenuBackground(t) {
-    // Simple animated gradient for better performance than the circles
     const hue = (t * 0.01) % 360;
     const grad = ctx.createLinearGradient(0, 0, state.width, state.height);
     grad.addColorStop(0, `hsl(${hue}, 20%, 10%)`);
@@ -302,7 +322,6 @@ export function createRenderer({ canvas, state, game }) {
     window.removeEventListener('resize', resize);
   }
 
-  // Clear chunk cache when zoom level (tileSize) changes
   function clearCache() {
     chunkCache.clear();
   }
