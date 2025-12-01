@@ -7,7 +7,9 @@ export function createWaterEffects({ state, game, noise }) {
 
   const WAKE_SEGMENT_LIFE = 2.0; // seconds
   const WAKE_SPAWN_INTERVAL = 0.05; // spawn new segment every N seconds
-  const MIN_LINE_LENGTH = state.tileSize * 0.25;
+  // All distances in this module are expressed in world "tile" units and
+  // converted to pixels in render() using the current tileSize.
+  const MIN_LINE_LENGTH = 0.25; // tiles
 
   let wakeTimer = 0;
 
@@ -15,8 +17,15 @@ export function createWaterEffects({ state, game, noise }) {
   function spawnWake(x, y, angle, speed) {
     if (speed < 0.5) return; // Don't generate wake when nearly stopped
 
+    // Only spawn wakes when actually over river water
+    const tile = game.getTile(Math.floor(x), Math.floor(y));
+    const isWater =
+      tile === game.CONSTANTS.TILE_RIVER_DEEP ||
+      tile === game.CONSTANTS.TILE_RIVER_SHALLOW;
+    if (!isWater) return;
+
     const intensity = Math.min(1, speed / 5);
-    const baseSpread = state.tileSize * 0.8;
+    const baseSpread = 0.8; // tiles
 
     // Create V-shaped wake pattern with straight line segments
     for (let side of [-1, 1]) {
@@ -59,7 +68,7 @@ export function createWaterEffects({ state, game, noise }) {
     // Spawn new waves occasionally
     if (Math.random() < dt * 0.5) {
       const p = state.player;
-      // Find nearby bank tiles
+      // Find nearby bank / water-edge tiles
       const searchRadius = 20;
       for (let dy = -searchRadius; dy <= searchRadius; dy += 2) {
         for (let dx = -searchRadius; dx <= searchRadius; dx += 2) {
@@ -67,56 +76,36 @@ export function createWaterEffects({ state, game, noise }) {
           const ty = Math.floor(p.y + dy);
 
           const tile = game.getTile(tx, ty);
-          if (tile === game.CONSTANTS.TILE_BANK) {
-            // Find adjacent water tiles and directions
-            const waterTiles = [];
-            const neighbors = [
-              { dx: -1, dy: 0 },
-              { dx: 1, dy: 0 },
-              { dx: 0, dy: -1 },
-              { dx: 0, dy: 1 }
-            ];
 
-            for (const { dx: dirX, dy: dirY } of neighbors) {
-              const nx = tx + dirX;
-              const ny = ty + dirY;
-              const neighborTile = game.getTile(nx, ny);
-              if (neighborTile === game.CONSTANTS.TILE_RIVER_DEEP || neighborTile === game.CONSTANTS.TILE_RIVER_SHALLOW) {
-                // Store water tile coordinates (nx, ny) and direction vector (dirX, dirY) from bank to water
-                waterTiles.push({ nx, ny, dirX, dirY });
-              }
-            }
+          // We want waves drawn just inside the water along the shore,
+          // so start from shallow water tiles adjacent to banks.
+          const isShallowWater =
+            tile === game.CONSTANTS.TILE_RIVER_SHALLOW ||
+            tile === game.CONSTANTS.TILE_RIVER_DEEP;
 
-            if (waterTiles.length > 0 && Math.random() < 0.2) { 
-              // Pick a random water neighbor to spawn the wave from
-              const { nx, ny, dirX, dirY } = waterTiles[Math.floor(Math.random() * waterTiles.length)];
+          if (isShallowWater) {
+            // Check if adjacent to bank land
+            const hasBank = [
+              game.getTile(tx - 1, ty),
+              game.getTile(tx + 1, ty),
+              game.getTile(tx, ty - 1),
+              game.getTile(tx, ty + 1)
+            ].some(t => t === game.CONSTANTS.TILE_BANK);
 
-              // 1. Position the wave starting point near the boundary, inside the water tile.
-              // Start near the center of the water tile (nx+0.5, ny+0.5) but offset towards the bank boundary (0.3 tiles).
-              // We add (Math.random() - 0.5) * 0.2 for random displacement within the near-bank area.
-              const startX = nx + 0.5 - dirX * 0.3 + (Math.random() - 0.5) * 0.2;
-              const startY = ny + 0.5 - dirY * 0.3 + (Math.random() - 0.5) * 0.2;
-              
-              // 2. Determine wave segment angle: should be roughly parallel to the shoreline.
-              // Shoreline direction is perpendicular to the vector pointing from bank to water (dirX, dirY).
-              const tanX = -dirY;
-              const tanY = dirX;
-              const shoreAngle = Math.atan2(tanY, tanX); 
-              
-              // Add perturbation to the segment angle
-              let segmentAngle = shoreAngle + (Math.random() - 0.5) * 0.4;
-              
+            if (hasBank && Math.random() < 0.08) {
+              // Spawn a wave segment in water at the shoreline
+              const angle = Math.random() * Math.PI * 2;
               const length = MIN_LINE_LENGTH * (0.5 + Math.random() * 1.5);
 
               shorelineWaves.push({
-                x: startX,
-                y: startY,
-                angle: segmentAngle,
+                x: tx + Math.random(),
+                y: ty + Math.random(),
+                angle: angle,
                 length: length,
-                width: 0.5 + Math.random() * 1.5,
+                width: 0.5 + Math.random(),
                 life: 1.5,
                 maxLife: 1.5,
-                opacity: 0.4
+                opacity: 0.3
               });
             }
           }
@@ -164,6 +153,7 @@ export function createWaterEffects({ state, game, noise }) {
       const screenX = (seg.x - camera.x) * tileSize + centerX;
       const screenY = (seg.y - camera.y) * tileSize + centerY;
 
+      // seg.length is in tiles, so convert to pixels using tileSize
       const endX = screenX + Math.cos(seg.angle) * seg.length * tileSize;
       const endY = screenY + Math.sin(seg.angle) * seg.length * tileSize;
 
@@ -183,6 +173,7 @@ export function createWaterEffects({ state, game, noise }) {
       const screenX = (wave.x - camera.x) * tileSize + centerX;
       const screenY = (wave.y - camera.y) * tileSize + centerY;
 
+      // wave.length is in tiles, so convert to pixels using tileSize
       const endX = screenX + Math.cos(wave.angle) * wave.length * tileSize;
       const endY = screenY + Math.sin(wave.angle) * wave.length * tileSize;
 

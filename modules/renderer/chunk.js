@@ -93,7 +93,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
     for (let y = 0; y < CHUNK_SIZE; y++) {
       for (let x = 0; x < CHUNK_SIZE; x++) {
         const tileType = tileGrid[y][x];
-        if (visited[y][x] || tileType === 0 || (game.CONSTANTS.TILE_ROAD && tileType === game.CONSTANTS.TILE_ROAD)) continue;
+        // Skip already processed tiles and any special road tiles (if defined),
+        // but DO NOT skip tileType === 0 so deep water renders as normal terrain.
+        if (visited[y][x] || (game.CONSTANTS.TILE_ROAD && tileType === game.CONSTANTS.TILE_ROAD)) continue;
 
         const { cells, avgH } = floodFill(tileGrid, heightGrid, visited, x, y, tileType, CHUNK_SIZE);
 
