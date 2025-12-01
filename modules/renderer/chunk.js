@@ -55,6 +55,27 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
 
     const perturbScale = tileSize * 0.15;
 
+    // Helper: compute a vertex position with deterministic perturbation,
+    // but keep vertices that lie on chunk boundaries perfectly aligned
+    function getPerturbedVertex(worldX, worldY, localGridX, localGridY) {
+      // Vertices lying exactly on chunk grid lines (in tile space) are shared
+      // between adjacent chunks; do not perturb them so edges stay flush.
+      const onChunkBoundary =
+        (worldX % CHUNK_SIZE === 0) ||
+        (worldY % CHUNK_SIZE === 0);
+
+      const baseX = localGridX * tileSize;
+      const baseY = localGridY * tileSize;
+
+      if (onChunkBoundary) {
+        return { x: baseX, y: baseY };
+      }
+
+      const ox = getVertexOffset(worldX, worldY, 0) * perturbScale;
+      const oy = getVertexOffset(worldX, worldY, 1) * perturbScale;
+      return { x: baseX + ox, y: baseY + oy };
+    }
+
     // Phase 1: Crisp roads (compatibility: previously TILE_ROAD existed; check constant)
     for (let y = 0; y < CHUNK_SIZE; y++) {
       for (let x = 0; x < CHUNK_SIZE; x++) {
@@ -101,25 +122,25 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
           const p = hull[i];
           const wx = startX + p.x;
           const wy = startY + p.y;
-          const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
-          const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
-          if (i === 0) cCtx.moveTo(px, py);
-          else cCtx.lineTo(px, py);
+          const v = getPerturbedVertex(wx, wy, p.x, p.y);
+          if (i === 0) cCtx.moveTo(v.x, v.y);
+          else cCtx.lineTo(v.x, v.y);
         }
         cCtx.closePath();
         cCtx.fill();
 
         if (shadeAmt !== 0) {
-          cCtx.fillStyle = shadeAmt > 0 ? `rgba(255,255,255,${Math.min(0.5, shadeAmt)})` : `rgba(0,0,0,${Math.min(0.5, -shadeAmt)})`;
+          cCtx.fillStyle = shadeAmt > 0
+            ? `rgba(255,255,255,${Math.min(0.5, shadeAmt)})`
+            : `rgba(0,0,0,${Math.min(0.5, -shadeAmt)})`;
           cCtx.beginPath();
           for (let i = 0; i < hull.length; i++) {
             const p = hull[i];
             const wx = startX + p.x;
             const wy = startY + p.y;
-            const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
-            const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
-            if (i === 0) cCtx.moveTo(px, py);
-            else cCtx.lineTo(px, py);
+            const v = getPerturbedVertex(wx, wy, p.x, p.y);
+            if (i === 0) cCtx.moveTo(v.x, v.y);
+            else cCtx.lineTo(v.x, v.y);
           }
           cCtx.closePath();
           cCtx.fill();
@@ -133,10 +154,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
             const p = hull[i];
             const wx = startX + p.x;
             const wy = startY + p.y;
-            const px = p.x * tileSize + getVertexOffset(wx, wy, 0) * perturbScale;
-            const py = p.y * tileSize + getVertexOffset(wx, wy, 1) * perturbScale;
-            if (i === 0) cCtx.moveTo(px, py);
-            else cCtx.lineTo(px, py);
+            const v = getPerturbedVertex(wx, wy, p.x, p.y);
+            if (i === 0) cCtx.moveTo(v.x, v.y);
+            else cCtx.lineTo(v.x, v.y);
           }
           cCtx.closePath();
           cCtx.stroke();
