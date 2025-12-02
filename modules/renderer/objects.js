@@ -38,7 +38,8 @@ export function drawTreeShadow(ctx, state, camera, tileSize, tree, cycle, shadow
   ctx.fill();
 }
 
-export function drawTree(ctx, state, tileSize, tree, treeColors, cycle) {
+// Updated drawTree: now accepts cycle and shadowDir so tree shading follows sun direction/day phase
+export function drawTree(ctx, state, tileSize, tree, treeColors, cycle, shadowDir) {
   const { x: tx, y: ty, h, type } = tree;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
@@ -47,110 +48,92 @@ export function drawTree(ctx, state, tileSize, tree, treeColors, cycle) {
   const baseW = tileSize * 0.4 * h;
   const treeH = tileSize * 1.0 * h;
 
-  // Resolve base and shadow colors
-  const baseColor = type === 'forest' ? treeColors.treeForest : treeColors.treeGrass;
-  const darkColor = 'rgba(0,0,0,0.55)'; // dark side color
-  const lightOverlayColor = 'rgba(255,255,255,0.08)'; // subtle highlight for lit area
+  // Resolve base (full-light) and dark colors
+  const lightColor = type === 'forest' ? treeColors.treeForest : treeColors.treeGrass;
+  const darkColor = 'rgba(10,10,10,0.85)'; // deep desaturated shadow color used at night/backside
 
-  // Determine whether it's night by reading ambient alpha from cycle.ambientColor.
-  // ambientColor is like 'rgba(r,g,b,a)'; extract alpha.
-  let ambAlpha = 0;
-  try {
-    const m = /rgba\(\s*\d+,\s*\d+,\s*\d+,\s*([\d.]+)\s*\)/.exec(cycle.ambientColor || '');
-    if (m) ambAlpha = parseFloat(m[1]);
-  } catch (e) { ambAlpha = 0; }
+  // Determine sun direction (sun points opposite of shadow direction)
+  const sunX = -shadowDir.x;
+  const sunY = -shadowDir.y;
 
-  // Night: draw single flat (darkened) color
-  if (ambAlpha > 0.15) {
+  // dayFactor provided by daycycle: 0 == night, 1 == full day (midday)
+  const dayFactor = (cycle && typeof cycle.dayFactor === 'number') ? cycle.dayFactor : 1;
+
+  // If night (dayFactor very low), draw a single flat dark silhouette
+  if (dayFactor <= 0.02) {
     ctx.fillStyle = darkColor;
     ctx.beginPath();
     ctx.moveTo(sx - baseW/2, sy);
     ctx.lineTo(sx + baseW/2, sy);
     ctx.lineTo(sx, sy - treeH);
-    ctx.closePath();
     ctx.fill();
     return;
   }
 
-  // Day: compute a lit fraction based on state.dayTime relative to sunrise/midday/sunset.
-  // Recreate the same breakpoints used by daycycle so shading ramps correctly.
-  const t = state.dayTime;
-  const dawnStart = 0.18;
-  const dawnEnd = 0.30;
-  const duskStart = 0.70;
-  const duskEnd = 0.82;
-  const dayInnerStart = dawnEnd;
-  const dayInnerEnd = duskStart;
-  const dayMid = (dayInnerStart + dayInnerEnd) * 0.5;
+  // Draw base full-light triangle first
+  ctx.fillStyle = lightColor;
+  ctx.beginPath();
+  ctx.moveTo(sx - baseW/2, sy);
+  ctx.lineTo(sx + baseW/2, sy);
+  ctx.lineTo(sx, sy - treeH);
+  ctx.fill();
 
-  // Compute progress p in [0..1] where 0 = sunrise (very dark), 1 = midday (fully lit), then back to 0 at sunset.
-  let p = 0;
-  if (t <= dawnStart || t >= duskEnd) {
-    p = 0;
-  } else if (t >= dawnEnd && t <= dayMid) {
-    p = (t - dawnEnd) / (dayMid - dawnEnd); // 0 -> 1 morning
-  } else if (t > dayMid && t <= duskStart) {
-    p = 1 - (t - dayMid) / (duskStart - dayMid); // 1 -> 0 early afternoon to duskStart mirrored
-  } else if (t > dawnStart && t < dawnEnd) {
-    p = 0; // during brief dawn ramp keep near dark; lighting handled above
-  } else if (t > duskStart && t < duskEnd) {
-    p = 0;
-  } else {
-    p = 1;
-  }
-  p = Math.max(0, Math.min(1, p));
+  // Compute shaded (dark) coverage fraction: 0 at midday, 1 at night
+  // Use 1 - dayFactor to get amount of darkness; modulate by sun horizontal contribution so shading enters from correct side smoothly
+  const darkness = Math.min(1, Math.max(0, 1 - dayFactor));
 
-  // Determine which side is lit by sun direction (sun = -shadowDir)
-  const sunX = -cycle.shadowDirX;
-  const lightOnRight = sunX > 0;
+  // Horizontal bias of sun: -1 => coming fully from left (light on left), +1 => from right
+  const horiz = Math.max(-1, Math.min(1, sunX));
 
-  // Fraction of base that is lit (small sliver at low p, full at p=1)
-  const litFrac = p; // linear mapping (can tweak with easing)
-  const halfBase = baseW / 2;
-  const litWidth = baseW * litFrac;
+  // Coverage width in pixels (how much of the base is covered by shadow)
+  const coverWidth = baseW * darkness;
 
-  // Draw base dark triangle first
+  // Build dark polygon that covers a tapered portion of the triangle from the side opposite the sun
+  // If sun is to the right (horiz>0) the shadow grows from the left edge rightwards; if sun to left, shadow grows from right edge leftwards.
   ctx.fillStyle = darkColor;
   ctx.beginPath();
-  ctx.moveTo(sx - halfBase, sy);
-  ctx.lineTo(sx + halfBase, sy);
-  ctx.lineTo(sx, sy - treeH);
-  ctx.closePath();
-  ctx.fill();
 
-  // Overlay lit region as a triangular wedge from the tip to a slice of the base
-  ctx.fillStyle = baseColor; // use tree's base color for lit area
-  ctx.beginPath();
-  ctx.moveTo(sx, sy - treeH);
-  if (lightOnRight) {
-    // Light comes from right: lit wedge occupies right side of base
-    const innerBaseX = sx + halfBase - litWidth;
-    ctx.lineTo(sx + halfBase, sy);
-    ctx.lineTo(innerBaseX, sy);
+  const half = baseW / 2;
+  if (horiz >= 0) {
+    // Light comes from right -> shadow on left, expand rightward by coverWidth
+    const shadowRightX = sx - half + Math.min(baseW, coverWidth);
+    // Create polygon that covers left base to tip, tapering towards the tip
+    ctx.moveTo(sx - half, sy);
+    ctx.lineTo(shadowRightX, sy);
+    // Interpolate a point towards the tip to make a smooth taper
+    ctx.lineTo(sx - half * (1 - (coverWidth/baseW)), sy - treeH * (0.6 + 0.4 * (coverWidth/baseW)));
+    ctx.lineTo(sx, sy - treeH);
+    ctx.closePath();
+    ctx.fill();
   } else {
-    // Light from left
-    const innerBaseX = sx - halfBase + litWidth;
-    ctx.lineTo(sx - halfBase, sy);
-    ctx.lineTo(innerBaseX, sy);
+    // Light comes from left -> shadow on right, expand leftward by coverWidth
+    const shadowLeftX = sx + half - Math.min(baseW, coverWidth);
+    ctx.moveTo(sx + half, sy);
+    ctx.lineTo(shadowLeftX, sy);
+    ctx.lineTo(sx + half * (1 - (coverWidth/baseW)), sy - treeH * (0.6 + 0.4 * (coverWidth/baseW)));
+    ctx.lineTo(sx, sy - treeH);
+    ctx.closePath();
+    ctx.fill();
   }
-  ctx.closePath();
-  ctx.fill();
 
-  // Subtle rim highlight along lit edge
-  ctx.fillStyle = lightOverlayColor;
-  ctx.beginPath();
-  ctx.moveTo(sx, sy - treeH * 0.45);
-  if (lightOnRight) {
-    const innerBaseX = sx + halfBase - litWidth * 0.6;
-    ctx.lineTo(sx + halfBase, sy);
-    ctx.lineTo(innerBaseX, sy);
-  } else {
-    const innerBaseX = sx - halfBase + litWidth * 0.6;
-    ctx.lineTo(sx - halfBase, sy);
-    ctx.lineTo(innerBaseX, sy);
+  // Subtle highlight: a thin sliver near the lit edge when dayFactor is high
+  if (dayFactor > 0.5) {
+    const highlightStrength = (dayFactor - 0.5) * 2; // 0..1
+    ctx.fillStyle = `rgba(255,255,255,${0.06 * highlightStrength})`;
+    ctx.beginPath();
+    if (horiz >= 0) {
+      // lit edge on right: sliver near right base
+      ctx.moveTo(sx + half - 2, sy);
+      ctx.lineTo(sx + half, sy - treeH * 0.05);
+      ctx.lineTo(sx + half - 6, sy - treeH * 0.08);
+    } else {
+      ctx.moveTo(sx - half + 2, sy);
+      ctx.lineTo(sx - half, sy - treeH * 0.05);
+      ctx.lineTo(sx - half + 6, sy - treeH * 0.08);
+    }
+    ctx.closePath();
+    ctx.fill();
   }
-  ctx.closePath();
-  ctx.fill();
 }
 
 export function drawJaggedInfluence(ctx, centerX, centerY, radius, seedStr, fillColorOrOptions, alphaMul = 1) {

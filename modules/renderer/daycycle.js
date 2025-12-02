@@ -127,6 +127,6 @@ export function getCycleProps(state) {
 
   const ambientColor = `rgba(${col.r},${col.g},${col.b},${col.a})`;
 
-  return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor };
+  return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor, dayFactor };
 }
 
