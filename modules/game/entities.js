@@ -12,7 +12,7 @@ export function createEntitiesModule(state) {
   }
 
   // Manage spawning and cleanup used by game.update
-  function maintainEntities(getHeight, player) {
+  function maintainEntities(getHeight, getTile, player) {
     if (state.entities.length < 10) {
       const angle = Math.random() * Math.PI * 2;
       const dist = 30 + Math.random() * 50;
