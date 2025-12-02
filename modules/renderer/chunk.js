@@ -138,6 +138,12 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
     const tileGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(0));
     const heightGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(0));
     const visited = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(false));
+    // New: depth bands for water, and visited flags for band flood-fill
+    const depthBandGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(-1));
+    const visitedWater = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(false));
+
+    // Number of quantized depth bands for water
+    const WATER_BAND_COUNT = 4;
 
     for (let y = 0; y < CHUNK_SIZE; y++) {
       for (let x = 0; x < CHUNK_SIZE; x++) {
@@ -147,6 +153,16 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         const tileType = game.getTile(worldX, worldY);
         tileGrid[y][x] = tileType;
         heightGrid[y][x] = game.getHeight(worldX, worldY);
+
+        // Precompute water depth band per cell
+        if (tileType === game.CONSTANTS.TILE_WATER) {
+          const riverInfo = noise.getRiverSystem(worldX, worldY);
+          const v = Math.max(0, Math.min(1, riverInfo.value)); // 0 = deep, 1 = shallow
+          let band = Math.floor(v * WATER_BAND_COUNT);
+          if (band >= WATER_BAND_COUNT) band = WATER_BAND_COUNT - 1;
+          if (band < 0) band = 0;
+          depthBandGrid[y][x] = band;
+        }
       }
     }
 
@@ -221,47 +237,82 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       return { x: baseX + ox, y: baseY + oy };
     }
 
-    // Phase 1: Water Rendering (Gradient Tiles)
-    // We render water as individual quads to support smooth gradients based on depth
+    // Helper: flood-fill within a numeric band grid (e.g., depthBandGrid)
+    function floodFillBand(grid, visitedGrid, sx, sy, bandValue) {
+      const cells = [];
+      const stack = [[sx, sy]];
+      const dirs = [[0,1],[1,0],[0,-1],[-1,0]];
+
+      while (stack.length) {
+        const [cxCell, cyCell] = stack.pop();
+        if (cxCell < 0 || cxCell >= CHUNK_SIZE || cyCell < 0 || cyCell >= CHUNK_SIZE) continue;
+        if (visitedGrid[cyCell][cxCell]) continue;
+        if (grid[cyCell][cxCell] !== bandValue) continue;
+
+        visitedGrid[cyCell][cxCell] = true;
+        cells.push({ x: cxCell, y: cyCell });
+
+        for (let [dx, dy] of dirs) {
+          stack.push([cxCell + dx, cyCell + dy]);
+        }
+      }
+
+      return cells;
+    }
+
+    // Phase 1: Water Rendering as quantized depth bands using hull polygons
     if (WATER_PALETTE && game.CONSTANTS.TILE_WATER !== undefined) {
       for (let y = 0; y < CHUNK_SIZE; y++) {
         for (let x = 0; x < CHUNK_SIZE; x++) {
-          if (tileGrid[y][x] === game.CONSTANTS.TILE_WATER) {
-            const worldX = startX + x;
-            const worldY = startY + y;
-            
-            // Get river depth value (0=center, 1=edge)
-            const riverInfo = noise.getRiverSystem(worldX, worldY);
-            // Calculate gradient color
-            // value is approx 0..1 inside river. 
-            // 0 -> Deep, 1 -> Shallow
-            const color = lerpColorHex(WATER_PALETTE.deep, WATER_PALETTE.shallow, riverInfo.value);
-            
-            // Get perturbed vertices for the quad
-            const vTL = getPerturbedVertex(worldX, worldY, x, y);
-            const vTR = getPerturbedVertex(worldX + 1, worldY, x + 1, y);
-            const vBR = getPerturbedVertex(worldX + 1, worldY + 1, x + 1, y + 1);
-            const vBL = getPerturbedVertex(worldX, worldY + 1, x, y + 1);
+          if (tileGrid[y][x] !== game.CONSTANTS.TILE_WATER) continue;
+          if (visitedWater[y][x]) continue;
 
-            cCtx.fillStyle = color;
-            // Add a slightly thicker stroke to ensure adjacent tiles overlap and hide sub-pixel seams
-            cCtx.strokeStyle = color; 
-            cCtx.lineWidth = 2; // increased from 1 to cover seams
-            cCtx.lineJoin = 'miter';
-            cCtx.lineCap = 'butt';
-            
-            cCtx.beginPath();
-            cCtx.moveTo(vTL.x, vTL.y);
-            cCtx.lineTo(vTR.x, vTR.y);
-            cCtx.lineTo(vBR.x, vBR.y);
-            cCtx.lineTo(vBL.x, vBL.y);
-            cCtx.closePath();
-            
-            cCtx.fill();
-            cCtx.stroke();
+          const band = depthBandGrid[y][x];
+          if (band < 0) continue;
 
-            visited[y][x] = true;
+          const cells = floodFillBand(depthBandGrid, visitedWater, x, y, band);
+          if (!cells.length) continue;
+
+          const corners = new Set();
+          for (let { x: cxCell, y: cyCell } of cells) {
+            corners.add(`${cxCell},${cyCell}`);
+            corners.add(`${cxCell + 1},${cyCell}`);
+            corners.add(`${cxCell},${cyCell + 1}`);
+            corners.add(`${cxCell + 1},${cyCell + 1}`);
+            // Also mark main visited grid so terrain phase skips water
+            visited[cyCell][cxCell] = true;
           }
+
+          const points = Array.from(corners, s => {
+            const [px, py] = s.split(',').map(Number);
+            return { x: px, y: py };
+          });
+
+          const hull = convexHull(points);
+          if (hull.length < 3) continue;
+
+          // Compute representative depth for this band for coloring
+          const bandCenterT = (band + 0.5) / WATER_BAND_COUNT; // 0..1 shallowness
+          const color = lerpColorHex(WATER_PALETTE.deep, WATER_PALETTE.shallow, bandCenterT);
+
+          cCtx.fillStyle = color;
+          cCtx.strokeStyle = color;
+          cCtx.lineWidth = 2;
+          cCtx.lineJoin = 'miter';
+          cCtx.lineCap = 'butt';
+
+          cCtx.beginPath();
+          for (let i = 0; i < hull.length; i++) {
+            const p = hull[i];
+            const wx = startX + p.x;
+            const wy = startY + p.y;
+            const v = getPerturbedVertex(wx, wy, p.x, p.y);
+            if (i === 0) cCtx.moveTo(v.x, v.y);
+            else cCtx.lineTo(v.x, v.y);
+          }
+          cCtx.closePath();
+          cCtx.fill();
+          cCtx.stroke();
         }
       }
     }
