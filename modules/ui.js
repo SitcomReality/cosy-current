@@ -7,6 +7,7 @@ export function createUI({ container, state, renderer, noise, game }) {
   const uiScrap = document.getElementById('ui-scrap');
   const uiFuel = document.getElementById('ui-fuel');
   const uiBio = document.getElementById('ui-bio');
+  const uiTime = document.getElementById('ui-time');
   
   // Settings Modal Elements
   const btnSettingsToggle = document.getElementById('btn-settings-toggle');
@@ -91,6 +92,16 @@ export function createUI({ container, state, renderer, noise, game }) {
     // Optional: Warn low fuel
     if (state.resources.fuel < 20) uiFuel.style.color = '#ef4444';
     else uiFuel.style.color = 'inherit';
+
+    // Time of day display (24h clock mapped to dayTime 0..1)
+    if (uiTime) {
+      const totalMinutes = state.dayTime * 24 * 60;
+      let hours = Math.floor(totalMinutes / 60) % 24;
+      let minutes = Math.floor(totalMinutes % 60);
+      const hh = hours.toString().padStart(2, '0');
+      const mm = minutes.toString().padStart(2, '0');
+      uiTime.textContent = `${hh}:${mm}`;
+    }
   }
 
   return { bind, update };

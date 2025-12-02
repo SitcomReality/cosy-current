@@ -35,45 +35,58 @@ export function getCycleProps(state) {
     dayFactor = 1 - smoothstep(duskStart, duskEnd, t);
   }
 
-  // Compute shadow properties:
-  // We want shadows to be longest near sunrise and near night (opposite ends),
-  // and shortest at mid-day. The direction flips from morning -> afternoon.
-  // Use a continuous function over the full 0..1 day where distanceFromNoon
-  // is 0 at t=0.5 (noon) and 1 at t=0 or 1 (midnight), producing max length at edges.
-  const distanceFromNoon = Math.abs(t - 0.5) * 2; // 0 at noon, 1 at midnight/edges
-  // Eased length so it smoothly goes to zero at noon and peaks at edges
-  let shadowLength = smoothstep(0, 1, distanceFromNoon);
+  // Compute continuous shadow properties independent of color filtering
+  let shadowLength = 0;
+  let shadowAlpha = 0;
+  let shadowDirX = 0;
+  let shadowDirY = 0.4;
 
-  // Shadow alpha follows length but we still want shadows to fade during dawn/dusk transitions.
-  // Compute a visibility multiplier that raises shadow visibility during night/dawn/dusk and
-  // reduces it slightly during the moments the color tint is strongest (middle of dawn/dusk).
-  const transitionFade = Math.max(
-    smoothstep(dawnStart - 0.05, dawnEnd + 0.05, t),
-    1 - smoothstep(duskStart - 0.05, duskEnd + 0.05, t)
-  );
-  // When fully day, keep shadows modest; when near edges/night, let them be stronger.
-  const visibilityMul = lerp(0.6, 1.0, distanceFromNoon) * Math.max(0.25, transitionFade);
+  // Define daytime center between dawnEnd and duskStart
+  const dayInnerStart = dawnEnd;
+  const dayInnerEnd = duskStart;
+  const dayMid = (dayInnerStart + dayInnerEnd) * 0.5;
 
-  shadowLength *= visibilityMul;
+  // Base shadow length:
+  // - Max at dawnStart and duskEnd
+  // - Shrinks smoothly to 0 at midday (dayMid)
+  // - Does NOT shrink/grow again during night; it just stays "max" but is hidden by alpha.
+  let shadowLengthBase = 1;
 
-  // Shadow alpha baseline maps from modest at mid-day to stronger near edges
-  let shadowAlpha = lerp(0.12, 0.55, shadowLength);
-  // Ensure alpha still respects dayFactor fades (so very deep night isn't unrealistically lit)
-  shadowAlpha *= Math.max(0.25, dayFactor + 0.25);
+  if (t > dawnStart && t < dayMid) {
+    // Morning: shrink from max at dawnStart to 0 at dayMid
+    const u = clamp((t - dawnStart) / (dayMid - dawnStart), 0, 1); // 0 at dawnStart, 1 at dayMid
+    const edge = 1 - u; // 1 -> 0
+    shadowLengthBase = smoothstep(0, 1, edge);
+  } else if (t >= dayMid && t < duskEnd) {
+    // Afternoon: grow from 0 at dayMid to max at duskEnd
+    const u = clamp((t - dayMid) / (duskEnd - dayMid), 0, 1); // 0 at dayMid, 1 at duskEnd
+    const edge = u; // 0 -> 1
+    shadowLengthBase = smoothstep(0, 1, edge);
+  } else {
+    // Night segments before dawnStart or after duskEnd: keep at max length
+    shadowLengthBase = 1;
+  }
 
-  // Direction: morning vs afternoon consistent with design; morning when local day-progress < 0.5
+  shadowLength = shadowLengthBase;
+
+  // Shadow alpha: fade in/out with dayFactor, and strengthen slightly near morning/evening
+  let edgeFactor = 1;
+  if (t > dawnStart && t < duskEnd) {
+    const span = (dayMid - dawnStart);
+    const dist = Math.abs(t - dayMid);
+    edgeFactor = clamp(dist / span, 0, 1); // 0 at noon, 1 near dawnEnd/duskStart
+  }
+  shadowAlpha = lerp(0.15, 0.45, edgeFactor) * dayFactor;
+
+  // Direction: morning vs afternoon consistent with original design
   const COS_30_DEG = 0.866025;
   const SIN_30_DEG = 0.5;
-  // Map t into a circular day progress where 0..0.5 is morning->noon, 0.5..1 is noon->night
-  const dayInnerT = (t >= 0 && t <= 1) ? t : (t % 1);
-  let shadowDirX = COS_30_DEG;
-  let shadowDirY = -SIN_30_DEG;
-  if (dayInnerT <= 0.5) {
+  if (t <= dayMid) {
     // Morning: Shadow points NW (150 deg)
     shadowDirX = -COS_30_DEG;
     shadowDirY = SIN_30_DEG;
   } else {
-    // Afternoon/Night: Shadow points SE (330 deg)
+    // Afternoon / evening: Shadow points SE (330 deg)
     shadowDirX = COS_30_DEG;
     shadowDirY = -SIN_30_DEG;
   }
