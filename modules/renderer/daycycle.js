@@ -16,10 +16,12 @@ export function getCycleProps(state) {
   const lerp = (a, b, u) => a + (b - a) * u;
 
   // Define transition windows (a bit extended to allow gentle fades)
-  const dawnStart = 0.18;
-  const dawnEnd = 0.30;   // fully day after this
-  const duskStart = 0.70;  // start fading to evening
-  const duskEnd = 0.82;    // fully night after this
+  // Narrower twilight windows so twilight color blending finishes earlier,
+  // leaving a stable night tint between duskEnd and dawnStart.
+  const dawnStart = 0.26;
+  const dawnEnd = 0.32;   // fully day after this
+  const duskStart = 0.68;  // start fading to evening
+  const duskEnd = 0.74;    // fully night after this
 
   // Determine normalized progress through day (0..1 where 1 is full daytime)
   let dayFactor = 0;
