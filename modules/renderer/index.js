@@ -7,20 +7,34 @@ import { createWaterEffects } from '../water.js';
 export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  // Stylized Vector Palette - Fixed river colors
-  // We now define gradient endpoints for the unified water tile
+  // OKLCH Palette for a cozy, low-poly aesthetic
+  // Note: OKLCH support is modern (Chrome 111+, Safari 15.4+, FF 113+)
+  const PALETTE = {
+    waterDeep: 'oklch(45% 0.12 250)',      // Deep distinctive blue
+    waterShallow: 'oklch(65% 0.1 240)',    // Lighter blue
+    sand: 'oklch(92% 0.06 95)',            // Warm pale sand
+    grass: 'oklch(78% 0.16 135)',          // Vibrant fresh green
+    forest: 'oklch(52% 0.14 145)',         // Darker cool green
+    hill: 'oklch(70% 0.04 280)',           // Grey-ish purple
+    mountain: 'oklch(92% 0.01 280)',       // Near white
+    
+    // Trees
+    treeForest: 'oklch(42% 0.14 145)',     // Slightly darker than forest floor
+    treeGrass: 'oklch(60% 0.16 140)',      // Standout green
+  };
+
   const WATER_PALETTE = {
-    deep: '#0c4a6e',    // Deep Blue Water (Center)
-    shallow: '#0ea5e9'  // Bright Blue Water (Edge)
+    deep: PALETTE.waterDeep,
+    shallow: PALETTE.waterShallow
   };
 
   const COLORS = {
-    [game.CONSTANTS.TILE_WATER]: WATER_PALETTE.shallow, // Fallback/base
-    [game.CONSTANTS.TILE_BANK]: '#fbbf24',          // Sandy/Gold
-    [game.CONSTANTS.TILE_GRASS]: '#4ade80',         // Vibrant Green
-    [game.CONSTANTS.TILE_FOREST]: '#166534',        // Deep Green
-    [game.CONSTANTS.TILE_HILL]: '#94a3b8',          // Grey Blue
-    [game.CONSTANTS.TILE_MOUNTAIN]: '#cbd5e1'       // White/Grey
+    [game.CONSTANTS.TILE_WATER]: PALETTE.waterShallow,
+    [game.CONSTANTS.TILE_BANK]: PALETTE.sand,
+    [game.CONSTANTS.TILE_GRASS]: PALETTE.grass,
+    [game.CONSTANTS.TILE_FOREST]: PALETTE.forest,
+    [game.CONSTANTS.TILE_HILL]: PALETTE.hill,
+    [game.CONSTANTS.TILE_MOUNTAIN]: PALETTE.mountain
   };
 
   const CHUNK_SIZE = 16;
@@ -38,33 +52,84 @@ export function createRenderer({ canvas, state, game, noise }) {
     chunkManager.clearCache();
   }
 
-  function drawMenuBackground(t) {
-    const hue = (t * 0.01) % 360;
-    const grad = ctx.createLinearGradient(0, 0, state.width, state.height);
-    grad.addColorStop(0, `hsl(${hue}, 20%, 10%)`);
-    grad.addColorStop(1, `hsl(${hue + 40}, 30%, 5%)`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, state.width, state.height);
+  // Calculate day/night cycle properties
+  function getCycleProps() {
+    // dayTime: 0..1
+    // 0 = Midnight, 0.25 = Sunrise, 0.5 = Noon, 0.75 = Sunset
+    const t = state.dayTime;
+    
+    // Shadow Direction: Sun moves East(0.25) -> Up(0.5) -> West(0.75)
+    // We simulate shadows moving opposite to sun.
+    // Sunrise (Sun at +X) -> Shadow points -X (Left)
+    // Sunset (Sun at -X) -> Shadow points +X (Right)
+    
+    let shadowX = 0;
+    let shadowY = 0;
+    let shadowAlpha = 0;
+    let ambientColor = 'transparent';
+
+    // Cycle calculations
+    if (t < 0.2 || t > 0.8) {
+      // Night
+      shadowAlpha = 0; // No hard shadows at night, maybe ambient
+      ambientColor = 'rgba(10, 10, 30, 0.6)'; // Dark blue overlay
+    } else if (t >= 0.2 && t < 0.3) {
+      // Dawn
+      const p = (t - 0.2) / 0.1; // 0..1
+      shadowX = -2.0 * (1.0 - p) - 0.5; // Long left shadow shrinking
+      shadowY = 0.5;
+      shadowAlpha = 0.4 * p;
+      ambientColor = `rgba(50, 20, 10, ${0.4 * (1-p)})`; // Red/Orange tint fading
+    } else if (t >= 0.3 && t < 0.7) {
+      // Day
+      // 0.3 -> 0.5 (Noon) -> 0.7
+      const mid = (t - 0.3) / 0.4; // 0..1
+      // Shadow moves Left -> Right
+      // At noon (0.5), shadow length is minimal
+      const sunPos = (mid - 0.5) * 2; // -1 (Morning) to 1 (Afternoon)
+      
+      shadowX = sunPos * 1.5; 
+      shadowY = 0.5; // Slight permanent slant
+      shadowAlpha = 0.3;
+      ambientColor = 'rgba(0,0,0,0)';
+    } else if (t >= 0.7 && t <= 0.8) {
+      // Dusk
+      const p = (t - 0.7) / 0.1; // 0..1
+      shadowX = 1.0 + p * 2.0; // Lengthening right shadow
+      shadowY = 0.5;
+      shadowAlpha = 0.3 * (1 - p);
+      ambientColor = `rgba(40, 10, 40, ${0.5 * p})`; // Purple tint
+    }
+    
+    return { shadowX, shadowY, shadowAlpha, ambientColor };
   }
 
   function renderFrame(timestamp) {
-    ctx.fillStyle = '#0f172a';
+    // Update Day Cycle
+    state.dayTime = (state.dayTime + state.daySpeed * 0.01) % 1.0;
+    
+    const cycle = getCycleProps();
+    const shadowVec = { x: cycle.shadowX, y: cycle.shadowY };
+
+    // Background
+    ctx.fillStyle = '#0f172a'; // Fallback
     ctx.fillRect(0, 0, state.width, state.height);
 
     if (!state.isPlaying) {
-      drawMenuBackground(timestamp);
+      // Just draw a placeholder or menu bg
+      const hue = (timestamp * 0.01) % 360;
+      ctx.fillStyle = `oklch(20% 0.1 ${hue})`;
+      ctx.fillRect(0, 0, state.width, state.height);
       return;
     }
 
     const tileSize = state.tileSize;
     const centerX = state.width / 2;
     const centerY = state.height / 2;
-
     const visibleWidth = state.width;
     const visibleHeight = state.height;
 
-    const chunkPixels = CHUNK_SIZE * tileSize;
-
+    // View bounds
     const viewLeftTile = state.camera.x - (visibleWidth / 2) / tileSize;
     const viewRightTile = state.camera.x + (visibleWidth / 2) / tileSize;
     const viewTopTile = state.camera.y - (visibleHeight / 2) / tileSize;
@@ -75,26 +140,97 @@ export function createRenderer({ canvas, state, game, noise }) {
     const startChunkY = Math.floor(viewTopTile / CHUNK_SIZE);
     const endChunkY = Math.floor(viewBottomTile / CHUNK_SIZE);
 
+    // 1. Render Terrain (Chunks)
     for (let cy = startChunkY; cy <= endChunkY; cy++) {
       for (let cx = startChunkX; cx <= endChunkX; cx++) {
         const chunkImg = chunkManager.getChunk(cx, cy);
-
-        const chunkWorldX = cx * CHUNK_SIZE;
-        const chunkWorldY = cy * CHUNK_SIZE;
-
-        const screenX = (chunkWorldX - state.camera.x) * tileSize + centerX;
-        const screenY = (chunkWorldY - state.camera.y) * tileSize + centerY;
+        const screenX = (cx * CHUNK_SIZE - state.camera.x) * tileSize + centerX;
+        const screenY = (cy * CHUNK_SIZE - state.camera.y) * tileSize + centerY;
+        
+        // Simple culling
+        if (screenX > state.width || screenY > state.height || 
+            screenX + chunkImg.width < 0 || screenY + chunkImg.height < 0) continue;
 
         ctx.drawImage(chunkImg, Math.round(screenX), Math.round(screenY));
       }
     }
 
-    chunkManager.pruneCache();
-
-    // Render water effects (wakes, waves) after terrain, before entities
+    // 2. Render Water Effects (Flat, below objects)
     waterEffects.render(ctx, state.camera, tileSize);
 
-    // Entities
+    // 3. Render Objects (Trees, Player, Entities) - with Shadow Pass
+    // We render shadows for all objects first, then objects? 
+    // Or just render back-to-front. 
+    // Trees are static. We can render them per chunk.
+    
+    // Shared Shadow settings
+    ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha})`;
+
+    // Helper to draw tree shadow
+    const drawTreeShadow = (tx, ty, h) => {
+       if (cycle.shadowAlpha <= 0.01) return;
+       const sx = (tx - state.camera.x) * tileSize + centerX;
+       const sy = (ty - state.camera.y) * tileSize + centerY;
+       
+       const baseW = tileSize * 0.4 * h;
+       const tipX = sx + shadowVec.x * tileSize * h;
+       const tipY = sy + shadowVec.y * tileSize * h; // Shadows fall on flat ground
+       
+       ctx.beginPath();
+       ctx.moveTo(sx - baseW/2, sy);
+       ctx.lineTo(sx + baseW/2, sy);
+       ctx.lineTo(tipX, tipY - tileSize * h); // Project tip
+       ctx.fill();
+    };
+
+    // Helper to draw tree
+    const drawTree = (tx, ty, h, type) => {
+       const sx = (tx - state.camera.x) * tileSize + centerX;
+       const sy = (ty - state.camera.y) * tileSize + centerY;
+       const baseW = tileSize * 0.4 * h;
+       const treeH = tileSize * 1.0 * h;
+
+       ctx.fillStyle = type === 'forest' ? PALETTE.treeForest : PALETTE.treeGrass;
+       ctx.beginPath();
+       ctx.moveTo(sx - baseW/2, sy);
+       ctx.lineTo(sx + baseW/2, sy);
+       ctx.lineTo(sx, sy - treeH);
+       ctx.fill();
+       
+       // Highlight side
+       ctx.fillStyle = 'rgba(255,255,255,0.1)';
+       ctx.beginPath();
+       ctx.moveTo(sx, sy);
+       ctx.lineTo(sx + baseW/2, sy);
+       ctx.lineTo(sx, sy - treeH);
+       ctx.fill();
+    };
+
+    // Render Trees
+    // To handle depth correctly, we should sort or just iterate Y.
+    // Iterating chunks is roughly Y-sorted if we do Y loop outer.
+    for (let cy = startChunkY; cy <= endChunkY; cy++) {
+      for (let cx = startChunkX; cx <= endChunkX; cx++) {
+        const props = chunkManager.getChunkProps(cx, cy);
+        // Props are not sorted inside chunk, but trees are small enough 
+        // that exact Z-sorting might not matter vs simple painter's algo.
+        // Let's sort props by Y for better occlusion.
+        // (Optim: caching sorted props in chunkManager would be better)
+        
+        for (const tree of props) {
+            // Shadow first
+            drawTreeShadow(tree.x, tree.y, tree.h);
+        }
+        for (const tree of props) {
+            // Then Tree
+            drawTree(tree.x, tree.y, tree.h, tree.type);
+        }
+      }
+    }
+    
+    chunkManager.pruneCache();
+
+    // 4. Entities
     state.entities.forEach(ent => {
        const screenX = (ent.x - state.camera.x) * tileSize + centerX;
        const screenY = (ent.y - state.camera.y) * tileSize + centerY;
@@ -133,23 +269,37 @@ export function createRenderer({ canvas, state, game, noise }) {
        }
     });
 
-    // Player - Houseboat/Raft
+    // 5. Player
     const p = state.player;
     const px = (p.x - state.camera.x) * tileSize + centerX;
     const py = (p.y - state.camera.y) * tileSize + centerY;
 
     ctx.save();
     ctx.translate(px, py);
+    
+    // Player Shadow
+    if (cycle.shadowAlpha > 0.01) {
+        ctx.save();
+        // Skew transformation for shadow
+        // Simple approach: draw the boat black at an offset, distorted
+        const shadowLen = 1.0; 
+        ctx.translate(shadowVec.x * tileSize * shadowLen, shadowVec.y * tileSize * shadowLen);
+        ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha})`;
+        ctx.rotate(p.angle);
+        ctx.fillRect(-tileSize, -tileSize*0.6, tileSize*2, tileSize*1.2);
+        ctx.restore();
+    }
+
     ctx.rotate(p.angle);
 
     const raftLen = tileSize * 1.8;
     const raftWid = tileSize * 1.2;
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(-raftLen/2 + 3, -raftWid/2 + 3, raftLen, raftWid);
+    // Shadow (Ambient occlusion below raft, separate from sun shadow)
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(-raftLen/2 + 2, -raftWid/2 + 2, raftLen, raftWid);
 
-    // Main deck (wood planks)
+    // Main deck
     ctx.fillStyle = '#92400e';
     ctx.fillRect(-raftLen/2, -raftWid/2, raftLen, raftWid);
 
@@ -174,7 +324,7 @@ export function createRenderer({ canvas, state, game, noise }) {
     ctx.fillStyle = '#0ea5e9';
     ctx.fillRect(-cabinW/4, -cabinH/4, cabinW/2, cabinH/3);
 
-    // Bow light (navigation)
+    // Bow light
     ctx.fillStyle = '#fef08a';
     ctx.shadowColor = '#fef08a';
     ctx.shadowBlur = 8;
@@ -184,6 +334,19 @@ export function createRenderer({ canvas, state, game, noise }) {
     ctx.shadowBlur = 0;
 
     ctx.restore();
+    
+    // 6. Atmosphere Overlay
+    if (cycle.ambientColor !== 'transparent') {
+        ctx.fillStyle = cycle.ambientColor;
+        // Blend mode could be 'multiply' or 'overlay' but simple alpha is safer for performance
+        ctx.fillRect(0, 0, state.width, state.height);
+    }
+    
+    // Debug time
+    /*
+    ctx.fillStyle = 'white';
+    ctx.fillText(`Time: ${state.dayTime.toFixed(2)}`, 10, 20);
+    */
   }
 
   function start() {

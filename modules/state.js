@@ -49,6 +49,10 @@ export function createAppState() {
     scale: 0.05, // Increased default scale for larger, smoother features
     speed: 0.2, // Slower time evolution
     time: 0,
+    
+    // Day/Night Cycle
+    dayTime: 0.3, // 0..1 (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset)
+    daySpeed: 0.01, // Portion of day per second (100s day)
 
     // Gameplay modifiers
     speedMultiplier: 1 // Multiplies movement & acceleration when active (e.g. 10 when holding speed-up)
