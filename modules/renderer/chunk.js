@@ -83,6 +83,54 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       }
     }
 
+    // Post-process to remove isolated single-tile terrain "specks"
+    // If a cell has no 8-neighborhood neighbor with the same tile type,
+    // flatten it into the most common neighboring tile type.
+    {
+      const dirs8 = [
+        [-1, -1], [0, -1], [1, -1],
+        [-1,  0],          [1,  0],
+        [-1,  1], [0,  1], [1,  1]
+      ];
+      const newTileGrid = tileGrid.map(row => row.slice());
+      for (let y = 0; y < CHUNK_SIZE; y++) {
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+          const current = tileGrid[y][x];
+          let hasSameNeighbor = false;
+          const neighborCounts = new Map();
+
+          for (const [dx, dy] of dirs8) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_SIZE) continue;
+            const nType = tileGrid[ny][nx];
+            if (nType === current) {
+              hasSameNeighbor = true;
+            }
+            neighborCounts.set(nType, (neighborCounts.get(nType) || 0) + 1);
+          }
+
+          if (!hasSameNeighbor && neighborCounts.size > 0) {
+            // Pick the most common neighboring tile type to flatten into
+            let bestType = current;
+            let bestCount = -1;
+            for (const [tType, count] of neighborCounts.entries()) {
+              if (count > bestCount) {
+                bestCount = count;
+                bestType = tType;
+              }
+            }
+            newTileGrid[y][x] = bestType;
+          }
+        }
+      }
+      for (let y = 0; y < CHUNK_SIZE; y++) {
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+          tileGrid[y][x] = newTileGrid[y][x];
+        }
+      }
+    }
+
     const perturbScale = tileSize * 0.15;
 
     // Helper: compute a vertex position with deterministic perturbation,

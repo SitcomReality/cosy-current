@@ -76,10 +76,11 @@ export function createGame({ state, noise }) {
     if (river.value < 1.3) return TILE_BANK;
 
     // Land Biomes based on height
-    if (h < 0.35) return TILE_GRASS;
-    if (h < 0.55) return TILE_FOREST;
-    if (h < 0.75) return TILE_HILL;
-    if (h < 0.90) return TILE_MOUNTAIN;
+    // Widen the grass band so it appears more consistently between bank and forest
+    if (h < 0.45) return TILE_GRASS;
+    if (h < 0.65) return TILE_FOREST;
+    if (h < 0.80) return TILE_HILL;
+    if (h < 0.95) return TILE_MOUNTAIN;
     return TILE_MOUNTAIN;
   }
 
