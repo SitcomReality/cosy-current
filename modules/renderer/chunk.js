@@ -244,9 +244,11 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
             const vBL = getPerturbedVertex(worldX, worldY + 1, x, y + 1);
 
             cCtx.fillStyle = color;
-            // Add a tiny stroke to prevent sub-pixel gaps between tiles
+            // Add a slightly thicker stroke to ensure adjacent tiles overlap and hide sub-pixel seams
             cCtx.strokeStyle = color; 
-            cCtx.lineWidth = 1;
+            cCtx.lineWidth = 2; // increased from 1 to cover seams
+            cCtx.lineJoin = 'miter';
+            cCtx.lineCap = 'butt';
             
             cCtx.beginPath();
             cCtx.moveTo(vTL.x, vTL.y);
