@@ -86,25 +86,25 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
 
         // Trees
         if (tile === game.CONSTANTS.TILE_FOREST) {
-          if (rand < 0.65) { // 65% density
+          if (rand < 0.50) { // reduced from 65% -> 50% to avoid overcrowding when larger
              // Add some jitter to position
              const jx = (Math.sin(h) * 0.5) + 0.5; 
              const jy = (Math.cos(h) * 0.5) + 0.5;
              props.push({ 
                x: worldX + jx * 0.8, 
                y: worldY + jy * 0.8, 
-               h: 1.0 + rand * 0.8, // Height variation
+               h: 2.0 + rand * 1.6, // doubled size range (was 1.0 + rand * 0.8)
                type: 'forest' 
              });
           }
         } else if (tile === game.CONSTANTS.TILE_GRASS) {
-          if (rand < 0.05) { // 5% density
+          if (rand < 0.05) { // 5% density kept for grass props
              const jx = (Math.sin(h) * 0.5) + 0.5; 
              const jy = (Math.cos(h) * 0.5) + 0.5;
              props.push({ 
                x: worldX + jx * 0.8, 
                y: worldY + jy * 0.8, 
-               h: 0.6 + rand * 0.4, 
+               h: 2.0 + rand * 1.6, // now matches forest size range and doubled from previous grass sizes
                type: 'grass' 
              });
           }
