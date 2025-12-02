@@ -28,18 +28,11 @@ export function createRenderer({ canvas, state, game, noise }) {
   // If not supported, fall back to the provided hex strings.
   function chooseColor(ctx, entry) {
     if (!entry) return '#ff00ff';
-    const candidate = entry.oklch || entry;
-    try {
-      const prev = ctx.fillStyle;
-      ctx.fillStyle = candidate;
-      // If the browser normalized it to something truthy and not the empty string, assume support.
-      const accepted = !!ctx.fillStyle && ctx.fillStyle !== '';
-      // restore previous to avoid side effects
-      ctx.fillStyle = prev;
-      return accepted ? candidate : (entry.hex || candidate);
-    } catch (e) {
-      return entry.hex || (entry.oklch || '#ff00ff');
-    }
+    // Force hex fallback: The previous dynamic feature detection was unreliable, 
+    // potentially causing invalid color strings to be returned, breaking 
+    // water gradient calculations (which expect hex input in chunk.js) and 
+    // resulting in black terrain where colors were unsupported.
+    return entry.hex || entry.oklch || '#ff00ff';
   }
 
   const WATER_PALETTE = {
