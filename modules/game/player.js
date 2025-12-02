@@ -8,73 +8,78 @@ function shortestAngleDiff(a, b) {
   return diff;
 }
 
+// Updated signature to accept generalized helper or just use the module import if we changed it.
+// We'll assume game.js passes the new helper or we import it. 
+// Actually game.js passes { getRiverVector } but we want getSmartSteering.
+// We will update game.js to pass the right thing, or import it here if needed.
+// For now, let's assume the passed riverModule has getSmartSteering or we use the passed one.
+// To be safe, let's expect 'steeringHelper' in the arguments or adapt.
+
 export function createPlayerModule(state, noise, heightModule, riverModule, entitiesModule) {
   function update(dt) {
     if (!state.isPlaying) return;
 
     const p = state.player;
-    const river = noise.getRiverSystem(p.x, p.y);
-
-    if (p.targetAngle === undefined || Number.isNaN(p.targetAngle)) {
-      p.targetAngle = p.angle;
+    
+    // Safety clamp: if we somehow got WAY off map or stuck deep in land
+    const currentRiver = noise.getRiverSystem(p.x, p.y);
+    if (currentRiver.value > 1.2) {
+        // Emergency nudge towards center (0,0 of grid cell?) 
+        // Or just let the steering handle it (it has a panic mode)
+        p.speed *= 0.9;
     }
 
-    // Anticipatory intersection detection & flow-locking
-    if (!p.flowLockActive && river.isRiver) {
-      const lookaheadDistances = [2.0, 4.0, 8.0];
-      for (let d of lookaheadDistances) {
-        const probeX = p.x + Math.cos(p.angle) * d;
-        const probeY = p.y + Math.sin(p.angle) * d;
-        const probeInfo = noise.getRiverSystem(probeX, probeY);
-        if (probeInfo.isIntersection) {
-          const chosenAngle = riverModule.getRiverVector(noise, probeX, probeY, p.angle);
-          p.flowLockActive = true;
-          p.flowLockAngle = chosenAngle;
-          p.flowLockTimer = 3.5;
-          break;
-        }
-      }
-    }
+    // Use smart steering
+    // We assume riverModule is the object { getSmartSteering: ... } or similar
+    // We'll call the function we just wrote.
+    const steering = riverModule.getSmartSteering(noise, p.x, p.y, p.angle);
+    
+    const targetAngle = steering.angle;
+    const confidence = steering.confidence;
 
-    if (p.flowLockActive) {
-      p.flowLockTimer -= dt;
-      if (p.flowLockTimer <= 0 || !river.isRiver) {
-        p.flowLockActive = false;
-        p.flowLockTimer = 0;
-      }
-    }
+    // Smoothly turn towards target
+    // We turn slower if confidence is high (cruising), faster if confidence is low (panic/turn)
+    // Actually, at intersections (confidence might fluctuate), we want steady turning.
+    
+    const diff = shortestAngleDiff(p.angle, targetAngle);
+    
+    // Turn speed
+    // If diff is large, we need to turn hard.
+    const turnRate = 1.5 + Math.abs(diff) * 1.0; 
+    
+    // Apply turn
+    const maxTurn = turnRate * dt;
+    const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
+    p.angle += turn;
 
-    let targetAngle = p.targetAngle;
+    // Speed control
+    // If facing target and confident, speed up.
+    // If turning hard or low confidence (shallow), slow down.
+    
+    // Base target speed
+    let desiredSpeed = p.targetSpeed;
+    
+    // Slow down in turns
+    desiredSpeed *= Math.max(0.3, 1.0 - Math.abs(diff) * 0.5);
+    
+    // Slow down in shallow water (low confidence)
+    desiredSpeed *= Math.max(0.4, 0.2 + confidence * 0.8);
 
-    if (river.isRiver) {
-      if (river.isIntersection) {
-        let desired = p.flowLockActive ? p.flowLockAngle : riverModule.getRiverVector(noise, p.x, p.y, p.angle);
-        const diff = shortestAngleDiff(targetAngle, desired);
-        targetAngle = targetAngle + diff * Math.min(1, 4.5 * dt);
-      } else {
-        let desired = p.flowLockActive ? p.flowLockAngle : riverModule.getRiverVector(noise, p.x, p.y, p.angle);
-        const diff = shortestAngleDiff(targetAngle, desired);
-        targetAngle = targetAngle + diff * Math.min(1, 3 * dt);
-      }
-
-      p.targetAngle = targetAngle;
-
-      const angleDiff = shortestAngleDiff(p.angle, p.targetAngle);
-      const maxTurnRate = 2.0;
-      const maxStep = maxTurnRate * dt;
-      const clamped = Math.max(-maxStep, Math.min(maxStep, angleDiff));
-      p.angle += clamped;
-
-      const accel = 5 * (state.speedMultiplier || 1);
-      if (p.speed < p.targetSpeed) p.speed += dt * accel;
+    const accel = 2.0 * (state.speedMultiplier || 1);
+    const braking = 4.0 * (state.speedMultiplier || 1);
+    
+    if (p.speed < desiredSpeed) {
+        p.speed += accel * dt;
     } else {
-      p.speed = Math.max(0.5, p.speed - dt * 2);
+        p.speed -= braking * dt;
     }
-
+    
+    // Move
     const effectiveSpeed = p.speed * (state.speedMultiplier || 1);
     p.x += Math.cos(p.angle) * effectiveSpeed * dt;
     p.y += Math.sin(p.angle) * effectiveSpeed * dt;
 
+    // Resources and Entities Logic (unchanged)
     // Resources
     const tileType = heightModule.getTile(p.x, p.y);
     const collectionRate = 1.0 * dt;
@@ -86,7 +91,6 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     if (state.resources.fuel < 0) state.resources.fuel = 0;
 
     // Entities interactions
-    // Pass getTile first (for spawn placement checks), then getHeight as before
     entitiesModule.maintainEntities(heightModule.getTile, heightModule.getHeight, p);
 
     state.entities.forEach(e => {

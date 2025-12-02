@@ -1,64 +1,79 @@
 import { seedPermutation } from '../noise_algorithms/permutations.js';
 
-// River helper utilities that depend on noise engine
-export function getRiverVector(noise, x, y, currentAngle) {
-  // Sample nearby points to find gradient of the distance field
-  const d = 0.5; // Sampling delta
-  const info = noise.getRiverSystem(x, y);
+// Robust steering logic using sensor array
+export function getSmartSteering(noise, x, y, currentAngle) {
+  const LOOKAHEAD = 6.0; // Look further ahead to smooth out grid transitions
+  const SENSOR_COUNT = 7; // Odd number for center symmetry
+  const FOV = Math.PI * 0.8; // Wide 144 degree field of view to see sharp turns
+  
+  let sumX = 0;
+  let sumY = 0;
+  let totalWeight = 0;
+  let maxWeight = 0;
 
-  const trackingX = info.distX < info.distY;
+  // We want to "pull" the ship towards the deepest water.
+  // We cast rays in an arc.
+  for (let i = 0; i < SENSOR_COUNT; i++) {
+    // Map i to -1..1
+    const t = (i / (SENSOR_COUNT - 1)) * 2 - 1;
+    const angleOffset = t * (FOV / 2);
+    const sensorAngle = currentAngle + angleOffset;
 
-  const baseInfo = info;
-  const infoX = noise.getRiverSystem(x + d, y);
-  const infoY = noise.getRiverSystem(x, y + d);
+    const sx = x + Math.cos(sensorAngle) * LOOKAHEAD;
+    const sy = y + Math.sin(sensorAngle) * LOOKAHEAD;
 
-  const v0 = trackingX ? baseInfo.distX : baseInfo.distY;
-  const vx = trackingX ? infoX.distX : infoX.distY;
-  const vy = trackingX ? infoY.distX : infoY.distY;
+    const info = noise.getRiverSystem(sx, sy);
+    
+    // Weighting function:
+    // We want LOW river values (close to 0).
+    // Value > 1.0 means land (weight 0).
+    // Value 0.0 means deep center (high weight).
+    // We raise to a power to sharply prefer the center channel.
+    let weight = 0;
+    
+    if (info.value < 1.0) {
+      // 0 -> 1, 1 -> 0
+      const quality = 1.0 - info.value;
+      weight = Math.pow(quality, 4); // Strong center bias
+    } else {
+        // Wall penalty
+        weight = 0;
+    }
 
-  let gradX = (vx - v0) / d;
-  let gradY = (vy - v0) / d;
+    // Bias slightly towards the center sensor to maintain straightness in open water
+    if (Math.abs(t) < 0.1) weight *= 1.2;
 
-  // Clamp gradient to avoid extreme values near edges that cause jitter
-  const gradLen = Math.hypot(gradX, gradY);
-  if (gradLen > 0.0001) {
-    const maxGrad = 1.0;
-    const scale = Math.min(1.0, maxGrad / gradLen);
-    gradX *= scale;
-    gradY *= scale;
-  } else {
-    gradX = 0;
-    gradY = 0;
+    sumX += Math.cos(sensorAngle) * weight;
+    sumY += Math.sin(sensorAngle) * weight;
+    totalWeight += weight;
+    maxWeight = Math.max(maxWeight, weight);
   }
 
-  // Gradient points AWAY from center (dist increases).
-  // We want tangent: perpendicular to gradient.
-  let tx = -gradY;
-  let ty = gradX;
-
-  // Normalize tangent
-  const len = Math.hypot(tx, ty);
-  if (len > 0.001) {
-    tx /= len;
-    ty /= len;
-  } else {
-    tx = Math.cos(currentAngle);
-    ty = Math.sin(currentAngle);
+  // If we are stranded or facing a wall (all weights 0), 
+  // we need a panic recovery or just gradient descent.
+  if (totalWeight < 0.001) {
+    // Fallback: look at immediate gradient to find water
+    // Sample 4 cardinal directions close by
+    let bestA = currentAngle + Math.PI; // Turn around by default
+    let bestV = 999;
+    
+    for (let a = 0; a < Math.PI * 2; a += Math.PI/4) {
+        const px = x + Math.cos(a) * 2;
+        const py = y + Math.sin(a) * 2;
+        const v = noise.getRiverSystem(px, py).value;
+        if (v < bestV) {
+            bestV = v;
+            bestA = a;
+        }
+    }
+    return { angle: bestA, confidence: 0 };
   }
 
-  // Ensure we don't flip 180 degrees instantly; pick direction closest to current heading
-  const dot = tx * Math.cos(currentAngle) + ty * Math.sin(currentAngle);
-  if (dot < 0) {
-    tx = -tx;
-    ty = -ty;
-  }
+  const targetAngle = Math.atan2(sumY, sumX);
+  
+  // Normalize confidence (0..1)
+  // If maxWeight is low, it means even the best path is shallow.
+  const confidence = Math.min(1, maxWeight * 2);
 
-  // Center pull vector (move towards river center)
-  const centerStrength = Math.min(0.5, info.value * 0.9);
-  const centerWeight = 0.25; // Reduced centering influence to allow edge movement
-
-  const mx = tx * 0.9 - gradX * centerWeight * centerStrength;
-  const my = ty * 0.9 - gradY * centerWeight * centerStrength;
-
-  return Math.atan2(my, mx);
+  return { angle: targetAngle, confidence };
 }

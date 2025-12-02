@@ -1,14 +1,15 @@
 // Thin orchestrator composing the split game modules
 import * as C from './game/constants.js';
 import { createHeightModule } from './game/height.js';
-import * as riverModuleHelpers from './game/river.js';
+import * as riverModuleHelpers from './game/river.js'; // Imports getSmartSteering
 import { createEntitiesModule } from './game/entities.js';
 import { createPlayerModule } from './game/player.js';
 
 export function createGame({ state, noise }) {
   const heightModule = createHeightModule(noise);
   const entitiesModule = createEntitiesModule(state);
-  const playerModule = createPlayerModule(state, noise, heightModule, { getRiverVector: riverModuleHelpers.getRiverVector }, entitiesModule);
+  // Pass the entire helper module so player can access getSmartSteering
+  const playerModule = createPlayerModule(state, noise, heightModule, riverModuleHelpers, entitiesModule);
 
   function getHeight(x, y) {
     return heightModule.getHeight(x, y);
@@ -26,17 +27,32 @@ export function createGame({ state, noise }) {
     playerModule.update(dt);
   }
 
-  // Initial spawn: find a river spot similar to previous logic
+  // Initial spawn: find a river spot
   let foundSpot = false;
   let attempts = 0;
   while (!foundSpot && attempts < 200) {
     const tx = (Math.random() - 0.5) * 5000;
     const ty = (Math.random() - 0.5) * 5000;
     const info = noise.getRiverSystem(tx, ty);
-    if (info.isRiver && !info.isIntersection) {
+    
+    // Try to spawn in deep water
+    if (info.isRiver && info.value < 0.5) {
       state.player.x = tx;
       state.player.y = ty;
-      state.player.angle = riverModuleHelpers.getRiverVector(noise, tx, ty, 0);
+      
+      // Determine best initial angle by scanning
+      // Scan 8 directions
+      let bestAngle = 0;
+      let maxConf = -1;
+      for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
+          const res = riverModuleHelpers.getSmartSteering(noise, tx, ty, a);
+          if (res.confidence > maxConf) {
+              maxConf = res.confidence;
+              bestAngle = res.angle;
+          }
+      }
+      
+      state.player.angle = bestAngle;
       foundSpot = true;
     }
     attempts++;
