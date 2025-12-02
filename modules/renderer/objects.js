@@ -21,16 +21,14 @@ export function drawTreeShadow(ctx, state, camera, tileSize, tree, cycle, shadow
   const tipX = sx + shadowDir.x * len;
   const tipY = sy + shadowDir.y * len;
 
-  // Calculate perpendicular vector for shadow base orientation
-  const perpX = -shadowDir.y;
-  const perpY = shadowDir.x;
   const halfBaseW = baseW / 2;
 
-  // Tree base points (P1, P2) oriented perpendicular to shadow direction, centered at (sx, sy)
-  const p1x = sx - perpX * halfBaseW;
-  const p1y = sy - perpY * halfBaseW;
-  const p2x = sx + perpX * halfBaseW;
-  const p2y = sy + perpY * halfBaseW;
+  // Tree base points (P1, P2): defining a horizontal base flush with the tree's screen position (sx, sy)
+  // This makes the shadow base horizontal regardless of sun angle, creating a skewed triangle.
+  const p1x = sx - halfBaseW;
+  const p1y = sy;
+  const p2x = sx + halfBaseW;
+  const p2y = sy;
 
   ctx.beginPath();
   ctx.moveTo(p1x, p1y);
