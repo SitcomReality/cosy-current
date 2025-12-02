@@ -96,12 +96,11 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
     // Land / air creature shadow (low-poly polygon)
     let baseOffset = tileSize * cycle.shadowLength * 0.5;
 
-    // Birds: push shadows further at extreme ends of the day so they feel higher above ground
+    // Birds: push shadows further and consistently farther away from the birds,
+    // removing the previous time-of-day bias so shadows remain apparent all day.
     if (c.type === 'bird') {
-      // cycle.shadowLength is ~0 at noon and 1 near sunrise/sunset/night
-      // Boost offset more when shadows are long
-      const edgeBoost = 1 + cycle.shadowLength * 1.5; // up to 2.5x at extremes
-      baseOffset *= edgeBoost;
+      // Make shadows noticeably further: scale up and ensure a reasonable minimum distance.
+      baseOffset = tileSize * Math.max(0.9, cycle.shadowLength * 2.0);
     }
 
     const shadowX = screenX + shadowDir.x * baseOffset;
