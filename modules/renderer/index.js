@@ -103,9 +103,12 @@ export function createRenderer({ canvas, state, game, noise }) {
            screenY < -tileSize*2 || screenY > state.height + tileSize*2) return;
 
        if (ent.type === game.CONSTANTS.ENTITY_CITY) {
+         // Use game interaction radius (in tiles) scaled to pixels for the visible influence circle
+         const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
+
          ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
          ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize * 2, 0, Math.PI*2);
+         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, 0, Math.PI*2);
          ctx.fill();
 
          ctx.fillStyle = '#10b981';
@@ -113,9 +116,12 @@ export function createRenderer({ canvas, state, game, noise }) {
          ctx.fillStyle = '#065f46';
          ctx.fillRect(screenX + tileSize/2 - tileSize*0.1, screenY, tileSize*0.2, tileSize*0.6);
        } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
+         // Use same interaction radius for relic highlight
+         const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
+
          ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
          ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, tileSize * 2, 0, Math.PI*2);
+         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, 0, Math.PI*2);
          ctx.fill();
 
          ctx.fillStyle = '#f59e0b';
