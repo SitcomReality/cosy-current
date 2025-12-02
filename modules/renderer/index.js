@@ -84,7 +84,8 @@ export function createRenderer({ canvas, state, game, noise }) {
         }
         // Then draw tree geometry
         for (const tree of props) {
-          drawTree(ctx, state, tileSize, tree, TREES);
+          // Pass cycle so tree shading follows sun direction / time
+          drawTree(ctx, state, tileSize, tree, TREES, cycle);
         }
       }
     }

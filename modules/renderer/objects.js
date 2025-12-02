@@ -38,7 +38,7 @@ export function drawTreeShadow(ctx, state, camera, tileSize, tree, cycle, shadow
   ctx.fill();
 }
 
-export function drawTree(ctx, state, tileSize, tree, treeColors) {
+export function drawTree(ctx, state, tileSize, tree, treeColors, cycle) {
   const { x: tx, y: ty, h, type } = tree;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
@@ -47,18 +47,109 @@ export function drawTree(ctx, state, tileSize, tree, treeColors) {
   const baseW = tileSize * 0.4 * h;
   const treeH = tileSize * 1.0 * h;
 
-  ctx.fillStyle = type === 'forest' ? treeColors.treeForest : treeColors.treeGrass;
+  // Resolve base and shadow colors
+  const baseColor = type === 'forest' ? treeColors.treeForest : treeColors.treeGrass;
+  const darkColor = 'rgba(0,0,0,0.55)'; // dark side color
+  const lightOverlayColor = 'rgba(255,255,255,0.08)'; // subtle highlight for lit area
+
+  // Determine whether it's night by reading ambient alpha from cycle.ambientColor.
+  // ambientColor is like 'rgba(r,g,b,a)'; extract alpha.
+  let ambAlpha = 0;
+  try {
+    const m = /rgba\(\s*\d+,\s*\d+,\s*\d+,\s*([\d.]+)\s*\)/.exec(cycle.ambientColor || '');
+    if (m) ambAlpha = parseFloat(m[1]);
+  } catch (e) { ambAlpha = 0; }
+
+  // Night: draw single flat (darkened) color
+  if (ambAlpha > 0.15) {
+    ctx.fillStyle = darkColor;
+    ctx.beginPath();
+    ctx.moveTo(sx - baseW/2, sy);
+    ctx.lineTo(sx + baseW/2, sy);
+    ctx.lineTo(sx, sy - treeH);
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
+
+  // Day: compute a lit fraction based on state.dayTime relative to sunrise/midday/sunset.
+  // Recreate the same breakpoints used by daycycle so shading ramps correctly.
+  const t = state.dayTime;
+  const dawnStart = 0.18;
+  const dawnEnd = 0.30;
+  const duskStart = 0.70;
+  const duskEnd = 0.82;
+  const dayInnerStart = dawnEnd;
+  const dayInnerEnd = duskStart;
+  const dayMid = (dayInnerStart + dayInnerEnd) * 0.5;
+
+  // Compute progress p in [0..1] where 0 = sunrise (very dark), 1 = midday (fully lit), then back to 0 at sunset.
+  let p = 0;
+  if (t <= dawnStart || t >= duskEnd) {
+    p = 0;
+  } else if (t >= dawnEnd && t <= dayMid) {
+    p = (t - dawnEnd) / (dayMid - dawnEnd); // 0 -> 1 morning
+  } else if (t > dayMid && t <= duskStart) {
+    p = 1 - (t - dayMid) / (duskStart - dayMid); // 1 -> 0 early afternoon to duskStart mirrored
+  } else if (t > dawnStart && t < dawnEnd) {
+    p = 0; // during brief dawn ramp keep near dark; lighting handled above
+  } else if (t > duskStart && t < duskEnd) {
+    p = 0;
+  } else {
+    p = 1;
+  }
+  p = Math.max(0, Math.min(1, p));
+
+  // Determine which side is lit by sun direction (sun = -shadowDir)
+  const sunX = -cycle.shadowDirX;
+  const lightOnRight = sunX > 0;
+
+  // Fraction of base that is lit (small sliver at low p, full at p=1)
+  const litFrac = p; // linear mapping (can tweak with easing)
+  const halfBase = baseW / 2;
+  const litWidth = baseW * litFrac;
+
+  // Draw base dark triangle first
+  ctx.fillStyle = darkColor;
   ctx.beginPath();
-  ctx.moveTo(sx - baseW/2, sy);
-  ctx.lineTo(sx + baseW/2, sy);
+  ctx.moveTo(sx - halfBase, sy);
+  ctx.lineTo(sx + halfBase, sy);
   ctx.lineTo(sx, sy - treeH);
+  ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  // Overlay lit region as a triangular wedge from the tip to a slice of the base
+  ctx.fillStyle = baseColor; // use tree's base color for lit area
   ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.lineTo(sx + baseW/2, sy);
-  ctx.lineTo(sx, sy - treeH);
+  ctx.moveTo(sx, sy - treeH);
+  if (lightOnRight) {
+    // Light comes from right: lit wedge occupies right side of base
+    const innerBaseX = sx + halfBase - litWidth;
+    ctx.lineTo(sx + halfBase, sy);
+    ctx.lineTo(innerBaseX, sy);
+  } else {
+    // Light from left
+    const innerBaseX = sx - halfBase + litWidth;
+    ctx.lineTo(sx - halfBase, sy);
+    ctx.lineTo(innerBaseX, sy);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Subtle rim highlight along lit edge
+  ctx.fillStyle = lightOverlayColor;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy - treeH * 0.45);
+  if (lightOnRight) {
+    const innerBaseX = sx + halfBase - litWidth * 0.6;
+    ctx.lineTo(sx + halfBase, sy);
+    ctx.lineTo(innerBaseX, sy);
+  } else {
+    const innerBaseX = sx - halfBase + litWidth * 0.6;
+    ctx.lineTo(sx - halfBase, sy);
+    ctx.lineTo(innerBaseX, sy);
+  }
+  ctx.closePath();
   ctx.fill();
 }
 
