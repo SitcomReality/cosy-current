@@ -388,3 +388,27 @@ button {
   .stat-divider { margin: 0 1rem; }
   .controls-hint { display: none; } /* Hide generic controls on mobile, maybe replace later */
 }
+
+/* Splash credit on start screen */
+.splash-credit {
+  text-align: center;
+  margin-top: 0.6rem;
+  pointer-events: auto;
+}
+.splash-credit .credit-line {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  letter-spacing: 0.8px;
+  margin-bottom: 6px;
+}
+.splash-credit a {
+  display: inline-block;
+}
+.splash-credit img {
+  display: block;
+  margin: 0 auto;
+  max-width: 90%;
+  height: auto;
+  width: 250px;
+  height: 70px;
+}
