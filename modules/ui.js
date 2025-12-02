@@ -50,6 +50,58 @@ export function createUI({ container, state, renderer, noise, game }) {
       btnSpeed.addEventListener('touchend', () => { state.speedMultiplier = 1; });
     }
 
+    // Stop/Start button: pause/resume the raft movement (does not stop rendering)
+    const btnStopStart = document.getElementById('btn-stopstart');
+    if (btnStopStart) {
+      // initialize helper flags on state if missing
+      if (state._playerPaused === undefined) state._playerPaused = false;
+      if (state._savedPlayerSpeed === undefined) state._savedPlayerSpeed = null;
+
+      const updateStopLabel = () => {
+        btnStopStart.querySelector('span').textContent = state._playerPaused ? 'GO' : 'STOP';
+      };
+
+      btnStopStart.addEventListener('click', () => {
+        state._playerPaused = !state._playerPaused;
+        if (state._playerPaused) {
+          // save current speed and zero it
+          state._savedPlayerSpeed = state.player ? state.player.speed : 0;
+          if (state.player) state.player.speed = 0;
+        } else {
+          // restore saved speed if present, otherwise leave at targetSpeed
+          if (state.player) state.player.speed = (state._savedPlayerSpeed != null) ? state._savedPlayerSpeed : state.player.targetSpeed;
+          state._savedPlayerSpeed = null;
+        }
+        updateStopLabel();
+      });
+      updateStopLabel();
+    }
+
+    // Day speed toggle: quickly speed up or restore day/night progression
+    const btnDaySpeed = document.getElementById('btn-dayspeed');
+    if (btnDaySpeed) {
+      if (state._daySpeedFast === undefined) state._daySpeedFast = false;
+      if (state._origDaySpeed === undefined) state._origDaySpeed = state.daySpeed;
+
+      const updateDayLabel = () => {
+        btnDaySpeed.querySelector('span').textContent = state._daySpeedFast ? 'DAY×10' : 'DAY×1';
+      };
+
+      btnDaySpeed.addEventListener('click', () => {
+        state._daySpeedFast = !state._daySpeedFast;
+        if (state._daySpeedFast) {
+          // increase daySpeed for faster cycles
+          state._origDaySpeed = state.daySpeed || 0.01;
+          state.daySpeed = state._origDaySpeed * 10;
+        } else {
+          // restore original daySpeed
+          state.daySpeed = state._origDaySpeed || 0.01;
+        }
+        updateDayLabel();
+      });
+      updateDayLabel();
+    }
+
     // Build Settings Controls
     buildSettings();
   }

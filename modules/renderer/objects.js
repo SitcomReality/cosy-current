@@ -38,8 +38,7 @@ export function drawTreeShadow(ctx, state, camera, tileSize, tree, cycle, shadow
   ctx.fill();
 }
 
-// Updated drawTree: now accepts cycle and shadowDir so tree shading follows sun direction/day phase
-export function drawTree(ctx, state, tileSize, tree, treeColors, cycle, shadowDir) {
+export function drawTree(ctx, state, tileSize, tree, treeColors) {
   const { x: tx, y: ty, h, type } = tree;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
@@ -48,92 +47,19 @@ export function drawTree(ctx, state, tileSize, tree, treeColors, cycle, shadowDi
   const baseW = tileSize * 0.4 * h;
   const treeH = tileSize * 1.0 * h;
 
-  // Resolve base (full-light) and dark colors
-  const lightColor = type === 'forest' ? treeColors.treeForest : treeColors.treeGrass;
-  const darkColor = 'rgba(10,10,10,0.85)'; // deep desaturated shadow color used at night/backside
-
-  // Determine sun direction (sun points opposite of shadow direction)
-  const sunX = -shadowDir.x;
-  const sunY = -shadowDir.y;
-
-  // dayFactor provided by daycycle: 0 == night, 1 == full day (midday)
-  const dayFactor = (cycle && typeof cycle.dayFactor === 'number') ? cycle.dayFactor : 1;
-
-  // If night (dayFactor very low), draw a single flat dark silhouette
-  if (dayFactor <= 0.02) {
-    ctx.fillStyle = darkColor;
-    ctx.beginPath();
-    ctx.moveTo(sx - baseW/2, sy);
-    ctx.lineTo(sx + baseW/2, sy);
-    ctx.lineTo(sx, sy - treeH);
-    ctx.fill();
-    return;
-  }
-
-  // Draw base full-light triangle first
-  ctx.fillStyle = lightColor;
+  ctx.fillStyle = type === 'forest' ? treeColors.treeForest : treeColors.treeGrass;
   ctx.beginPath();
   ctx.moveTo(sx - baseW/2, sy);
   ctx.lineTo(sx + baseW/2, sy);
   ctx.lineTo(sx, sy - treeH);
   ctx.fill();
 
-  // Compute shaded (dark) coverage fraction: 0 at midday, 1 at night
-  // Use 1 - dayFactor to get amount of darkness; modulate by sun horizontal contribution so shading enters from correct side smoothly
-  const darkness = Math.min(1, Math.max(0, 1 - dayFactor));
-
-  // Horizontal bias of sun: -1 => coming fully from left (light on left), +1 => from right
-  const horiz = Math.max(-1, Math.min(1, sunX));
-
-  // Coverage width in pixels (how much of the base is covered by shadow)
-  const coverWidth = baseW * darkness;
-
-  // Build dark polygon that covers a tapered portion of the triangle from the side opposite the sun
-  // If sun is to the right (horiz>0) the shadow grows from the left edge rightwards; if sun to left, shadow grows from right edge leftwards.
-  ctx.fillStyle = darkColor;
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
   ctx.beginPath();
-
-  const half = baseW / 2;
-  if (horiz >= 0) {
-    // Light comes from right -> shadow on left, expand rightward by coverWidth
-    const shadowRightX = sx - half + Math.min(baseW, coverWidth);
-    // Create polygon that covers left base to tip, tapering towards the tip
-    ctx.moveTo(sx - half, sy);
-    ctx.lineTo(shadowRightX, sy);
-    // Interpolate a point towards the tip to make a smooth taper
-    ctx.lineTo(sx - half * (1 - (coverWidth/baseW)), sy - treeH * (0.6 + 0.4 * (coverWidth/baseW)));
-    ctx.lineTo(sx, sy - treeH);
-    ctx.closePath();
-    ctx.fill();
-  } else {
-    // Light comes from left -> shadow on right, expand leftward by coverWidth
-    const shadowLeftX = sx + half - Math.min(baseW, coverWidth);
-    ctx.moveTo(sx + half, sy);
-    ctx.lineTo(shadowLeftX, sy);
-    ctx.lineTo(sx + half * (1 - (coverWidth/baseW)), sy - treeH * (0.6 + 0.4 * (coverWidth/baseW)));
-    ctx.lineTo(sx, sy - treeH);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // Subtle highlight: a thin sliver near the lit edge when dayFactor is high
-  if (dayFactor > 0.5) {
-    const highlightStrength = (dayFactor - 0.5) * 2; // 0..1
-    ctx.fillStyle = `rgba(255,255,255,${0.06 * highlightStrength})`;
-    ctx.beginPath();
-    if (horiz >= 0) {
-      // lit edge on right: sliver near right base
-      ctx.moveTo(sx + half - 2, sy);
-      ctx.lineTo(sx + half, sy - treeH * 0.05);
-      ctx.lineTo(sx + half - 6, sy - treeH * 0.08);
-    } else {
-      ctx.moveTo(sx - half + 2, sy);
-      ctx.lineTo(sx - half, sy - treeH * 0.05);
-      ctx.lineTo(sx - half + 6, sy - treeH * 0.08);
-    }
-    ctx.closePath();
-    ctx.fill();
-  }
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(sx + baseW/2, sy);
+  ctx.lineTo(sx, sy - treeH);
+  ctx.fill();
 }
 
 export function drawJaggedInfluence(ctx, centerX, centerY, radius, seedStr, fillColorOrOptions, alphaMul = 1) {

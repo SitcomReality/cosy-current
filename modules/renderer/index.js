@@ -84,7 +84,7 @@ export function createRenderer({ canvas, state, game, noise }) {
         }
         // Then draw tree geometry
         for (const tree of props) {
-          drawTree(ctx, state, tileSize, tree, TREES, cycle, shadowDir);
+          drawTree(ctx, state, tileSize, tree, TREES);
         }
       }
     }
