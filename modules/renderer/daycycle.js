@@ -16,12 +16,10 @@ export function getCycleProps(state) {
   const lerp = (a, b, u) => a + (b - a) * u;
 
   // Define transition windows (a bit extended to allow gentle fades)
-  // Narrower twilight windows so twilight color blending finishes earlier,
-  // leaving a stable night tint between duskEnd and dawnStart.
-  const dawnStart = 0.26;
-  const dawnEnd = 0.32;   // fully day after this
-  const duskStart = 0.68;  // start fading to evening
-  const duskEnd = 0.74;    // fully night after this
+  const dawnStart = 0.18;
+  const dawnEnd = 0.30;   // fully day after this
+  const duskStart = 0.70;  // start fading to evening
+  const duskEnd = 0.82;    // fully night after this
 
   // Determine normalized progress through day (0..1 where 1 is full daytime)
   let dayFactor = 0;
@@ -93,40 +91,43 @@ export function getCycleProps(state) {
     shadowDirY = -SIN_30_DEG;
   }
 
-  // Ambient tint computation: blend night, dawn, dusk, and day continuously to avoid snapping.
-  // Define color anchors as numeric RGBA
+  // Ambient tint computation with explicit phases so that full night
+  // is a constant tint from duskEnd until dawnStart.
   const nightColor = { r: 10, g: 10, b: 30, a: 0.6 };
   const dayColor   = { r: 0,  g: 0,  b: 0,  a: 0.0 };
   const dawnTint   = { r: 50, g: 20, b: 10, a: 0.45 };
   const duskTint   = { r: 40, g: 10, b: 40, a: 0.45 };
 
-  // Ramps for transitions
-  const dawnRampRaw = smoothstep(dawnStart, dawnEnd, t); // 0 -> 1 during dawn window
-  const duskRampRaw = smoothstep(duskStart, duskEnd, t); // 0 -> 1 during dusk window
+  const mix = (c1, c2, u) => ({
+    r: Math.round(lerp(c1.r, c2.r, u)),
+    g: Math.round(lerp(c1.g, c2.g, u)),
+    b: Math.round(lerp(c1.b, c2.b, u)),
+    a: lerp(c1.a, c2.a, u)
+  });
 
-  // DayRamp is already dayFactor (0..1)
-  const dayRamp = dayFactor;
+  let col;
+  if (t <= dawnStart || t >= duskEnd) {
+    // Full night: constant deep-night color (shadows already gone here)
+    col = nightColor;
+  } else if (t > dawnStart && t < dawnEnd) {
+    // Dawn: blend from night -> dawnTint -> day
+    const u = smoothstep(dawnStart, dawnEnd, t); // 0..1
+    const mid = mix(nightColor, dawnTint, u);
+    col = mix(mid, dayColor, u * 0.7); // bias a bit toward day near end of dawn
+  } else if (t >= dawnEnd && t <= duskStart) {
+    // Full day
+    col = dayColor;
+  } else if (t > duskStart && t < duskEnd) {
+    // Dusk: blend from day -> duskTint -> night
+    const u = smoothstep(duskStart, duskEnd, t); // 0..1
+    const mid = mix(dayColor, duskTint, u);
+    col = mix(mid, nightColor, u * 0.8); // bias toward night near end of dusk
+  } else {
+    // Fallback (shouldn't hit due to ranges) – treat as night
+    col = nightColor;
+  }
 
-  // Night weight: when not fully day and not in strong dawn/dusk
-  // Use remaining weight so all weights sum sensibly
-  let wDawn = dawnRampRaw;
-  let wDusk = duskRampRaw;
-  let wDay  = dayRamp;
-  // Night gets the leftover but ensure it's non-negative
-  let wNight = Math.max(0, 1 - Math.max(wDawn, wDusk, wDay));
-
-  // Normalize weights so interpolation is smooth and no color jumps
-  const sumW = wDawn + wDusk + wDay + wNight;
-  const nw = sumW > 0 ? 1 / sumW : 0;
-  wDawn *= nw; wDusk *= nw; wDay *= nw; wNight *= nw;
-
-  // Weighted blend of RGBA channels
-  const r = Math.round(wNight * nightColor.r + wDay * dayColor.r + wDawn * dawnTint.r + wDusk * duskTint.r);
-  const g = Math.round(wNight * nightColor.g + wDay * dayColor.g + wDawn * dawnTint.g + wDusk * duskTint.g);
-  const b = Math.round(wNight * nightColor.b + wDay * dayColor.b + wDawn * dawnTint.b + wDusk * duskTint.b);
-  const a = (wNight * nightColor.a + wDay * dayColor.a + wDawn * dawnTint.a + wDusk * duskTint.a);
-
-  const ambientColor = `rgba(${r},${g},${b},${a})`;
+  const ambientColor = `rgba(${col.r},${col.g},${col.b},${col.a})`;
 
   return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor };
 }
