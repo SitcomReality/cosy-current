@@ -248,39 +248,93 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
   const px = (p.x - state.camera.x) * tileSize + centerX;
   const py = (p.y - state.camera.y) * tileSize + centerY;
 
-  ctx.save();
-  ctx.translate(px, py);
+  // Depth-aware Shadow Rendering
+  if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001 && noise) {
+    const raftHalfLen = 1.0; // Slightly larger than raft (0.9) to match original shadow size
+    const raftHalfWid = 0.6;
+    
+    // Define perimeter points for the shadow polygon
+    // We use enough points to allow the shadow to bend across depth changes
+    const localPoints = [
+      {x: -raftHalfLen, y: -raftHalfWid}, 
+      {x: 0, y: -raftHalfWid}, 
+      {x: raftHalfLen, y: -raftHalfWid},
+      {x: raftHalfLen, y: 0},
+      {x: raftHalfLen, y: raftHalfWid}, 
+      {x: 0, y: raftHalfWid}, 
+      {x: -raftHalfLen, y: raftHalfWid},
+      {x: -raftHalfLen, y: 0}
+    ];
 
-  if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
-    ctx.save();
+    const cos = Math.cos(p.angle);
+    const sin = Math.sin(p.angle);
+    
+    // Base shadow offset (deep water behavior)
+    // Matches roughly the original linear offset behavior
+    const baseOffsetLen = tileSize * cycle.shadowLength; 
 
-    // Dynamic shadow projection based on water depth
-    let distMod = 1.0;
-    let sizeMod = 1.0;
+    ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha})`;
+    ctx.beginPath();
 
-    if (noise) {
-      // 0 = deep center, 1 = bank edge
-      const info = noise.getRiverSystem(p.x, p.y);
-      const depthT = Math.max(0, Math.min(1, info.value));
+    localPoints.forEach((lp, i) => {
+      // 1. Transform local point to world space relative to boat center
+      const rx = lp.x * cos - lp.y * sin;
+      const ry = lp.x * sin + lp.y * cos;
+      const wx = p.x + rx;
+      const wy = p.y + ry;
+
+      // 2. Sample river depth at expected shadow location
+      // We project out to where the shadow WOULD be in deep water to check the terrain there
+      const testX = wx + shadowDir.x * (baseOffsetLen / tileSize);
+      const testY = wy + shadowDir.y * (baseOffsetLen / tileSize);
       
-      // As water gets shallower (closer to 1.0):
-      // - Shadow gets closer to boat (ground is rising)
-      // - Shadow gets slightly larger (proximity)
-      distMod = 1.0 - (depthT * 0.75); 
-      sizeMod = 1.0 + (depthT * 0.2);
-    }
+      const riverInfo = noise.getRiverSystem(testX, testY);
+      
+      // Calculate depth factor: 0.0 (shallow/bank) to 1.0 (deep center)
+      // riverInfo.value is 0 at center, ~1 at bank
+      const depthFactor = Math.max(0, Math.min(1, 1.2 - riverInfo.value)); 
+      
+      // 3. Determine Shadow Scale (Larger in shallow water)
+      // "At the edges... shadow should be closer to the boat and a bit larger"
+      let scale = 1.0;
+      if (depthFactor < 0.5) {
+        scale = 1.0 + (0.5 - depthFactor) * 0.5; // Up to ~1.25x larger at very edge
+      }
+      
+      // 4. Determine Shadow Offset (Closer in shallow water)
+      // Deep water: uses full baseOffsetLen
+      // Shallow water: offset shrinks towards 0
+      const offsetLen = baseOffsetLen * (0.1 + 0.9 * depthFactor);
 
-    const shadowLen = cycle.shadowLength * distMod;
-    ctx.translate(shadowDir.x * tileSize * shadowLen, shadowDir.y * tileSize * shadowLen);
+      // 5. Compute Final Screen Coordinates
+      // Apply scaling to the local offset from boat center (simulating shadow spread/size)
+      const sx = (wx - state.camera.x) * tileSize + centerX + (rx * tileSize * (scale - 1.0));
+      const sy = (wy - state.camera.y) * tileSize + centerY + (ry * tileSize * (scale - 1.0));
+      
+      const finalX = sx + shadowDir.x * offsetLen;
+      const finalY = sy + shadowDir.y * offsetLen;
+
+      if (i === 0) ctx.moveTo(finalX, finalY);
+      else ctx.lineTo(finalX, finalY);
+    });
+
+    ctx.closePath();
+    ctx.fill();
+  } 
+  // Fallback for when noise isn't ready or shadow is off (though we usually want to skip drawing)
+  else if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
+    // Legacy simple shadow
+    ctx.save();
+    const shadowLen = cycle.shadowLength;
+    ctx.translate(px + shadowDir.x * tileSize * shadowLen, py + shadowDir.y * tileSize * shadowLen);
     ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha})`;
     ctx.rotate(p.angle);
-    
-    // Scale shadow rect based on depth
-    const w = tileSize * 2 * sizeMod;
-    const h = tileSize * 1.2 * sizeMod;
-    ctx.fillRect(-w/2, -h/2, w, h);
+    ctx.fillRect(-tileSize, -tileSize*0.6, tileSize*2, tileSize*1.2);
     ctx.restore();
   }
+
+  ctx.save();
+  ctx.translate(px, py);
 
   ctx.rotate(p.angle);
   const raftLen = tileSize * 1.8;
