@@ -8,5 +8,5 @@ export const TILE_FOREST = 4;
 export const TILE_HILL = 5;
 export const TILE_MOUNTAIN = 6;
 
-export const INTERACTION_RADIUS = 35.0;
+export const INTERACTION_RADIUS = 20;
 
