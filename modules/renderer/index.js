@@ -255,7 +255,7 @@ export function createRenderer({ canvas, state, game, noise }) {
 
     // 4. Entities
     // Helper to draw a jagged polygonal influence area (no roundness)
-    const drawJaggedInfluence = (ctx, centerX, centerY, radius, seedStr, fillColor) => {
+    const drawJaggedInfluence = (ctx, centerX, centerY, radius, seedStr, fillColor, alphaMul = 1) => {
       // deterministic pseudo-hash from string
       let h = 0;
       for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) >>> 0;
@@ -263,6 +263,10 @@ export function createRenderer({ canvas, state, game, noise }) {
       const sides = 6 + (h % 9);
       // jitter amplitude fraction of radius
       const jitter = 0.18 + ((h >> 8) % 40) / 200; // 0.18..0.38
+
+      ctx.save();
+      // apply fade multiplier to entire shape
+      ctx.globalAlpha = (ctx.globalAlpha || 1) * alphaMul;
 
       ctx.fillStyle = fillColor;
       ctx.beginPath();
@@ -280,6 +284,7 @@ export function createRenderer({ canvas, state, game, noise }) {
       }
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
     };
 
     state.entities.forEach(ent => {
@@ -289,26 +294,41 @@ export function createRenderer({ canvas, state, game, noise }) {
        if (screenX < -tileSize*2 || screenX > state.width + tileSize*2 ||
            screenY < -tileSize*2 || screenY > state.height + tileSize*2) return;
 
+       // Compute fade factor based on distance to screen edge.
+       // At the culling boundary (margin) alpha = 0, and it ramps to 1 inside.
+       const MARGIN = tileSize * 2;
+       const distToEdgeX = Math.min(screenX, state.width - screenX);
+       const distToEdgeY = Math.min(screenY, state.height - screenY);
+       const minDistToEdge = Math.min(distToEdgeX, distToEdgeY);
+       const edgeFade = Math.max(0, Math.min(1, minDistToEdge / MARGIN));
+
        if (ent.type === game.CONSTANTS.ENTITY_CITY) {
          // Use game interaction radius (in tiles) scaled to pixels for the visible influence circle
         const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
-        drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_city', 'rgba(16, 185, 129, 0.18)');
+        drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_city', 'rgba(16, 185, 129, 0.18)', edgeFade);
 
+         // Draw city with same fade
+         ctx.save();
+         ctx.globalAlpha = edgeFade;
          ctx.fillStyle = '#10b981';
          ctx.fillRect(screenX, screenY, tileSize, tileSize);
          ctx.fillStyle = '#065f46';
          ctx.fillRect(screenX + tileSize/2 - tileSize*0.1, screenY, tileSize*0.2, tileSize*0.6);
+         ctx.restore();
        } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
          // Use same interaction radius for relic highlight
         const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
-        drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_relic', 'rgba(245, 158, 11, 0.18)');
+        drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_relic', 'rgba(245, 158, 11, 0.18)', edgeFade);
 
+         ctx.save();
+         ctx.globalAlpha = edgeFade;
          ctx.fillStyle = '#f59e0b';
          ctx.beginPath();
          ctx.moveTo(screenX + tileSize/2, screenY);
          ctx.lineTo(screenX + tileSize, screenY + tileSize);
          ctx.lineTo(screenX, screenY + tileSize);
          ctx.fill();
+         ctx.restore();
        }
     });
 
