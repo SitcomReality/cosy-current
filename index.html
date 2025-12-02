@@ -3,15 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>Cosy Current</title>
+    <title>Terra Gen: Idle Realm</title>
     
     <!-- Modular CSS -->
     <link href="styles/base.css" rel="stylesheet" />
     <link href="styles/layout.css" rel="stylesheet" />
     <link href="styles/effects.css" rel="stylesheet" />
     <link href="styles/components.css" rel="stylesheet" />
-    <!-- Rigid, condensed display font -->
-    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet" />
+
     <!-- App entrypoint (ES module) -->
     <script type="module" src="main.js"></script>
   </head>
@@ -23,67 +22,49 @@
         <!-- Start Screen -->
         <div id="start-screen" class="screen active-flex">
           <div class="title-container">
-            <h1 class="game-title">Cosy Current</h1>
-            <p class="game-subtitle">A gentle river-world simulator</p>
+            <h1 class="game-title">Terra Gen</h1>
+            <p class="game-subtitle">Procedural Realm Simulator</p>
           </div>
           <div class="start-actions">
-            <!-- Loading placeholder shown until we decide New Journey / Continue Journey label -->
-            <div id="start-loading" class="start-loading">Loading…</div>
-
-            <button id="btn-start" class="btn-large pulse hidden">Initialize World</button>
-            <button id="btn-delete-save" class="btn-text hidden">Delete Save Data</button>
+            <button id="btn-start" class="btn-large pulse">Initialize World</button>
           </div>
-
-          <div class="splash-credit">
-            <div class="credit-line">A ripple from</div>
-            <a href="https://websim.com/@SitcomReality/" target="_blank" rel="noopener noreferrer" title="SitcomReality">
-              <img src="sitcomreality.png" alt="SitcomReality" title="SitcomReality" width="250" height="70">
-            </a>
-          </div>
-
           <div class="version">v0.2.0 Alpha</div>
         </div>
 
         <!-- In-Game HUD -->
         <div id="game-hud" class="screen">
           <div class="hud-bar top-bar">
-            <!-- Inventory items listed directly on screen -->
-            <div id="inventory-main-display" class="inventory-overlay"></div>
-          </div>
-
-          <!-- Dev Panel (Initially hidden) -->
-          <div id="dev-panel" class="dev-panel hidden">
-            <div class="dev-panel-header">
-              <h3>Developer Tools</h3>
-              <div class="stat-group">
-                <span class="stat-label">TIME</span>
-                <span class="stat-value" id="ui-time">00:00</span>
-              </div>
+            <!-- Resources -->
+            <div class="stat-group">
+              <span class="stat-label">SCRAP</span>
+              <span class="stat-value" id="ui-scrap">0</span>
             </div>
-            <div class="dev-panel-grid">
-              <div class="dev-control">
-                <label>Raft</label>
-                <div class="btn-row">
-                  <button id="btn-speed" class="btn-small">x10 Speed</button>
-                  <button id="btn-stopstart" class="btn-small">STOP</button>
-                </div>
-              </div>
-              <div class="dev-control">
-                <label>World</label>
-                <div class="btn-row">
-                  <button id="btn-dayspeed" class="btn-small">Cycle x10</button>
-                </div>
-              </div>
-              <div class="dev-control full-width">
-                <label>Weather Intensity</label>
-                <input type="range" id="dev-weather-slider" min="0" max="1" step="0.01" value="0">
-              </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+              <span class="stat-label">FUEL</span>
+              <span class="stat-value" id="ui-fuel">0</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+              <span class="stat-label">BIO</span>
+              <span class="stat-value" id="ui-bio">0</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+              <span class="stat-label">TIME</span>
+              <span class="stat-value" id="ui-time">00:00</span>
             </div>
           </div>
 
           <div class="hud-bar bottom-bar">
-            <button id="btn-dev-toggle" class="btn-icon" title="Toggle Dev Panel">
-              <span style="font-size:0.7rem;font-weight:bold;">DEV</span>
+            <div class="controls-hint">
+              <span class="key">A</span><span class="key">D</span>
+              <span>to steer</span>
+            </div>
+
+            <!-- Speed-up control: hold Numpad / or press this button -->
+            <button id="btn-speed" class="btn-icon" aria-label="Speed x10" title="Hold Numpad / or press to turbo">
+              <span style="font-weight:700;font-size:0.95rem;">x10</span>
             </button>
 
             <button id="btn-settings-toggle" class="btn-icon" aria-label="Settings">
@@ -105,48 +86,6 @@
                 <!-- Controls injected by JS -->
               </div>
             </div>
-          </div>
-
-
-
-          <!-- Collection Modal (Sticker Book) -->
-          <div id="collection-modal" class="modal hidden">
-            <div class="modal-content collection-modal-content">
-              <div class="modal-header">
-                <h2>Collection</h2>
-                <button id="btn-close-collection" class="btn-close">&times;</button>
-              </div>
-              <div id="collection-tabs" class="collection-tabs">
-                <!-- Tabs injected by JS -->
-              </div>
-              <div id="collection-grid" class="modal-body collection-grid">
-                <!-- Items injected by JS -->
-              </div>
-            </div>
-          </div>
-
-          <!-- Customization Modal (Dock) -->
-          <div id="customization-modal" class="modal hidden">
-            <div class="modal-content custom-modal-content">
-              <div class="modal-header">
-                <h2>The Dock</h2>
-                <button id="btn-close-customization" class="btn-close">&times;</button>
-              </div>
-              <div class="custom-body">
-                <div class="custom-preview">
-                  <canvas id="raft-preview" width="300" height="300"></canvas>
-                </div>
-                <div class="custom-controls">
-                  <div id="customization-tabs" class="collection-tabs"></div>
-                  <div id="customization-options" class="custom-options-scroll"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Notification Toast -->
-          <div id="notification-container" class="notification-container">
-            <!-- Toasts injected by JS -->
           </div>
         </div>
       </div>

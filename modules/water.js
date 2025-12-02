@@ -6,7 +6,10 @@ export function createWaterEffects({ state, game, noise }) {
   const shorelineWaves = [];
 
   const WAKE_SEGMENT_LIFE = 3; // seconds
-  const WAKE_SPAWN_INTERVAL = 0.2; // spawn new segment every N seconds
+  // Base spawn interval; we will vary this slightly per interval to avoid mechanical rhythm
+  const WAKE_SPAWN_INTERVAL = 0.2; // spawn new segment every N seconds (base)
+  let nextWakeInterval = WAKE_SPAWN_INTERVAL * (0.8 + Math.random() * 0.4);
+
   // All distances in this module are expressed in world "tile" units and
   // converted to pixels in render() using the current tileSize.
   const MIN_LINE_LENGTH = 1; // tiles
@@ -23,7 +26,8 @@ export function createWaterEffects({ state, game, noise }) {
     if (!isWater) return;
 
     const intensity = Math.min(1, speed / 5);
-    const baseSpread = 2.2; // tiles
+    // Increase base spread so dissipating wakes reach a wider final lateral distance
+    const baseSpread = 3.2; // tiles (was 2.2)
 
     // Create V-shaped wake pattern with straight line segments
     for (let side of [-1, 1]) {
@@ -128,10 +132,13 @@ export function createWaterEffects({ state, game, noise }) {
     const p = state.player;
 
     // Spawn wake segments
+    // Advance timer and spawn when passing the next randomized interval; after spawn, pick a slightly varied next interval.
     wakeTimer += dt;
-    if (wakeTimer >= WAKE_SPAWN_INTERVAL) {
+    if (wakeTimer >= nextWakeInterval) {
       wakeTimer = 0;
       spawnWake(p.x, p.y, p.angle, p.speed);
+      // Slight random variation around base interval so wakes don't feel mechanical
+      nextWakeInterval = WAKE_SPAWN_INTERVAL * (0.8 + Math.random() * 0.4);
     }
 
     // Update wake segments
@@ -154,8 +161,8 @@ export function createWaterEffects({ state, game, noise }) {
       const fadeOut = Math.min(1, t * 2);
       const fade = Math.min(fadeIn, fadeOut);
 
-      // Expand lateral offset from 1x at birth to 2x at death
-      const spreadFactor = 1 + (1 - t); // 1 -> 2 over lifetime
+      // Expand lateral offset from 1x at birth to a larger final spread to give wider dissipation
+      const spreadFactor = 1 + (1 - t) * 2; // 1 -> 3 over lifetime
       const lateralOffset = (seg.baseOffset || 0) * spreadFactor;
 
       // Compute world-space start point for this segment
