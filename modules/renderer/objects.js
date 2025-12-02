@@ -296,15 +296,37 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
       
       // 3. Determine Shadow Scale (Larger in shallow water)
       // "At the edges... shadow should be closer to the boat and a bit larger"
-      let scale = 1.0;
-      if (depthFactor < 0.5) {
-        scale = 1.0 + (0.5 - depthFactor) * 0.5; // Up to ~1.25x larger at very edge
+      // We'll map depthFactor so that in very shallow areas the shadow collapses to near-raft footprint.
+      let scale;
+      if (depthFactor >= 0.6) {
+        // deep water: original subtle scaling
+        scale = 1.0;
+      } else if (depthFactor >= 0.3) {
+        // mid-depth: modest expansion
+        scale = 1.0 + (0.6 - depthFactor) * 0.4; // up to ~1.12
+      } else {
+        // very shallow: keep shadow nearly identical to raft footprint with tiny allowance
+        // interpolate from slight oversize to near-exact footprint as depthFactor -> 0
+        const u = depthFactor / 0.3; // 0..1
+        const oversizeAtEdge = 1.08; // small allowance when beached
+        scale = 1.0 + (oversizeAtEdge - 1.0) * (1 - u);
       }
       
       // 4. Determine Shadow Offset (Closer in shallow water)
       // Deep water: uses full baseOffsetLen
-      // Shallow water: offset shrinks towards 0
-      const offsetLen = baseOffsetLen * (0.1 + 0.9 * depthFactor);
+      // Shallow water: offset shrinks towards almost zero so shadow sits under raft
+      let offsetLen;
+      if (depthFactor >= 0.6) {
+        offsetLen = baseOffsetLen;
+      } else if (depthFactor >= 0.3) {
+        // smooth interpolation between full offset and small offset
+        const u = (depthFactor - 0.3) / 0.3; // 0..1
+        offsetLen = baseOffsetLen * (0.15 + 0.85 * u); // never fully zero here
+      } else {
+        // very shallow: nearly zero offset so shadow aligns with raft
+        // keep a tiny non-zero offset so it can still peek out when beached
+        offsetLen = baseOffsetLen * 0.06 * (depthFactor / 0.3 + 0.05);
+      }
 
       // 5. Compute Final Screen Coordinates
       // Apply scaling to the local offset from boat center (simulating shadow spread/size)
