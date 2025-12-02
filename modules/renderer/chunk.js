@@ -60,7 +60,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
   
   // Get tree/prop data for a chunk
   function getChunkProps(cx, cy) {
-    const key = `${cx},${cy}`;
+    const key = `${cx},${cy},${state.tileSize}`;
     if (chunkPropsCache.has(key)) {
       const data = chunkPropsCache.get(key);
       data.lastUsed = performance.now();
@@ -118,7 +118,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
 
   // Generate or return existing chunk canvas
   function getChunk(cx, cy) {
-    const key = `${cx},${cy}`;
+    const key = `${cx},${cy},${state.tileSize}`;
     if (chunkCache.has(key)) {
       const data = chunkCache.get(key);
       data.lastUsed = performance.now();
@@ -217,9 +217,6 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
     const perturbScale = tileSize * 0.15;
 
     // Helper: compute a vertex position with deterministic perturbation
-    // using world-space coordinates so adjacent chunks share identical
-    // offsets along their shared edges, keeping seams closed while
-    // avoiding perfectly straight boundaries.
     function getPerturbedVertex(worldX, worldY, localGridX, localGridY) {
       const baseX = localGridX * tileSize;
       const baseY = localGridY * tileSize;
