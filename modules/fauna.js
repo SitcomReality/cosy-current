@@ -97,16 +97,24 @@ export function createFaunaSystem({ state, game, noise }) {
         availableTypes.push(typeName, typeName, typeName, typeName, typeName, typeName, typeName, typeName);
         continue;
       }
-      // Fish: weight them more heavily
+      // Fish / eels: only in river water, preferring deeper sections, but with higher spawn weight
       if (typeName === 'fish' || typeName === 'eel') {
-        availableTypes.push(typeName, typeName, typeName, typeName, typeName);
+        if (riverInfo.isRiver && riverInfo.value < 0.8) {
+          // Prefer deeper water; add extra weight in the deepest regions
+          if (riverInfo.value < 0.5) {
+            availableTypes.push(typeName, typeName, typeName, typeName, typeName);
+          } else {
+            availableTypes.push(typeName, typeName);
+          }
+        }
         continue;
       }
       
-      // Check habitat match
-      if (def.habitat === 'water' && riverInfo.isRiver && riverInfo.value < 0.8) {
-        // Prefer deeper water for spawning
-        if (riverInfo.value < 0.5) availableTypes.push(typeName);
+      // Check habitat match for land / shoreline creatures
+      if (def.habitat === 'water') {
+        if (riverInfo.isRiver && riverInfo.value < 0.8) {
+          availableTypes.push(typeName);
+        }
       } else if (Array.isArray(def.habitat)) {
         // Multiple habitat types
         if ((tile === game.CONSTANTS.TILE_GRASS && def.habitat.includes('grass')) ||
@@ -292,12 +300,30 @@ export function createFaunaSystem({ state, game, noise }) {
       
       if (c.habitat === 'water') {
         // Keep fish in water
-        if (!riverInfo.isRiver || riverInfo.value > 0.9) {
+        if (!riverInfo.isRiver || riverInfo.value > 0.95) {
           const turnBack = normalizeAngle(c.angle + Math.PI);
           c.targetAngle = turnBack;
+        } else {
+          // In water: bias movement away from very shallow water toward deeper regions
+          if (riverInfo.value > 0.6) {
+            let bestAngle = c.targetAngle;
+            let bestValue = riverInfo.value;
+            // Sample a few directions to seek deeper water (lower riverInfo.value)
+            for (let i = -2; i <= 2; i++) {
+              const sampleAngle = c.angle + (i * Math.PI / 6);
+              const sx = c.x + Math.cos(sampleAngle) * 3;
+              const sy = c.y + Math.sin(sampleAngle) * 3;
+              const info = noise.getRiverSystem(sx, sy);
+              if (info.isRiver && info.value < bestValue) {
+                bestValue = info.value;
+                bestAngle = sampleAngle;
+              }
+            }
+            c.targetAngle = normalizeAngle(bestAngle);
+          }
         }
       } else if (c.habitat !== 'any') {
-        // Keep land creatures on land
+        // Keep land creatures out of water
         if (riverInfo.isRiver && riverInfo.value < 1.0) {
           const turnBack = normalizeAngle(c.angle + Math.PI);
           c.targetAngle = turnBack;
@@ -309,6 +335,13 @@ export function createFaunaSystem({ state, game, noise }) {
             c.targetAngle = normalizeAngle(c.angle + Math.PI);
           } else if (c.habitat === 'sand' && tile !== game.CONSTANTS.TILE_BANK) {
             c.targetAngle = normalizeAngle(c.angle + Math.PI);
+          }
+
+          // Non-beach creatures should generally avoid sand
+          const prefersSand = (c.habitat === 'sand') || (Array.isArray(c.habitat) && c.habitat.includes('sand'));
+          if (!prefersSand && tile === game.CONSTANTS.TILE_BANK) {
+            const turnBack = normalizeAngle(c.angle + Math.PI);
+            c.targetAngle = turnBack;
           }
         }
       }
