@@ -92,6 +92,16 @@ export function createFaunaSystem({ state, game, noise }) {
         availableTypes.push(typeName, typeName, typeName, typeName, typeName, typeName);
         continue;
       }
+      // Fireflies: weight them heavily during night
+      if (typeName === 'firefly' && isNight) {
+        availableTypes.push(typeName, typeName, typeName, typeName, typeName, typeName, typeName, typeName);
+        continue;
+      }
+      // Fish: weight them more heavily
+      if (typeName === 'fish' || typeName === 'eel') {
+        availableTypes.push(typeName, typeName, typeName, typeName, typeName);
+        continue;
+      }
       
       // Check habitat match
       if (def.habitat === 'water' && riverInfo.isRiver && riverInfo.value < 0.8) {
