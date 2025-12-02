@@ -2,7 +2,7 @@
 export function createFaunaSystem({ state, game, noise }) {
   const creatures = [];
   
-  const SPAWN_INTERVAL = 0.5; // seconds between spawn attempts
+  const SPAWN_INTERVAL = 0.4; // seconds between spawn attempts (slightly more frequent)
   const MAX_CREATURES = 50;
   const DESPAWN_DISTANCE = 100; // tiles from player
   
@@ -87,7 +87,7 @@ export function createFaunaSystem({ state, game, noise }) {
       // Birds: can spawn anywhere and should be a bit more common.
       if (typeName === 'bird') {
         // Weight birds more heavily by pushing multiple entries.
-        availableTypes.push(typeName, typeName, typeName);
+        availableTypes.push(typeName, typeName, typeName, typeName, typeName, typeName);
         continue;
       }
       
@@ -119,6 +119,7 @@ export function createFaunaSystem({ state, game, noise }) {
       // Determine group size for schooling/flocking species
       let groupSize = 1;
       if (chosen === 'fish' || chosen === 'eel' || chosen === 'bird') {
+        // 1 lone animal up to a small school/flock
         groupSize = 1 + Math.floor(Math.random() * 6); // 1..6
       }
 
@@ -177,6 +178,14 @@ export function createFaunaSystem({ state, game, noise }) {
       trySpawn(player, state.dayTime);
     }
 
+    // Build group lookup for cohesion behaviors
+    const groups = new Map();
+    for (const c of creatures) {
+      if (!c.groupId) continue;
+      if (!groups.has(c.groupId)) groups.set(c.groupId, []);
+      groups.get(c.groupId).push(c);
+    }
+
     // Update creatures
     creatures.forEach(c => {
       c.life += dt;
@@ -188,7 +197,7 @@ export function createFaunaSystem({ state, game, noise }) {
         if (c.type === 'bird') {
           c.wanderTimer = 4 + Math.random() * 4;
         } else if (c.type === 'fish' || c.type === 'eel') {
-          c.wanderTimer = 2 + Math.random() * 3;
+          c.wanderTimer = 2.5 + Math.random() * 3;
         } else {
           c.wanderTimer = 2 + Math.random() * 3;
         }
@@ -196,15 +205,54 @@ export function createFaunaSystem({ state, game, noise }) {
         // Small directional change around current target
         let maxDelta;
         if (c.type === 'bird') {
-          maxDelta = Math.PI / 8; // gentle curves
+          maxDelta = Math.PI / 10; // gentle curves
         } else if (c.type === 'fish' || c.type === 'eel') {
-          maxDelta = Math.PI / 4;
+          maxDelta = Math.PI / 6;
         } else {
-          maxDelta = Math.PI / 3;
+          maxDelta = Math.PI / 4;
         }
         const delta = (Math.random() - 0.5) * 2 * maxDelta;
         const newTarget = c.targetAngle + delta;
         c.targetAngle = normalizeAngle(newTarget);
+      }
+
+      // Group cohesion: flocking fish/birds try to align with their group
+      if (c.groupId && (c.type === 'fish' || c.type === 'eel' || c.type === 'bird')) {
+        const members = groups.get(c.groupId);
+        if (members && members.length > 1) {
+          let avgAngleSin = 0;
+          let avgAngleCos = 0;
+          let avgX = 0;
+          let avgY = 0;
+          members.forEach(m => {
+            avgAngleSin += Math.sin(m.angle);
+            avgAngleCos += Math.cos(m.angle);
+            avgX += m.x;
+            avgY += m.y;
+          });
+          avgAngleSin /= members.length;
+          avgAngleCos /= members.length;
+          avgX /= members.length;
+          avgY /= members.length;
+
+          const groupAngle = Math.atan2(avgAngleSin, avgAngleCos);
+          const toCenterAngle = Math.atan2(avgY - c.y, avgX - c.x);
+
+          // Blend current target between group direction and loose cohesion towards group center
+          const alignWeight = (c.type === 'bird') ? 0.8 : 0.6;
+          const cohesionWeight = 1 - alignWeight;
+
+          // Compute blended direction
+          const blendedDirX = alignWeight * Math.cos(groupAngle) + cohesionWeight * Math.cos(toCenterAngle);
+          const blendedDirY = alignWeight * Math.sin(groupAngle) + cohesionWeight * Math.sin(toCenterAngle);
+          const blendedAngle = Math.atan2(blendedDirY, blendedDirX);
+
+          // Ease towards flock direction, don't snap
+          const diffToFlock = shortestAngleDiff(c.targetAngle, blendedAngle);
+          const maxAdjust = (c.turnRate || 2.0) * 0.5 * dt;
+          const adjust = Math.max(-maxAdjust, Math.min(maxAdjust, diffToFlock));
+          c.targetAngle = normalizeAngle(c.targetAngle + adjust);
+        }
       }
 
       // Stay in habitat (adjust targetAngle instead of snapping angle)

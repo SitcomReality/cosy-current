@@ -29,7 +29,7 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
   ctx.save();  
 
   if (c.habitat === 'water' && noise) {
-    // Depth-aware underwater shadow
+    // Depth-aware underwater shadow (low-poly polygon)
     const riverInfo = noise.getRiverSystem(c.x, c.y);
     const waterDepth = Math.max(0, Math.min(1, 1.2 - riverInfo.value));
 
@@ -49,19 +49,33 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
 
     ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha * 0.6})`;
 
-    // Simple ellipse shadow for fish
+    // Diamond-like polygon shadow to stay low-poly
+    const halfLen = size * 0.7 * shadowScale;
+    const halfWid = size * 0.35 * shadowScale;
+
     ctx.beginPath();
-    ctx.ellipse(shadowX, shadowY, size * 0.6 * shadowScale, size * 0.3 * shadowScale, c.angle, 0, Math.PI * 2);
+    ctx.moveTo(shadowX - halfLen, shadowY);        // left
+    ctx.lineTo(shadowX, shadowY - halfWid);        // top
+    ctx.lineTo(shadowX + halfLen, shadowY);        // right
+    ctx.lineTo(shadowX, shadowY + halfWid);        // bottom
+    ctx.closePath();
     ctx.fill();
   } else {
-    // Land creature shadow
+    // Land creature shadow (low-poly polygon)
     const offset = tileSize * cycle.shadowLength * 0.5;
     const shadowX = screenX + shadowDir.x * offset;
     const shadowY = screenY + shadowDir.y * offset;
 
     ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha * 0.4})`;
+
+    const halfSize = size * 0.5;
+
     ctx.beginPath();
-    ctx.arc(shadowX, shadowY, size * 0.5, 0, Math.PI * 2);
+    ctx.moveTo(shadowX - halfSize, shadowY);       // left
+    ctx.lineTo(shadowX, shadowY - halfSize * 0.6); // top
+    ctx.lineTo(shadowX + halfSize, shadowY);       // right
+    ctx.lineTo(shadowX, shadowY + halfSize * 0.6); // bottom
+    ctx.closePath();
     ctx.fill();
   }
 
