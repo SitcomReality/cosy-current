@@ -191,18 +191,24 @@ export function createRenderer({ canvas, state, game, noise }) {
 
     // Helper to draw tree shadow
     const drawTreeShadow = (tx, ty, h) => {
-       if (cycle.shadowAlpha <= 0.01) return;
+       // Always draw a visible shadow; scale alpha up for darker shadows
        const sx = (tx - state.camera.x) * tileSize + centerX;
        const sy = (ty - state.camera.y) * tileSize + centerY;
-       
-       const baseW = tileSize * 0.4 * h;
-       const tipX = sx + shadowVec.x * tileSize * h;
-       const tipY = sy + shadowVec.y * tileSize * h; // Shadows fall on flat ground
-       
+
+       // Darker shadow: amplify cycle alpha but clamp to avoid full black
+       const alpha = Math.max(0.25, Math.min(0.9, cycle.shadowAlpha * 1.8));
+       ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+
+       // Wider and slightly longer shadow for stronger silhouette
+       const baseW = tileSize * 0.5 * h;
+       const tipX = sx + shadowVec.x * tileSize * h * 1.6;
+       const tipY = sy + shadowVec.y * tileSize * h * 1.6;
+
        ctx.beginPath();
        ctx.moveTo(sx - baseW/2, sy);
        ctx.lineTo(sx + baseW/2, sy);
-       ctx.lineTo(tipX, tipY - tileSize * h); // Project tip
+       ctx.lineTo(tipX, tipY - tileSize * h * 0.2); // Project tip slightly upward for shape
+       ctx.closePath();
        ctx.fill();
     };
 
