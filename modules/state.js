@@ -27,7 +27,12 @@ export function createAppState() {
       speed: 0, // Tiles per second
       targetSpeed: 2.5, // Reduced from 8.0 for slower pacing with larger tiles
       roadState: 'cruising', // cruising, intersection
-      targetAngle: 0 // Smoothed steering target
+      targetAngle: 0, // Smoothed steering target
+
+      // Flow-lock for improved river navigation (anticipatory turn locking)
+      flowLockActive: false,
+      flowLockAngle: 0,
+      flowLockTimer: 0
     },
     
     resources: {

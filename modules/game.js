@@ -161,8 +161,9 @@ export function createGame({ state, noise }) {
 
       // Center pull vector (move towards river center)
       // Gradient points OUT, so -Gradient points IN.
-      const centerStrength = Math.min(0.6, info.value); // Softer pull when near center
-      const centerWeight = 0.35; // Reduce centering influence to avoid over-correction
+      // Weaken centering so craft can use more river width and make wider turns.
+      const centerStrength = Math.min(0.5, info.value * 0.9); // softer near center, scaled
+      const centerWeight = 0.25; // Reduced centering influence to allow edge movement
 
       // Desired velocity is mostly tangent, some centering
       const mx = tx * 0.9 - gradX * centerWeight * centerStrength;
@@ -182,38 +183,76 @@ export function createGame({ state, noise }) {
       p.targetAngle = p.angle;
     }
 
+    // --- Anticipatory intersection detection & flow-locking ---
+    // If not currently locked, sample ahead along current heading/tangent to detect upcoming intersections
+    if (!p.flowLockActive && river.isRiver) {
+      const lookaheadDistances = [2.0, 4.0, 8.0]; // tiles ahead to probe
+      for (let d of lookaheadDistances) {
+        const probeX = p.x + Math.cos(p.angle) * d;
+        const probeY = p.y + Math.sin(p.angle) * d;
+        const probeInfo = noise.getRiverSystem(probeX, probeY);
+        if (probeInfo.isIntersection) {
+          // Choose branch now: compute preferred flow vector at probe point
+          const chosenAngle = getRiverVector(probeX, probeY, p.angle);
+          p.flowLockActive = true;
+          p.flowLockAngle = chosenAngle;
+          p.flowLockTimer = 3.5; // seconds of lock to allow smooth commitment
+          break;
+        }
+      }
+    }
+
+    // Decrement flow-lock timer if active and release when expired or out of river
+    if (p.flowLockActive) {
+      p.flowLockTimer -= dt;
+      if (p.flowLockTimer <= 0 || !river.isRiver) {
+        p.flowLockActive = false;
+        p.flowLockTimer = 0;
+      }
+    }
+
     // --- Input Bias ---
     // User can influence decision at intersection via p.angle (updated from outside)
     let targetAngle = p.targetAngle;
-    
+
     if (river.isRiver) {
         // We are in the river, follow the flow
         if (river.isIntersection) {
-             // At junction: still follow river vector, but will be biased by player angle externally
-             const desired = getRiverVector(p.x, p.y, p.angle);
+             // At junction: if flow lock active prefer locked angle else compute desired
+             let desired;
+             if (p.flowLockActive) {
+               desired = p.flowLockAngle;
+             } else {
+               desired = getRiverVector(p.x, p.y, p.angle);
+             }
              // Smoothly blend current target toward desired to avoid snap turns
              const diff = shortestAngleDiff(targetAngle, desired);
-             targetAngle = targetAngle + diff * Math.min(1, 5 * dt);
+             targetAngle = targetAngle + diff * Math.min(1, 4.5 * dt);
         } else {
-            // Just follow the river flow
-            const desired = getRiverVector(p.x, p.y, p.angle);
+            // Not at an immediate intersection: if we have a lock prefer it, otherwise follow river
+            let desired;
+            if (p.flowLockActive) {
+              desired = p.flowLockAngle;
+            } else {
+              desired = getRiverVector(p.x, p.y, p.angle);
+            }
             const diff = shortestAngleDiff(targetAngle, desired);
             targetAngle = targetAngle + diff * Math.min(1, 3 * dt);
         }
-        
+
         p.targetAngle = targetAngle;
 
         // Apply steering toward smoothed targetAngle with a max turn rate
         const angleDiff = shortestAngleDiff(p.angle, p.targetAngle);
-        const maxTurnRate = 2.5; // radians per second
+        const maxTurnRate = 2.0; // slightly reduced turn rate for smoother arcs
         const maxStep = maxTurnRate * dt;
         const clamped = Math.max(-maxStep, Math.min(maxStep, angleDiff));
         p.angle += clamped;
-        
+
         // Speed - accelerate faster when multiplier active so boost feels immediate
         const accel = 5 * (state.speedMultiplier || 1);
         if (p.speed < p.targetSpeed) p.speed += dt * accel;
-        
+
     } else {
         // Grounded on land!
         // Slow down
