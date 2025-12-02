@@ -9,33 +9,63 @@ export function createRenderer({ canvas, state, game, noise }) {
 
   // OKLCH Palette for a cozy, low-poly aesthetic
   // Note: OKLCH support is modern (Chrome 111+, Safari 15.4+, FF 113+)
+  // Preferred OKLCH strings with fallback hex colors for older browsers.
   const PALETTE = {
-    waterDeep: 'oklch(45% 0.12 250)',      // Deep distinctive blue
-    waterShallow: 'oklch(65% 0.1 240)',    // Lighter blue
-    sand: 'oklch(92% 0.06 95)',            // Warm pale sand
-    grass: 'oklch(78% 0.16 135)',          // Vibrant fresh green
-    forest: 'oklch(52% 0.14 145)',         // Darker cool green
-    hill: 'oklch(70% 0.04 280)',           // Grey-ish purple
-    mountain: 'oklch(92% 0.01 280)',       // Near white
+    waterDeep: { oklch: 'oklch(45% 0.12 250)', hex: '#0b63a8' },      // Deep distinctive blue
+    waterShallow: { oklch: 'oklch(65% 0.1 240)', hex: '#5fb2e6' },    // Lighter blue
+    sand: { oklch: 'oklch(92% 0.06 95)', hex: '#f0d6a6' },            // Warm pale sand
+    grass: { oklch: 'oklch(78% 0.16 135)', hex: '#6fbf3f' },          // Vibrant fresh green
+    forest: { oklch: 'oklch(52% 0.14 145)', hex: '#2f6b2b' },         // Darker cool green
+    hill: { oklch: 'oklch(70% 0.04 280)', hex: '#9a87a8' },           // Grey-ish purple
+    mountain: { oklch: 'oklch(92% 0.01 280)', hex: '#f5f3f7' },       // Near white
     
     // Trees
-    treeForest: 'oklch(42% 0.14 145)',     // Slightly darker than forest floor
-    treeGrass: 'oklch(60% 0.16 140)',      // Standout green
+    treeForest: { oklch: 'oklch(42% 0.14 145)', hex: '#254e22' },     // Slightly darker than forest floor
+    treeGrass: { oklch: 'oklch(60% 0.16 140)', hex: '#49a33a' },      // Standout green
   };
 
+  // Feature-detect whether the browser accepts OKLCH by trying to assign it to the canvas context.
+  // If not supported, fall back to the provided hex strings.
+  function chooseColor(ctx, entry) {
+    if (!entry) return '#ff00ff';
+    const candidate = entry.oklch || entry;
+    try {
+      const prev = ctx.fillStyle;
+      ctx.fillStyle = candidate;
+      // If the browser normalized it to something truthy and not the empty string, assume support.
+      const accepted = !!ctx.fillStyle && ctx.fillStyle !== '';
+      // restore previous to avoid side effects
+      ctx.fillStyle = prev;
+      return accepted ? candidate : (entry.hex || candidate);
+    } catch (e) {
+      return entry.hex || (entry.oklch || '#ff00ff');
+    }
+  }
+
   const WATER_PALETTE = {
-    deep: PALETTE.waterDeep,
-    shallow: PALETTE.waterShallow
+    // resolved at runtime below
   };
 
   const COLORS = {
-    [game.CONSTANTS.TILE_WATER]: PALETTE.waterShallow,
-    [game.CONSTANTS.TILE_BANK]: PALETTE.sand,
-    [game.CONSTANTS.TILE_GRASS]: PALETTE.grass,
-    [game.CONSTANTS.TILE_FOREST]: PALETTE.forest,
-    [game.CONSTANTS.TILE_HILL]: PALETTE.hill,
-    [game.CONSTANTS.TILE_MOUNTAIN]: PALETTE.mountain
+    // resolved at runtime below
   };
+  // Resolve palette entries to either OKLCH strings or safe hex fallbacks depending on runtime support.
+  (function resolvePalettes() {
+    const testCtx = document.createElement('canvas').getContext('2d');
+    WATER_PALETTE.deep = chooseColor(testCtx, PALETTE.waterDeep);
+    WATER_PALETTE.shallow = chooseColor(testCtx, PALETTE.waterShallow);
+
+    COLORS[game.CONSTANTS.TILE_WATER] = chooseColor(testCtx, PALETTE.waterShallow);
+    COLORS[game.CONSTANTS.TILE_BANK] = chooseColor(testCtx, PALETTE.sand);
+    COLORS[game.CONSTANTS.TILE_GRASS] = chooseColor(testCtx, PALETTE.grass);
+    COLORS[game.CONSTANTS.TILE_FOREST] = chooseColor(testCtx, PALETTE.forest);
+    COLORS[game.CONSTANTS.TILE_HILL] = chooseColor(testCtx, PALETTE.hill);
+    COLORS[game.CONSTANTS.TILE_MOUNTAIN] = chooseColor(testCtx, PALETTE.mountain);
+
+    // Tree colors used in drawTree/drawTreeShadow
+    PALETTE.treeForest = chooseColor(testCtx, PALETTE.treeForest);
+    PALETTE.treeGrass = chooseColor(testCtx, PALETTE.treeGrass);
+  })();
 
   const CHUNK_SIZE = 16;
   const chunkManager = createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, game, noise, getVertexOffset });
