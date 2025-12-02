@@ -1,4 +1,4 @@
-import { INTERACTION_RADIUS } from './constants.js';
+import { INTERACTION_RADIUS, TILE_GRASS, TILE_FOREST } from './constants.js';
 
 // Short helper: shortest signed angle diff
 function shortestAngleDiff(a, b) {
@@ -84,8 +84,8 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     const tileType = heightModule.getTile(p.x, p.y);
     const collectionRate = 1.0 * dt;
     if (tileType === undefined) {} // defensive
-    if (tileType === 4) state.resources.bio += collectionRate * 2;
-    else if (tileType === 3) state.resources.bio += collectionRate;
+    if (tileType === TILE_FOREST) state.resources.bio += collectionRate * 2;
+    else if (tileType === TILE_GRASS) state.resources.bio += collectionRate;
 
     state.resources.fuel -= dt * 0.1;
     if (state.resources.fuel < 0) state.resources.fuel = 0;

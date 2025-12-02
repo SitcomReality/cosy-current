@@ -1,9 +1,9 @@
-import { TILE_WATER, TILE_BANK, TILE_GRASS, TILE_FOREST, TILE_HILL, TILE_MOUNTAIN } from './constants.js';
+import { TILE_WATER, TILE_BANK, TILE_GRASS, TILE_FOREST } from './constants.js';
 
 // Height & tile classification logic (uses noise.getRiverSystem and noise.sample)
 export function createHeightModule(noise) {
-  // Quantized levels
-  const LEVELS = [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95];
+  // Quantized levels — simplified so we don't produce terrain above forest
+  const LEVELS = [0.05, 0.2, 0.35, 0.6];
 
   function quantize(h) {
     let closest = LEVELS[0];
@@ -48,10 +48,8 @@ export function createHeightModule(noise) {
     if (river.value < 1.3) return TILE_BANK;
 
     if (h < 0.45) return TILE_GRASS;
-    if (h < 0.65) return TILE_FOREST;
-    if (h < 0.80) return TILE_HILL;
-    if (h < 0.95) return TILE_MOUNTAIN;
-    return TILE_MOUNTAIN;
+    // Anything higher becomes forest (no hill/mountain)
+    return TILE_FOREST;
   }
 
   return { getHeight, getTile };

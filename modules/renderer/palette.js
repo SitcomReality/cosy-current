@@ -5,8 +5,7 @@ export const PALETTE_DEF = {
   sand: { oklch: 'oklch(92% 0.06 95)', hex: '#f0d6a6' },
   grass: { oklch: 'oklch(78% 0.16 135)', hex: '#6fbf3f' },
   forest: { oklch: 'oklch(52% 0.14 145)', hex: '#2f6b2b' },
-  hill: { oklch: 'oklch(70% 0.04 280)', hex: '#9a87a8' },
-  mountain: { oklch: 'oklch(92% 0.01 280)', hex: '#f5f3f7' },
+  // Removed hill/mountain palette entries to simplify terrain levels.
   treeForest: { oklch: 'oklch(42% 0.14 145)', hex: '#254e22' },
   treeGrass: { oklch: 'oklch(60% 0.16 140)', hex: '#49a33a' }
 };
@@ -28,8 +27,7 @@ export function resolvePalettes(game) {
   COLORS[game.CONSTANTS.TILE_BANK] = chooseColor(PALETTE_DEF.sand);
   COLORS[game.CONSTANTS.TILE_GRASS] = chooseColor(PALETTE_DEF.grass);
   COLORS[game.CONSTANTS.TILE_FOREST] = chooseColor(PALETTE_DEF.forest);
-  COLORS[game.CONSTANTS.TILE_HILL] = chooseColor(PALETTE_DEF.hill);
-  COLORS[game.CONSTANTS.TILE_MOUNTAIN] = chooseColor(PALETTE_DEF.mountain);
+  // Removed hill/mountain color entries — terrain above forest is no longer used.
 
   // Expose tree colors as resolved hex strings for drawing
   const TREES = {

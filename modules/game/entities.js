@@ -1,5 +1,5 @@
 import { ENTITY_CITY, ENTITY_RELIC } from './constants.js';
-import { INTERACTION_RADIUS } from './constants.js';
+import { INTERACTION_RADIUS, TILE_GRASS } from './constants.js';
 
 export function createEntitiesModule(state) {
   function spawnEntity(x, y, type) {
@@ -30,7 +30,7 @@ export function createEntitiesModule(state) {
         for (let ox = -1; ox <= 1; ox++) {
           const t = getTile(tx + ox, ty + oy);
           if (t !== undefined && t !== null) {
-            if (t !== 3) { // TILE_GRASS === 3 (from constants)
+            if (t !== TILE_GRASS) { // require grass region; use constant for clarity
               allGrass = false;
               break;
             }
