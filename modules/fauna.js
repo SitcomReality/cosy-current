@@ -2,44 +2,65 @@
 export function createFaunaSystem({ state, game, noise }) {
   const creatures = [];
   
-  const SPAWN_INTERVAL = 2.0; // seconds between spawn attempts
+  const SPAWN_INTERVAL = 0.5; // seconds between spawn attempts
   const MAX_CREATURES = 50;
   const DESPAWN_DISTANCE = 100; // tiles from player
   
   let spawnTimer = 0;
 
+  // Helper functions for smooth turning
+  function normalizeAngle(a) {
+    while (a <= -Math.PI) a += Math.PI * 2;
+    while (a > Math.PI) a -= Math.PI * 2;
+    return a;
+  }
+
+  function shortestAngleDiff(a, b) {
+    let diff = b - a;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    return diff;
+  }
+
   // Creature type definitions
   const CREATURE_TYPES = {
     // Underwater
-    fish: { habitat: 'water', size: 0.4, speed: 2.0, depth: 0.3, colors: ['#f59e0b', '#ef4444', '#06b6d4'] },
-    eel: { habitat: 'water', size: 0.6, speed: 1.5, depth: 0.5, colors: ['#475569', '#64748b'] },
+    fish: { habitat: 'water', size: 0.4, speed: 2.0, depth: 0.3, colors: ['#f59e0b', '#ef4444', '#06b6d4'], turnRate: 2.5 },
+    eel:  { habitat: 'water', size: 0.6, speed: 1.5, depth: 0.5, colors: ['#475569', '#64748b'], turnRate: 2.2 },
     
-    // Land creatures
-    bird: { habitat: ['grass', 'forest'], size: 0.3, speed: 3.0, colors: ['#dc2626', '#2563eb', '#fbbf24'] },
-    critter: { habitat: ['sand', 'grass'], size: 0.25, speed: 1.2, colors: ['#78350f', '#92400e'] },
-    deer: { habitat: 'forest', size: 0.7, speed: 1.8, colors: ['#92400e', '#78350f'] },
+    // Land / air creatures
+    // Birds can spawn over any terrain; give them a moderate turn rate so they glide in curves.
+    bird:   { habitat: 'any', size: 0.3, speed: 3.0, colors: ['#dc2626', '#2563eb', '#fbbf24'], turnRate: 1.8 },
+    critter:{ habitat: ['sand', 'grass'], size: 0.25, speed: 1.2, colors: ['#78350f', '#92400e'], turnRate: 2.0 },
+    deer:   { habitat: 'forest', size: 0.7, speed: 1.8, colors: ['#92400e', '#78350f'], turnRate: 1.6 },
     
     // Night-only
-    firefly: { habitat: 'forest', size: 0.1, speed: 0.8, nightOnly: true, glow: true, colors: ['#fef08a'] }
+    firefly: { habitat: 'forest', size: 0.1, speed: 0.8, nightOnly: true, glow: true, colors: ['#fef08a'], turnRate: 3.0 }
   };
 
-  function spawnCreature(x, y, type) {
+  function spawnCreature(x, y, type, options = {}) {
     const def = CREATURE_TYPES[type];
     const colorIndex = Math.floor(Math.random() * def.colors.length);
     
+    const initialAngle = options.angle != null ? options.angle : Math.random() * Math.PI * 2;
+
     creatures.push({
       id: Math.random().toString(36).substr(2, 9),
-      x, y,
+      x,
+      y,
       type,
       size: def.size,
       speed: def.speed * (0.8 + Math.random() * 0.4),
-      angle: Math.random() * Math.PI * 2,
+      angle: initialAngle,
+      targetAngle: initialAngle,
+      turnRate: def.turnRate || 2.0,
       color: def.colors[colorIndex],
       depth: def.depth || 0,
       habitat: def.habitat,
       glow: def.glow || false,
       wanderTimer: Math.random() * 3,
-      life: 0
+      life: 0,
+      groupId: options.groupId || null
     });
   }
 
@@ -62,6 +83,13 @@ export function createFaunaSystem({ state, game, noise }) {
     for (const [typeName, def] of Object.entries(CREATURE_TYPES)) {
       // Skip night-only creatures during day
       if (def.nightOnly && !isNight) continue;
+
+      // Birds: can spawn anywhere and should be a bit more common.
+      if (typeName === 'bird') {
+        // Weight birds more heavily by pushing multiple entries.
+        availableTypes.push(typeName, typeName, typeName);
+        continue;
+      }
       
       // Check habitat match
       if (def.habitat === 'water' && riverInfo.isRiver && riverInfo.value < 0.8) {
@@ -75,10 +103,11 @@ export function createFaunaSystem({ state, game, noise }) {
           availableTypes.push(typeName);
         }
       } else if (typeof def.habitat === 'string') {
-        // Single habitat
-        if ((tile === game.CONSTANTS.TILE_GRASS && def.habitat === 'grass') ||
-            (tile === game.CONSTANTS.TILE_FOREST && def.habitat === 'forest') ||
-            (tile === game.CONSTANTS.TILE_BANK && def.habitat === 'sand')) {
+        if (def.habitat === 'grass' && tile === game.CONSTANTS.TILE_GRASS) {
+          availableTypes.push(typeName);
+        } else if (def.habitat === 'forest' && tile === game.CONSTANTS.TILE_FOREST) {
+          availableTypes.push(typeName);
+        } else if (def.habitat === 'sand' && tile === game.CONSTANTS.TILE_BANK) {
           availableTypes.push(typeName);
         }
       }
@@ -86,7 +115,53 @@ export function createFaunaSystem({ state, game, noise }) {
 
     if (availableTypes.length > 0) {
       const chosen = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-      spawnCreature(sx, sy, chosen);
+
+      // Determine group size for schooling/flocking species
+      let groupSize = 1;
+      if (chosen === 'fish' || chosen === 'eel' || chosen === 'bird') {
+        groupSize = 1 + Math.floor(Math.random() * 6); // 1..6
+      }
+
+      // Base direction:
+      let baseAngle = Math.random() * Math.PI * 2;
+
+      if (chosen === 'bird') {
+        // Make birds generally fly past the player in a sweeping path.
+        const dx = sx - player.x;
+        const dy = sy - player.y;
+        const toPlayerAngle = Math.atan2(dy, dx);
+        // Fly roughly tangential around the player (perpendicular to vector to player)
+        baseAngle = toPlayerAngle + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
+      } else if (chosen === 'fish' || chosen === 'eel') {
+        // For fish/eel, bias direction along the river flow by sampling nearby points.
+        const ahead = noise.getRiverSystem(sx + 2, sy);
+        const side = noise.getRiverSystem(sx, sy + 2);
+        // Simple heuristic: choose direction where depth increases
+        const current = riverInfo.value;
+        const dxDepth = current - ahead.value;
+        const dyDepth = current - side.value;
+        if (Math.abs(dxDepth) > Math.abs(dyDepth)) {
+          baseAngle = dxDepth > 0 ? 0 : Math.PI; // east/west-ish
+        } else {
+          baseAngle = dyDepth > 0 ? Math.PI / 2 : -Math.PI / 2; // north/south-ish
+        }
+      }
+
+      const groupId = `${chosen}_${Math.random().toString(36).substr(2, 5)}`;
+
+      for (let i = 0; i < groupSize; i++) {
+        // Small positional offsets so groups cluster loosely
+        const r = Math.random() * 3;
+        const a = Math.random() * Math.PI * 2;
+        const ox = Math.cos(a) * r;
+        const oy = Math.sin(a) * r;
+
+        // Small angular offsets around base direction so flock routes are roughly parallel
+        const angleOffset = (Math.random() - 0.5) * (chosen === 'bird' ? Math.PI / 10 : Math.PI / 6);
+        const memberAngle = baseAngle + angleOffset;
+
+        spawnCreature(sx + ox, sy + oy, chosen, { angle: memberAngle, groupId });
+      }
     }
   }
 
@@ -107,31 +182,67 @@ export function createFaunaSystem({ state, game, noise }) {
       c.life += dt;
       c.wanderTimer -= dt;
       
-      // Wander behavior
+      // Wander behavior: update targetAngle, not angle directly, to avoid abrupt direction changes
       if (c.wanderTimer <= 0) {
-        c.wanderTimer = 2 + Math.random() * 3;
-        c.angle += (Math.random() - 0.5) * Math.PI;
+        // Longer wander intervals for birds so they glide more and flit less
+        if (c.type === 'bird') {
+          c.wanderTimer = 4 + Math.random() * 4;
+        } else if (c.type === 'fish' || c.type === 'eel') {
+          c.wanderTimer = 2 + Math.random() * 3;
+        } else {
+          c.wanderTimer = 2 + Math.random() * 3;
+        }
+
+        // Small directional change around current target
+        let maxDelta;
+        if (c.type === 'bird') {
+          maxDelta = Math.PI / 8; // gentle curves
+        } else if (c.type === 'fish' || c.type === 'eel') {
+          maxDelta = Math.PI / 4;
+        } else {
+          maxDelta = Math.PI / 3;
+        }
+        const delta = (Math.random() - 0.5) * 2 * maxDelta;
+        const newTarget = c.targetAngle + delta;
+        c.targetAngle = normalizeAngle(newTarget);
       }
 
-      // Move
-      c.x += Math.cos(c.angle) * c.speed * dt;
-      c.y += Math.sin(c.angle) * c.speed * dt;
-
-      // Stay in habitat
+      // Stay in habitat (adjust targetAngle instead of snapping angle)
       const tile = game.getTile(Math.floor(c.x), Math.floor(c.y));
       const riverInfo = noise.getRiverSystem(c.x, c.y);
       
       if (c.habitat === 'water') {
         // Keep fish in water
         if (!riverInfo.isRiver || riverInfo.value > 0.9) {
-          c.angle += Math.PI; // Turn around
+          const turnBack = normalizeAngle(c.angle + Math.PI);
+          c.targetAngle = turnBack;
         }
-      } else {
+      } else if (c.habitat !== 'any') {
         // Keep land creatures on land
         if (riverInfo.isRiver && riverInfo.value < 1.0) {
-          c.angle += Math.PI; // Turn around
+          const turnBack = normalizeAngle(c.angle + Math.PI);
+          c.targetAngle = turnBack;
+        } else {
+          // Additional tile-based correction if off preferred terrain
+          if (c.habitat === 'forest' && tile !== game.CONSTANTS.TILE_FOREST) {
+            c.targetAngle = normalizeAngle(c.angle + Math.PI);
+          } else if (c.habitat === 'grass' && tile !== game.CONSTANTS.TILE_GRASS) {
+            c.targetAngle = normalizeAngle(c.angle + Math.PI);
+          } else if (c.habitat === 'sand' && tile !== game.CONSTANTS.TILE_BANK) {
+            c.targetAngle = normalizeAngle(c.angle + Math.PI);
+          }
         }
       }
+      
+      // Smoothly rotate towards targetAngle
+      const diff = shortestAngleDiff(c.angle, c.targetAngle);
+      const maxTurn = (c.turnRate || 2.0) * dt;
+      const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
+      c.angle = normalizeAngle(c.angle + turn);
+
+      // Move along current angle
+      c.x += Math.cos(c.angle) * c.speed * dt;
+      c.y += Math.sin(c.angle) * c.speed * dt;
     });
 
     // Remove distant creatures
