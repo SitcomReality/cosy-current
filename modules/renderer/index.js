@@ -81,50 +81,63 @@ export function createRenderer({ canvas, state, game, noise }) {
     // 0 = Midnight, 0.25 = Sunrise, 0.5 = Noon, 0.75 = Sunset
     const t = state.dayTime;
     
-    // Shadow Direction: Sun moves East(0.25) -> Up(0.5) -> West(0.75)
-    // We simulate shadows moving opposite to sun.
-    // Sunrise (Sun at +X) -> Shadow points -X (Left)
-    // Sunset (Sun at -X) -> Shadow points +X (Right)
-    
-    let shadowX = 0;
-    let shadowY = 0;
-    let shadowAlpha = 0;
+    // Continuous shadow parameters
+    let shadowDirX = 0;
+    let shadowDirY = 0.4;      // slight downward slant to avoid pure horizontal shadows
+    let shadowLength = 0;      // 0..1, scaled later per-object
+    let shadowAlpha = 0;       // opacity of directional shadows
     let ambientColor = 'transparent';
 
-    // Cycle calculations
+    // Day / night ambient color (can still be stepped; independent of shadow math)
     if (t < 0.2 || t > 0.8) {
       // Night
-      shadowAlpha = 0; // No hard shadows at night, maybe ambient
-      ambientColor = 'rgba(10, 10, 30, 0.6)'; // Dark blue overlay
+      ambientColor = 'rgba(10, 10, 30, 0.6)';
     } else if (t >= 0.2 && t < 0.3) {
       // Dawn
       const p = (t - 0.2) / 0.1; // 0..1
-      shadowX = -2.0 * (1.0 - p) - 0.5; // Long left shadow shrinking
-      shadowY = 0.5;
-      shadowAlpha = 0.4 * p;
-      ambientColor = `rgba(50, 20, 10, ${0.4 * (1-p)})`; // Red/Orange tint fading
+      ambientColor = `rgba(50, 20, 10, ${0.4 * (1 - p)})`;
     } else if (t >= 0.3 && t < 0.7) {
       // Day
-      // 0.3 -> 0.5 (Noon) -> 0.7
-      const mid = (t - 0.3) / 0.4; // 0..1
-      // Shadow moves Left -> Right
-      // At noon (0.5), shadow length is minimal
-      const sunPos = (mid - 0.5) * 2; // -1 (Morning) to 1 (Afternoon)
-      
-      shadowX = sunPos * 1.5; 
-      shadowY = 0.5; // Slight permanent slant
-      shadowAlpha = 0.3;
       ambientColor = 'rgba(0,0,0,0)';
     } else if (t >= 0.7 && t <= 0.8) {
       // Dusk
       const p = (t - 0.7) / 0.1; // 0..1
-      shadowX = 1.0 + p * 2.0; // Lengthening right shadow
-      shadowY = 0.5;
-      shadowAlpha = 0.3 * (1 - p);
-      ambientColor = `rgba(40, 10, 40, ${0.5 * p})`; // Purple tint
+      ambientColor = `rgba(40, 10, 40, ${0.5 * p})`;
+    }
+
+    // Continuous, non-snapping shadow behavior:
+    // - From sunrise to noon to sunset, shadows shrink to 0 length at noon,
+    //   then grow again from the opposite side.
+    // - Direction only flips once at noon, no spinning around the object.
+    const isDay = t >= 0.2 && t <= 0.8;
+    if (isDay) {
+      // Map day time into 0..1 across the daylight period
+      const dayT = (t - 0.2) / 0.6; // 0 at sunrise, 0.5 at noon, 1 at sunset
+
+      // Edge factor: 1 at sunrise/sunset, 0 at noon
+      const edge = Math.abs(dayT - 0.5) * 2; // 0..1 (noon=0, sunrise/sunset=1)
+
+      // Length scales with edge: longest at edges, 0 at noon
+      shadowLength = edge;
+
+      // Direction: fixed to left in the morning, right in the afternoon,
+      // no rotation while shrinking; flips once at noon.
+      shadowDirX = dayT < 0.5 ? -1 : 1;
+
+      // Keep a gentle downward component so shadows aren't perfectly horizontal
+      shadowDirY = 0.4;
+
+      // Alpha stays present all day but a bit stronger when shadows are longer
+      shadowAlpha = 0.25 + 0.2 * edge;
+    } else {
+      // Night: very soft, short “grounding” shadow
+      shadowLength = 0.3;
+      shadowDirX = 0;
+      shadowDirY = 0.4;
+      shadowAlpha = 0.1;
     }
     
-    return { shadowX, shadowY, shadowAlpha, ambientColor };
+    return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor };
   }
 
   function renderFrame(timestamp) {
@@ -132,7 +145,8 @@ export function createRenderer({ canvas, state, game, noise }) {
     state.dayTime = (state.dayTime + state.daySpeed * 0.01) % 1.0;
     
     const cycle = getCycleProps();
-    const shadowVec = { x: cycle.shadowX, y: cycle.shadowY };
+    // shadowDir is now a unit-ish direction; length is handled separately
+    const shadowDir = { x: cycle.shadowDirX, y: cycle.shadowDirY };
 
     // Background
     ctx.fillStyle = '#0f172a'; // Fallback
@@ -199,10 +213,15 @@ export function createRenderer({ canvas, state, game, noise }) {
        const alpha = Math.max(0.25, Math.min(0.9, cycle.shadowAlpha * 1.8));
        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
 
-       // Wider and slightly longer shadow for stronger silhouette
+       // Shadow length factor: 0 at noon, max at sunrise/sunset
+       const lengthFactor = cycle.shadowLength;
+       if (lengthFactor <= 0.0001) return; // effectively no shadow at noon
+
        const baseW = tileSize * 0.5 * h;
-       const tipX = sx + shadowVec.x * tileSize * h * 1.6;
-       const tipY = sy + shadowVec.y * tileSize * h * 1.6;
+       const len = tileSize * h * lengthFactor * 1.6;
+
+       const tipX = sx + shadowDir.x * len;
+       const tipY = sy + shadowDir.y * len;
 
        ctx.beginPath();
        ctx.moveTo(sx - baseW/2, sy);
@@ -347,12 +366,11 @@ export function createRenderer({ canvas, state, game, noise }) {
     ctx.translate(px, py);
     
     // Player Shadow
-    if (cycle.shadowAlpha > 0.01) {
+    if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
         ctx.save();
-        // Skew transformation for shadow
-        // Simple approach: draw the boat black at an offset, distorted
-        const shadowLen = 1.0; 
-        ctx.translate(shadowVec.x * tileSize * shadowLen, shadowVec.y * tileSize * shadowLen);
+        // Offset the boat shadow in the same continuous direction/length model as trees
+        const shadowLen = cycle.shadowLength;
+        ctx.translate(shadowDir.x * tileSize * shadowLen, shadowDir.y * tileSize * shadowLen);
         ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha})`;
         ctx.rotate(p.angle);
         ctx.fillRect(-tileSize, -tileSize*0.6, tileSize*2, tileSize*1.2);
