@@ -86,7 +86,8 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     if (state.resources.fuel < 0) state.resources.fuel = 0;
 
     // Entities interactions
-    entitiesModule.maintainEntities(heightModule.getHeight, p);
+    // Pass getTile first (for spawn placement checks), then getHeight as before
+    entitiesModule.maintainEntities(heightModule.getTile, heightModule.getHeight, p);
 
     state.entities.forEach(e => {
       const d = Math.hypot(e.x - p.x, e.y - p.y);
