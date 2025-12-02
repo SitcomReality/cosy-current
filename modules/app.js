@@ -3,11 +3,14 @@ import { createRenderer } from './renderer/index.js';
 import { createUI } from './ui.js';
 import { createNoiseEngine } from './noise.js';
 import { createGame } from './game.js';
+import { createFaunaSystem } from './fauna.js';
 
 export function initApp({ canvas, controls }) {
   const state = createAppState();
   const noise = createNoiseEngine(state);
   const game = createGame({ state, noise });
+  const fauna = createFaunaSystem({ state, game, noise });
+  state.fauna = fauna; // Attach to state for renderer access
   // Pass noise to renderer for terrain perturbation effects
   const renderer = createRenderer({ canvas, state, game, noise });
   const ui = createUI({ container: controls, state, renderer, noise, game });
@@ -115,6 +118,9 @@ export function initApp({ canvas, controls }) {
     }
 
     game.update(dt);
+    
+    // Update fauna
+    fauna.update(dt);
     
     // Update water effects
     if (renderer.waterEffects) {

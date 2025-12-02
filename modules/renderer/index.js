@@ -6,6 +6,7 @@ import { createWaterEffects } from '../water.js';
 import { resolvePalettes } from './palette.js';
 import { advanceDayTime, getCycleProps } from './daycycle.js';
 import { drawTreeShadow, drawTree, drawEntities, drawPlayer } from './objects.js';
+import { renderFauna } from './fauna.js';
 
 // This file composes the modular renderer pieces into the original public API
 export function createRenderer({ canvas, state, game, noise }) {
@@ -73,6 +74,11 @@ export function createRenderer({ canvas, state, game, noise }) {
 
     // Water effects
     waterEffects.render(ctx, state.camera, tileSize);
+
+    // Fauna (before objects so shadows render in correct order)
+    if (state.fauna && state.fauna.creatures) {
+      renderFauna(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise);
+    }
 
     // Objects: draw shadows then geometry for chunks in view
     for (let cy = startChunkY; cy <= endChunkY; cy++) {
