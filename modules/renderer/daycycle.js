@@ -110,18 +110,16 @@ export function getCycleProps(state) {
     // Full night: constant deep-night color (shadows already gone here)
     col = nightColor;
   } else if (t > dawnStart && t < dawnEnd) {
-    // Dawn: blend from night -> dawnTint -> day
+    // Dawn: smooth blend from night -> day
     const u = smoothstep(dawnStart, dawnEnd, t); // 0..1
-    const mid = mix(nightColor, dawnTint, u);
-    col = mix(mid, dayColor, u * 0.7); // bias a bit toward day near end of dawn
+    col = mix(nightColor, dayColor, u);
   } else if (t >= dawnEnd && t <= duskStart) {
     // Full day
     col = dayColor;
   } else if (t > duskStart && t < duskEnd) {
-    // Dusk: blend from day -> duskTint -> night
+    // Dusk: smooth blend from day -> night
     const u = smoothstep(duskStart, duskEnd, t); // 0..1
-    const mid = mix(dayColor, duskTint, u);
-    col = mix(mid, nightColor, u * 0.8); // bias toward night near end of dusk
+    col = mix(dayColor, nightColor, u);
   } else {
     // Fallback (shouldn't hit due to ranges) – treat as night
     col = nightColor;
