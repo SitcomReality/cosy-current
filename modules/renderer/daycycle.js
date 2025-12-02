@@ -40,7 +40,6 @@ export function getCycleProps(state) {
   let shadowAlpha = 0;
   let shadowDirX = 0;
   let shadowDirY = 0.4;
-  let ambientColor = 'transparent';
 
   if (dayFactor > 0) {
     // Map t into day progress where 0 at dawnEnd and 1 at duskStart
@@ -73,44 +72,51 @@ export function getCycleProps(state) {
       shadowDirX = COS_30_DEG;
       shadowDirY = -SIN_30_DEG;
     }
-
-    // Ambient tint: gentle warm tint at dawn/dusk, none at mid-day.
-    // Use dayFactor and a separate ramp for how strong the tint is near transitions.
-    const dawnRamp = smoothstep(dawnStart, dawnEnd, t);
-    const duskRamp = 1 - smoothstep(duskStart, duskEnd, t);
-    // Combine ramps: positive when near dawn/dusk edges
-    const transitionStrength = Math.max(0, Math.max(dawnRamp, duskRamp) * (1 - Math.abs(dayInnerT - 0.5) * 2));
-    // Warm tint color for dawn (soft orange) and cool dusk tint (soft purple-ish)
-    if (t >= dawnStart && t <= dawnEnd) {
-      const p = clamp((t - dawnStart) / (dawnEnd - dawnStart));
-      const alpha = 0.45 * (1 - smoothstep(0, 1, p)); // stronger at start of dawn, fades into day
-      ambientColor = `rgba(50,20,10,${alpha * (1 - dayInnerT)})`;
-    } else if (t >= duskStart && t <= duskEnd) {
-      const p = clamp((t - duskStart) / (duskEnd - duskStart));
-      const alpha = 0.45 * smoothstep(0, 1, p); // ramps up through dusk
-      ambientColor = `rgba(40,10,40,${alpha * (1 - (1 - dayInnerT))})`;
-    } else {
-      ambientColor = 'rgba(0,0,0,0)';
-    }
-
   } else {
-    // Night: minimal faint ambient and tiny baseline shadows for silhouettes
-    shadowLength = 0.25 * smoothstep(duskEnd, 1.0, t) + 0.25 * smoothstep(0.0, dawnStart, t);
+    // Night baseline (alpha small; shadow lengths short)
+    // We'll still compute a tiny shadow length that can smoothly blend with dawn/dusk ramps later
+    const nearDusk = clamp((t - duskEnd) / 0.05, 0, 1);
+    const nearDawn = clamp((dawnStart - t) / 0.05, 0, 1);
+    shadowLength = 0.25 * (nearDusk + nearDawn) * 0.5;
     shadowAlpha = 0.08;
     shadowDirX = 0;
     shadowDirY = 0.4;
-    // Deep night ambient
-    ambientColor = 'rgba(10, 10, 30, 0.6)';
-    // But if we're inside the dawn/dusk ramp just outside dayFactor, soften night tint
-    if (t > duskEnd && t < duskEnd + 0.05) {
-      const p = clamp((t - duskEnd) / 0.05);
-      ambientColor = `rgba(10,10,30,${0.6 * (1 - smoothstep(0,1,p))})`;
-    }
-    if (t < dawnStart && t > dawnStart - 0.05) {
-      const p = clamp((dawnStart - t) / 0.05);
-      ambientColor = `rgba(10,10,30,${0.6 * (1 - smoothstep(0,1,p))})`;
-    }
   }
+
+  // Ambient tint computation: blend night, dawn, dusk, and day continuously to avoid snapping.
+  // Define color anchors as numeric RGBA
+  const nightColor = { r: 10, g: 10, b: 30, a: 0.6 };
+  const dayColor   = { r: 0,  g: 0,  b: 0,  a: 0.0 };
+  const dawnTint   = { r: 50, g: 20, b: 10, a: 0.45 };
+  const duskTint   = { r: 40, g: 10, b: 40, a: 0.45 };
+
+  // Ramps for transitions
+  const dawnRampRaw = smoothstep(dawnStart, dawnEnd, t); // 0 -> 1 during dawn window
+  const duskRampRaw = smoothstep(duskStart, duskEnd, t); // 0 -> 1 during dusk window
+
+  // DayRamp is already dayFactor (0..1)
+  const dayRamp = dayFactor;
+
+  // Night weight: when not fully day and not in strong dawn/dusk
+  // Use remaining weight so all weights sum sensibly
+  let wDawn = dawnRampRaw;
+  let wDusk = duskRampRaw;
+  let wDay  = dayRamp;
+  // Night gets the leftover but ensure it's non-negative
+  let wNight = Math.max(0, 1 - Math.max(wDawn, wDusk, wDay));
+
+  // Normalize weights so interpolation is smooth and no color jumps
+  const sumW = wDawn + wDusk + wDay + wNight;
+  const nw = sumW > 0 ? 1 / sumW : 0;
+  wDawn *= nw; wDusk *= nw; wDay *= nw; wNight *= nw;
+
+  // Weighted blend of RGBA channels
+  const r = Math.round(wNight * nightColor.r + wDay * dayColor.r + wDawn * dawnTint.r + wDusk * duskTint.r);
+  const g = Math.round(wNight * nightColor.g + wDay * dayColor.g + wDawn * dawnTint.g + wDusk * duskTint.g);
+  const b = Math.round(wNight * nightColor.b + wDay * dayColor.b + wDawn * dawnTint.b + wDusk * duskTint.b);
+  const a = (wNight * nightColor.a + wDay * dayColor.a + wDawn * dawnTint.a + wDusk * duskTint.a);
+
+  const ambientColor = `rgba(${r},${g},${b},${a})`;
 
   return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor };
 }
