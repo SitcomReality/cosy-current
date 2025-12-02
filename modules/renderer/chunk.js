@@ -299,6 +299,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         const shadeAmt = (avgH - 0.5) * 0.4;
 
         cCtx.fillStyle = baseColor;
+        cCtx.strokeStyle = baseColor; 
+        cCtx.lineWidth = 2; 
+        
         cCtx.beginPath();
         for (let i = 0; i < hull.length; i++) {
           const p = hull[i];
@@ -310,6 +313,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         }
         cCtx.closePath();
         cCtx.fill();
+        cCtx.stroke(); // Apply stroke to terrain hull for overlap
 
         if (shadeAmt !== 0) {
           cCtx.fillStyle = shadeAmt > 0
