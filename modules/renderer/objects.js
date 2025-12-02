@@ -7,7 +7,9 @@ export function drawTreeShadow(ctx, state, camera, tileSize, tree, cycle, shadow
   const sx = (tx - state.camera.x) * tileSize + centerX;
   const sy = (ty - state.camera.y) * tileSize + centerY;
 
-  const alpha = Math.max(0.25, Math.min(0.9, cycle.shadowAlpha * 1.8));
+  // Allow cycle.shadowAlpha to reach 0 so shadows can fully fade out at night.
+  const alpha = Math.max(0, Math.min(0.9, cycle.shadowAlpha * 1.8));
+  if (alpha <= 0.0001) return;
   ctx.fillStyle = `rgba(0,0,0,${alpha})`;
 
   const lengthFactor = cycle.shadowLength;
