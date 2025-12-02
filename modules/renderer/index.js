@@ -8,9 +8,14 @@ export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
 
   // Stylized Vector Palette - Fixed river colors
+  // We now define gradient endpoints for the unified water tile
+  const WATER_PALETTE = {
+    deep: '#0c4a6e',    // Deep Blue Water (Center)
+    shallow: '#0ea5e9'  // Bright Blue Water (Edge)
+  };
+
   const COLORS = {
-    [game.CONSTANTS.TILE_RIVER_DEEP]: '#0c4a6e',    // Deep Blue Water
-    [game.CONSTANTS.TILE_RIVER_SHALLOW]: '#0ea5e9', // Bright Blue Water
+    [game.CONSTANTS.TILE_WATER]: WATER_PALETTE.shallow, // Fallback/base
     [game.CONSTANTS.TILE_BANK]: '#fbbf24',          // Sandy/Gold
     [game.CONSTANTS.TILE_GRASS]: '#4ade80',         // Vibrant Green
     [game.CONSTANTS.TILE_FOREST]: '#166534',        // Deep Green
@@ -19,7 +24,7 @@ export function createRenderer({ canvas, state, game, noise }) {
   };
 
   const CHUNK_SIZE = 16;
-  const chunkManager = createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, getVertexOffset });
+  const chunkManager = createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, game, noise, getVertexOffset });
   const waterEffects = createWaterEffects({ state, game, noise });
 
   function resize() {

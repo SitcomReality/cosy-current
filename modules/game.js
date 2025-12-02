@@ -5,8 +5,7 @@ export function createGame({ state, noise }) {
   const ENTITY_RELIC = 'relic';
 
   // Tile Types (River Biome)
-  const TILE_RIVER_DEEP = 0;
-  const TILE_RIVER_SHALLOW = 1;
+  const TILE_WATER = 0;   // Unified water type
   const TILE_BANK = 2;        // Mud/Sand/Reeds
   const TILE_GRASS = 3;
   const TILE_FOREST = 4;
@@ -70,9 +69,8 @@ export function createGame({ state, noise }) {
     const h = getHeight(x, y);
 
     // River Channel Logic
-    // Even if noise pushes land up, the river 'force' cuts through
-    if (river.value < 0.6) return TILE_RIVER_DEEP;
-    if (river.value < 1.0) return TILE_RIVER_SHALLOW;
+    // Unified water tile for the whole river width
+    if (river.value < 1.0) return TILE_WATER;
 
     // Banks
     if (river.value < 1.3) return TILE_BANK;
@@ -304,7 +302,7 @@ export function createGame({ state, noise }) {
     spawnEntity,
     update,
     CONSTANTS: {
-      TILE_RIVER_DEEP, TILE_RIVER_SHALLOW, TILE_BANK, TILE_GRASS, TILE_FOREST, TILE_HILL, TILE_MOUNTAIN,
+      TILE_WATER, TILE_BANK, TILE_GRASS, TILE_FOREST, TILE_HILL, TILE_MOUNTAIN,
       ENTITY_CITY, ENTITY_RELIC
     }
   };

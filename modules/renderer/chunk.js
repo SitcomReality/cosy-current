@@ -1,7 +1,7 @@
 import { convexHull, floodFill } from './hull.js';
 
 // Factory to create chunk manager so it can close over state/game/noise/COLORS etc.
-export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, getVertexOffset }) {
+export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, game, noise, getVertexOffset }) {
   const chunkCache = new Map();
 
   function clearCache() {
@@ -41,6 +41,8 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
   function lerpColorHex(aHex, bHex, t) {
     const a = hexToRgb(aHex);
     const b = hexToRgb(bHex);
+    // Clamp t
+    t = Math.max(0, Math.min(1, t));
     const r = Math.round(lerp(a.r, b.r, t));
     const g = Math.round(lerp(a.g, b.g, t));
     const bch = Math.round(lerp(a.b, b.b, t));
@@ -75,22 +77,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         const worldX = startX + x;
         const worldY = startY + y;
 
-        let tileType = game.getTile(worldX, worldY);
-        
-        // Gradient Shallow Water: Banding
-        // Subdivide shallow water into "contour bands" based on river distance
-        // so we can render a gradient perpendicular to the river path.
-        if (tileType === game.CONSTANTS.TILE_RIVER_SHALLOW) {
-           const info = noise.getRiverSystem(worldX, worldY);
-           // Shallow zone roughly 0.6 (Deep edge) to 1.0 (Bank edge).
-           // Map this range to 5 discrete bands for the hull generator.
-           const val = Math.max(0.6, Math.min(1.0, info.value));
-           const t = (val - 0.6) / 0.4;
-           const band = Math.floor(t * 5);
-           // Use special ID range 100+ for these bands
-           tileType = 100 + Math.min(4, Math.max(0, band));
-        }
-
+        const tileType = game.getTile(worldX, worldY);
         tileGrid[y][x] = tileType;
         heightGrid[y][x] = game.getHeight(worldX, worldY);
       }
@@ -119,15 +106,45 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
       return { x: baseX + ox, y: baseY + oy };
     }
 
-    // Phase 1: Crisp roads (compatibility: previously TILE_ROAD existed; check constant)
-    for (let y = 0; y < CHUNK_SIZE; y++) {
-      for (let x = 0; x < CHUNK_SIZE; x++) {
-        const tileType = tileGrid[y][x];
-        // If game no longer defines TILE_ROAD, skip
-        if (game.CONSTANTS.TILE_ROAD && tileType === game.CONSTANTS.TILE_ROAD) {
-          cCtx.fillStyle = COLORS[tileType] || '#f0f';
-          cCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-          visited[y][x] = true;
+    // Phase 1: Water Rendering (Gradient Tiles)
+    // We render water as individual quads to support smooth gradients based on depth
+    if (WATER_PALETTE && game.CONSTANTS.TILE_WATER !== undefined) {
+      for (let y = 0; y < CHUNK_SIZE; y++) {
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+          if (tileGrid[y][x] === game.CONSTANTS.TILE_WATER) {
+            const worldX = startX + x;
+            const worldY = startY + y;
+            
+            // Get river depth value (0=center, 1=edge)
+            const riverInfo = noise.getRiverSystem(worldX, worldY);
+            // Calculate gradient color
+            // value is approx 0..1 inside river. 
+            // 0 -> Deep, 1 -> Shallow
+            const color = lerpColorHex(WATER_PALETTE.deep, WATER_PALETTE.shallow, riverInfo.value);
+            
+            // Get perturbed vertices for the quad
+            const vTL = getPerturbedVertex(worldX, worldY, x, y);
+            const vTR = getPerturbedVertex(worldX + 1, worldY, x + 1, y);
+            const vBR = getPerturbedVertex(worldX + 1, worldY + 1, x + 1, y + 1);
+            const vBL = getPerturbedVertex(worldX, worldY + 1, x, y + 1);
+
+            cCtx.fillStyle = color;
+            // Add a tiny stroke to prevent sub-pixel gaps between tiles
+            cCtx.strokeStyle = color; 
+            cCtx.lineWidth = 1;
+            
+            cCtx.beginPath();
+            cCtx.moveTo(vTL.x, vTL.y);
+            cCtx.lineTo(vTR.x, vTR.y);
+            cCtx.lineTo(vBR.x, vBR.y);
+            cCtx.lineTo(vBL.x, vBL.y);
+            cCtx.closePath();
+            
+            cCtx.fill();
+            cCtx.stroke();
+
+            visited[y][x] = true;
+          }
         }
       }
     }
@@ -158,21 +175,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, state, game, noise, get
         const hull = convexHull(points);
         if (hull.length < 3) continue;
 
-        // Base color lookup
-        let baseColor = COLORS[tileType];
-
-        // Handle gradient bands for shallow water (types 100-104)
-        // Interpolate between Deep Water color and Shallow Water color based on band index
-        if (!baseColor && tileType >= 100 && tileType <= 104) {
-           const band = tileType - 100;
-           // t=0 is next to Deep Water, t=1 is next to Bank
-           const t = (band + 0.5) / 5.0; 
-           const colDeep = COLORS[game.CONSTANTS.TILE_RIVER_DEEP];
-           const colShallow = COLORS[game.CONSTANTS.TILE_RIVER_SHALLOW];
-           baseColor = lerpColorHex(colDeep, colShallow, t);
-        }
-
-        baseColor = baseColor || '#f0f';
+        // Base color: each tile type uses a single flat color; shallow water
+        // no longer blends toward sand or deep water so it forms one uniform band.
+        let baseColor = COLORS[tileType] || '#f0f';
 
         const shadeAmt = (avgH - 0.5) * 0.4;
 

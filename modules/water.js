@@ -19,9 +19,7 @@ export function createWaterEffects({ state, game, noise }) {
 
     // Only spawn wakes when actually over river water
     const tile = game.getTile(Math.floor(x), Math.floor(y));
-    const isWater =
-      tile === game.CONSTANTS.TILE_RIVER_DEEP ||
-      tile === game.CONSTANTS.TILE_RIVER_SHALLOW;
+    const isWater = tile === game.CONSTANTS.TILE_WATER;
     if (!isWater) return;
 
     const intensity = Math.min(1, speed / 5);
@@ -88,13 +86,8 @@ export function createWaterEffects({ state, game, noise }) {
 
           const tile = game.getTile(tx, ty);
 
-          // We want waves drawn just inside the water along the shore,
-          // so start from shallow water tiles adjacent to banks.
-          const isShallowWater =
-            tile === game.CONSTANTS.TILE_RIVER_SHALLOW ||
-            tile === game.CONSTANTS.TILE_RIVER_DEEP;
-
-          if (isShallowWater) {
+          // We want waves drawn just inside the water along the shore
+          if (tile === game.CONSTANTS.TILE_WATER) {
             // Check if adjacent to bank land
             const hasBank = [
               game.getTile(tx - 1, ty),
