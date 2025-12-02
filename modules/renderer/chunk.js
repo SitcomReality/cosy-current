@@ -60,7 +60,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
   
   // Get tree/prop data for a chunk
   function getChunkProps(cx, cy) {
-    const key = `${cx},${cy},${state.tileSize}`;
+    const key = `${cx},${cy}`;
     if (chunkPropsCache.has(key)) {
       const data = chunkPropsCache.get(key);
       data.lastUsed = performance.now();
@@ -118,7 +118,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
 
   // Generate or return existing chunk canvas
   function getChunk(cx, cy) {
-    const key = `${cx},${cy},${state.tileSize}`;
+    const key = `${cx},${cy}`;
     if (chunkCache.has(key)) {
       const data = chunkCache.get(key);
       data.lastUsed = performance.now();
@@ -216,10 +216,21 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
 
     const perturbScale = tileSize * 0.15;
 
-    // Helper: compute a vertex position with deterministic perturbation
+    // Helper: compute a vertex position with deterministic perturbation,
+    // but keep vertices that lie on chunk boundaries perfectly aligned
     function getPerturbedVertex(worldX, worldY, localGridX, localGridY) {
+      // Vertices lying exactly on chunk grid lines (in tile space) are shared
+      // between adjacent chunks; do not perturb them so edges stay flush.
+      const onChunkBoundary =
+        (worldX % CHUNK_SIZE === 0) ||
+        (worldY % CHUNK_SIZE === 0);
+
       const baseX = localGridX * tileSize;
       const baseY = localGridY * tileSize;
+
+      if (onChunkBoundary) {
+        return { x: baseX, y: baseY };
+      }
 
       const ox = getVertexOffset(worldX, worldY, 0) * perturbScale;
       const oy = getVertexOffset(worldX, worldY, 1) * perturbScale;
