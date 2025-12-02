@@ -30,8 +30,20 @@ export function getCycleProps(state) {
     const dayT = (t - 0.2) / 0.6;
     const edge = Math.abs(dayT - 0.5) * 2;
     shadowLength = edge;
-    shadowDirX = dayT < 0.5 ? -1 : 1;
-    shadowDirY = 0.4;
+    
+    const COS_30_DEG = 0.866025;
+    const SIN_30_DEG = 0.5;
+
+    if (dayT <= 0.5) {
+        // Morning: Shadow points NW (150 deg)
+        shadowDirX = -COS_30_DEG;
+        shadowDirY = SIN_30_DEG;
+    } else {
+        // Afternoon: Shadow points SE (330 deg)
+        shadowDirX = COS_30_DEG;
+        shadowDirY = -SIN_30_DEG;
+    }
+
     shadowAlpha = 0.25 + 0.2 * edge;
   } else {
     shadowLength = 0.3;
