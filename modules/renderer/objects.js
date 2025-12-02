@@ -135,7 +135,7 @@ export function drawEntities(ctx, state, tileSize, game, centerX, centerY) {
       drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_city', {
         outline: true,
         strokeColor: 'rgba(255,255,255,0.28)',
-        lineWidth: Math.max(2, tileSize * 0.03)
+        lineWidth: 10
       }, edgeFade);
       ctx.save();
       ctx.globalAlpha = edgeFade;
@@ -149,7 +149,7 @@ export function drawEntities(ctx, state, tileSize, game, centerX, centerY) {
       drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_relic', {
         outline: true,
         strokeColor: 'rgba(255,255,255,0.28)',
-        lineWidth: Math.max(2, tileSize * 0.03)
+        lineWidth: 10
       }, edgeFade);
       ctx.save();
       ctx.globalAlpha = edgeFade;
