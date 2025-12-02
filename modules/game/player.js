@@ -68,7 +68,10 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     const accel = 2.0 * (state.speedMultiplier || 1);
     const braking = 4.0 * (state.speedMultiplier || 1);
     
-    if (p.speed < desiredSpeed) {
+    if (state._playerPaused) {
+      // If paused via UI, strictly enforce 0 speed.
+      p.speed = 0;
+    } else if (p.speed < desiredSpeed) {
         p.speed += accel * dt;
     } else {
         p.speed -= braking * dt;
