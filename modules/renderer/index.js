@@ -254,6 +254,34 @@ export function createRenderer({ canvas, state, game, noise }) {
     chunkManager.pruneCache();
 
     // 4. Entities
+    // Helper to draw a jagged polygonal influence area (no roundness)
+    const drawJaggedInfluence = (ctx, centerX, centerY, radius, seedStr, fillColor) => {
+      // deterministic pseudo-hash from string
+      let h = 0;
+      for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) >>> 0;
+      // Decide number of sides between 6 and 14
+      const sides = 6 + (h % 9);
+      // jitter amplitude fraction of radius
+      const jitter = 0.18 + ((h >> 8) % 40) / 200; // 0.18..0.38
+
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      for (let i = 0; i < sides; i++) {
+        const t = i / sides;
+        const ang = t * Math.PI * 2;
+        // per-vertex pseudo-random radius perturbation
+        const vHash = (h ^ (i * 2654435761)) >>> 0;
+        const vRnd = ((vHash % 1000) / 1000) * 2 - 1; // -1..1
+        const r = Math.max(0.1, radius * (1 + vRnd * jitter));
+        const px = centerX + Math.cos(ang) * r;
+        const py = centerY + Math.sin(ang) * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+    };
+
     state.entities.forEach(ent => {
        const screenX = (ent.x - state.camera.x) * tileSize + centerX;
        const screenY = (ent.y - state.camera.y) * tileSize + centerY;
@@ -263,12 +291,8 @@ export function createRenderer({ canvas, state, game, noise }) {
 
        if (ent.type === game.CONSTANTS.ENTITY_CITY) {
          // Use game interaction radius (in tiles) scaled to pixels for the visible influence circle
-         const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
-
-         ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
-         ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, 0, Math.PI*2);
-         ctx.fill();
+        const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
+        drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_city', 'rgba(16, 185, 129, 0.18)');
 
          ctx.fillStyle = '#10b981';
          ctx.fillRect(screenX, screenY, tileSize, tileSize);
@@ -276,12 +300,8 @@ export function createRenderer({ canvas, state, game, noise }) {
          ctx.fillRect(screenX + tileSize/2 - tileSize*0.1, screenY, tileSize*0.2, tileSize*0.6);
        } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
          // Use same interaction radius for relic highlight
-         const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
-
-         ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
-         ctx.beginPath();
-         ctx.arc(screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, 0, Math.PI*2);
-         ctx.fill();
+        const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
+        drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_relic', 'rgba(245, 158, 11, 0.18)');
 
          ctx.fillStyle = '#f59e0b';
          ctx.beginPath();
