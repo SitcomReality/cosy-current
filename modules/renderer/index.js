@@ -1,64 +1,17 @@
+// Main renderer composition: uses chunkManager, palette, daycycle, objects and water effects
 import { createChunkManager } from './chunk.js';
 import { getVertexOffset } from './vertex.js';
-import { convexHull, floodFill } from './hull.js';
 import { createWaterEffects } from '../water.js';
+
+import { resolvePalettes } from './palette.js';
+import { advanceDayTime, getCycleProps } from './daycycle.js';
+import { drawTreeShadow, drawTree, drawEntities, drawPlayer } from './objects.js';
 
 // This file composes the modular renderer pieces into the original public API
 export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  // OKLCH Palette for a cozy, low-poly aesthetic
-  // Note: OKLCH support is modern (Chrome 111+, Safari 15.4+, FF 113+)
-  // Preferred OKLCH strings with fallback hex colors for older browsers.
-  const PALETTE = {
-    waterDeep: { oklch: 'oklch(45% 0.12 250)', hex: '#0b63a8' },      // Deep distinctive blue
-    waterShallow: { oklch: 'oklch(65% 0.1 240)', hex: '#5fb2e6' },    // Lighter blue
-    sand: { oklch: 'oklch(92% 0.06 95)', hex: '#f0d6a6' },            // Warm pale sand
-    grass: { oklch: 'oklch(78% 0.16 135)', hex: '#6fbf3f' },          // Vibrant fresh green
-    forest: { oklch: 'oklch(52% 0.14 145)', hex: '#2f6b2b' },         // Darker cool green
-    hill: { oklch: 'oklch(70% 0.04 280)', hex: '#9a87a8' },           // Grey-ish purple
-    mountain: { oklch: 'oklch(92% 0.01 280)', hex: '#f5f3f7' },       // Near white
-    
-    // Trees
-    treeForest: { oklch: 'oklch(42% 0.14 145)', hex: '#254e22' },     // Slightly darker than forest floor
-    treeGrass: { oklch: 'oklch(60% 0.16 140)', hex: '#49a33a' },      // Standout green
-  };
-
-  // Feature-detect whether the browser accepts OKLCH by trying to assign it to the canvas context.
-  // If not supported, fall back to the provided hex strings.
-  function chooseColor(ctx, entry) {
-    if (!entry) return '#ff00ff';
-    // Force hex fallback: The previous dynamic feature detection was unreliable, 
-    // potentially causing invalid color strings to be returned, breaking 
-    // water gradient calculations (which expect hex input in chunk.js) and 
-    // resulting in black terrain where colors were unsupported.
-    return entry.hex || entry.oklch || '#ff00ff';
-  }
-
-  const WATER_PALETTE = {
-    // resolved at runtime below
-  };
-
-  const COLORS = {
-    // resolved at runtime below
-  };
-  // Resolve palette entries to either OKLCH strings or safe hex fallbacks depending on runtime support.
-  (function resolvePalettes() {
-    const testCtx = document.createElement('canvas').getContext('2d');
-    WATER_PALETTE.deep = chooseColor(testCtx, PALETTE.waterDeep);
-    WATER_PALETTE.shallow = chooseColor(testCtx, PALETTE.waterShallow);
-
-    COLORS[game.CONSTANTS.TILE_WATER] = chooseColor(testCtx, PALETTE.waterShallow);
-    COLORS[game.CONSTANTS.TILE_BANK] = chooseColor(testCtx, PALETTE.sand);
-    COLORS[game.CONSTANTS.TILE_GRASS] = chooseColor(testCtx, PALETTE.grass);
-    COLORS[game.CONSTANTS.TILE_FOREST] = chooseColor(testCtx, PALETTE.forest);
-    COLORS[game.CONSTANTS.TILE_HILL] = chooseColor(testCtx, PALETTE.hill);
-    COLORS[game.CONSTANTS.TILE_MOUNTAIN] = chooseColor(testCtx, PALETTE.mountain);
-
-    // Tree colors used in drawTree/drawTreeShadow
-    PALETTE.treeForest = chooseColor(testCtx, PALETTE.treeForest);
-    PALETTE.treeGrass = chooseColor(testCtx, PALETTE.treeGrass);
-  })();
+  const { WATER_PALETTE, COLORS, TREES } = resolvePalettes(game);
 
   const CHUNK_SIZE = 16;
   const chunkManager = createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, game, noise, getVertexOffset });
@@ -75,87 +28,19 @@ export function createRenderer({ canvas, state, game, noise }) {
     chunkManager.clearCache();
   }
 
-  // Calculate day/night cycle properties
-  function getCycleProps() {
-    // dayTime: 0..1
-    // 0 = Midnight, 0.25 = Sunrise, 0.5 = Noon, 0.75 = Sunset
-    const t = state.dayTime;
-    
-    // Continuous shadow parameters
-    let shadowDirX = 0;
-    let shadowDirY = 0.4;      // slight downward slant to avoid pure horizontal shadows
-    let shadowLength = 0;      // 0..1, scaled later per-object
-    let shadowAlpha = 0;       // opacity of directional shadows
-    let ambientColor = 'transparent';
-
-    // Day / night ambient color (can still be stepped; independent of shadow math)
-    if (t < 0.2 || t > 0.8) {
-      // Night
-      ambientColor = 'rgba(10, 10, 30, 0.6)';
-    } else if (t >= 0.2 && t < 0.3) {
-      // Dawn
-      const p = (t - 0.2) / 0.1; // 0..1
-      ambientColor = `rgba(50, 20, 10, ${0.4 * (1 - p)})`;
-    } else if (t >= 0.3 && t < 0.7) {
-      // Day
-      ambientColor = 'rgba(0,0,0,0)';
-    } else if (t >= 0.7 && t <= 0.8) {
-      // Dusk
-      const p = (t - 0.7) / 0.1; // 0..1
-      ambientColor = `rgba(40, 10, 40, ${0.5 * p})`;
-    }
-
-    // Continuous, non-snapping shadow behavior:
-    // - From sunrise to noon to sunset, shadows shrink to 0 length at noon,
-    //   then grow again from the opposite side.
-    // - Direction only flips once at noon, no spinning around the object.
-    const isDay = t >= 0.2 && t <= 0.8;
-    if (isDay) {
-      // Map day time into 0..1 across the daylight period
-      const dayT = (t - 0.2) / 0.6; // 0 at sunrise, 0.5 at noon, 1 at sunset
-
-      // Edge factor: 1 at sunrise/sunset, 0 at noon
-      const edge = Math.abs(dayT - 0.5) * 2; // 0..1 (noon=0, sunrise/sunset=1)
-
-      // Length scales with edge: longest at edges, 0 at noon
-      shadowLength = edge;
-
-      // Direction: fixed to left in the morning, right in the afternoon,
-      // no rotation while shrinking; flips once at noon.
-      shadowDirX = dayT < 0.5 ? -1 : 1;
-
-      // Keep a gentle downward component so shadows aren't perfectly horizontal
-      shadowDirY = 0.4;
-
-      // Alpha stays present all day but a bit stronger when shadows are longer
-      shadowAlpha = 0.25 + 0.2 * edge;
-    } else {
-      // Night: very soft, short “grounding” shadow
-      shadowLength = 0.3;
-      shadowDirX = 0;
-      shadowDirY = 0.4;
-      shadowAlpha = 0.1;
-    }
-    
-    return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor };
-  }
-
   function renderFrame(timestamp) {
-    // Update Day Cycle
-    state.dayTime = (state.dayTime + state.daySpeed * 0.01) % 1.0;
-    
-    const cycle = getCycleProps();
-    // shadowDir is now a unit-ish direction; length is handled separately
+    // Advance day cycle
+    advanceDayTime(state);
+    const cycle = getCycleProps(state);
     const shadowDir = { x: cycle.shadowDirX, y: cycle.shadowDirY };
 
-    // Background
-    ctx.fillStyle = '#0f172a'; // Fallback
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
 
     if (!state.isPlaying) {
-      // Just draw a placeholder or menu bg
       const hue = (timestamp * 0.01) % 360;
-      ctx.fillStyle = `oklch(20% 0.1 ${hue})`;
+      // Use a safe fallback color string
+      ctx.fillStyle = `rgba(32,40,55,1)`;
       ctx.fillRect(0, 0, state.width, state.height);
       return;
     }
@@ -163,277 +48,60 @@ export function createRenderer({ canvas, state, game, noise }) {
     const tileSize = state.tileSize;
     const centerX = state.width / 2;
     const centerY = state.height / 2;
-    const visibleWidth = state.width;
-    const visibleHeight = state.height;
 
-    // View bounds
-    const viewLeftTile = state.camera.x - (visibleWidth / 2) / tileSize;
-    const viewRightTile = state.camera.x + (visibleWidth / 2) / tileSize;
-    const viewTopTile = state.camera.y - (visibleHeight / 2) / tileSize;
-    const viewBottomTile = state.camera.y + (visibleHeight / 2) / tileSize;
+    const viewLeftTile = state.camera.x - (state.width / 2) / tileSize;
+    const viewRightTile = state.camera.x + (state.width / 2) / tileSize;
+    const viewTopTile = state.camera.y - (state.height / 2) / tileSize;
+    const viewBottomTile = state.camera.y + (state.height / 2) / tileSize;
 
     const startChunkX = Math.floor(viewLeftTile / CHUNK_SIZE);
     const endChunkX = Math.floor(viewRightTile / CHUNK_SIZE);
     const startChunkY = Math.floor(viewTopTile / CHUNK_SIZE);
     const endChunkY = Math.floor(viewBottomTile / CHUNK_SIZE);
 
-    // 1. Render Terrain (Chunks)
+    // Terrain
     for (let cy = startChunkY; cy <= endChunkY; cy++) {
       for (let cx = startChunkX; cx <= endChunkX; cx++) {
         const chunkImg = chunkManager.getChunk(cx, cy);
         const screenX = (cx * CHUNK_SIZE - state.camera.x) * tileSize + centerX;
         const screenY = (cy * CHUNK_SIZE - state.camera.y) * tileSize + centerY;
-        
-        // Simple culling
-        if (screenX > state.width || screenY > state.height || 
+        if (screenX > state.width || screenY > state.height ||
             screenX + chunkImg.width < 0 || screenY + chunkImg.height < 0) continue;
-
         ctx.drawImage(chunkImg, Math.round(screenX), Math.round(screenY));
       }
     }
 
-    // 2. Render Water Effects (Flat, below objects)
+    // Water effects
     waterEffects.render(ctx, state.camera, tileSize);
 
-    // 3. Render Objects (Trees, Player, Entities) - with Shadow Pass
-    // We render shadows for all objects first, then objects? 
-    // Or just render back-to-front. 
-    // Trees are static. We can render them per chunk.
-    
-    // Shared Shadow settings
-    ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha})`;
-
-    // Helper to draw tree shadow
-    const drawTreeShadow = (tx, ty, h) => {
-       // Always draw a visible shadow; scale alpha up for darker shadows
-       const sx = (tx - state.camera.x) * tileSize + centerX;
-       const sy = (ty - state.camera.y) * tileSize + centerY;
-
-       // Darker shadow: amplify cycle alpha but clamp to avoid full black
-       const alpha = Math.max(0.25, Math.min(0.9, cycle.shadowAlpha * 1.8));
-       ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-
-       // Shadow length factor: 0 at noon, max at sunrise/sunset
-       const lengthFactor = cycle.shadowLength;
-       if (lengthFactor <= 0.0001) return; // effectively no shadow at noon
-
-       const baseW = tileSize * 0.5 * h;
-       const len = tileSize * h * lengthFactor * 1.6;
-
-       const tipX = sx + shadowDir.x * len;
-       const tipY = sy + shadowDir.y * len;
-
-       ctx.beginPath();
-       ctx.moveTo(sx - baseW/2, sy);
-       ctx.lineTo(sx + baseW/2, sy);
-       ctx.lineTo(tipX, tipY - tileSize * h * 0.2); // Project tip slightly upward for shape
-       ctx.closePath();
-       ctx.fill();
-    };
-
-    // Helper to draw tree
-    const drawTree = (tx, ty, h, type) => {
-       const sx = (tx - state.camera.x) * tileSize + centerX;
-       const sy = (ty - state.camera.y) * tileSize + centerY;
-       const baseW = tileSize * 0.4 * h;
-       const treeH = tileSize * 1.0 * h;
-
-       ctx.fillStyle = type === 'forest' ? PALETTE.treeForest : PALETTE.treeGrass;
-       ctx.beginPath();
-       ctx.moveTo(sx - baseW/2, sy);
-       ctx.lineTo(sx + baseW/2, sy);
-       ctx.lineTo(sx, sy - treeH);
-       ctx.fill();
-       
-       // Highlight side
-       ctx.fillStyle = 'rgba(255,255,255,0.1)';
-       ctx.beginPath();
-       ctx.moveTo(sx, sy);
-       ctx.lineTo(sx + baseW/2, sy);
-       ctx.lineTo(sx, sy - treeH);
-       ctx.fill();
-    };
-
-    // Render Trees
-    // To handle depth correctly, we should sort or just iterate Y.
-    // Iterating chunks is roughly Y-sorted if we do Y loop outer.
+    // Objects: draw shadows then geometry for chunks in view
     for (let cy = startChunkY; cy <= endChunkY; cy++) {
       for (let cx = startChunkX; cx <= endChunkX; cx++) {
         const props = chunkManager.getChunkProps(cx, cy);
-        // Props are not sorted inside chunk, but trees are small enough 
-        // that exact Z-sorting might not matter vs simple painter's algo.
-        // Let's sort props by Y for better occlusion.
-        // (Optim: caching sorted props in chunkManager would be better)
-        
+        // Draw shadows first
         for (const tree of props) {
-            // Shadow first
-            drawTreeShadow(tree.x, tree.y, tree.h);
+          drawTreeShadow(ctx, state, state.camera, tileSize, tree, cycle, shadowDir);
         }
+        // Then draw tree geometry
         for (const tree of props) {
-            // Then Tree
-            drawTree(tree.x, tree.y, tree.h, tree.type);
+          drawTree(ctx, state, tileSize, tree, TREES);
         }
       }
     }
-    
+
     chunkManager.pruneCache();
 
-    // 4. Entities
-    // Helper to draw a jagged polygonal influence area (no roundness)
-    const drawJaggedInfluence = (ctx, centerX, centerY, radius, seedStr, fillColor, alphaMul = 1) => {
-      // deterministic pseudo-hash from string
-      let h = 0;
-      for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) >>> 0;
-      // Decide number of sides between 6 and 14
-      const sides = 6 + (h % 9);
-      // jitter amplitude fraction of radius
-      const jitter = 0.18 + ((h >> 8) % 40) / 200; // 0.18..0.38
+    // Entities
+    drawEntities(ctx, state, tileSize, game, centerX, centerY);
 
-      ctx.save();
-      // apply fade multiplier to entire shape
-      ctx.globalAlpha = (ctx.globalAlpha || 1) * alphaMul;
+    // Player
+    drawPlayer(ctx, state, tileSize, cycle, shadowDir);
 
-      ctx.fillStyle = fillColor;
-      ctx.beginPath();
-      for (let i = 0; i < sides; i++) {
-        const t = i / sides;
-        const ang = t * Math.PI * 2;
-        // per-vertex pseudo-random radius perturbation
-        const vHash = (h ^ (i * 2654435761)) >>> 0;
-        const vRnd = ((vHash % 1000) / 1000) * 2 - 1; // -1..1
-        const r = Math.max(0.1, radius * (1 + vRnd * jitter));
-        const px = centerX + Math.cos(ang) * r;
-        const py = centerY + Math.sin(ang) * r;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    };
-
-    state.entities.forEach(ent => {
-       const screenX = (ent.x - state.camera.x) * tileSize + centerX;
-       const screenY = (ent.y - state.camera.y) * tileSize + centerY;
-
-       if (screenX < -tileSize*2 || screenX > state.width + tileSize*2 ||
-           screenY < -tileSize*2 || screenY > state.height + tileSize*2) return;
-
-       // Compute fade factor based on distance to screen edge.
-       // At the culling boundary (margin) alpha = 0, and it ramps to 1 inside.
-       const MARGIN = tileSize * 2;
-       const distToEdgeX = Math.min(screenX, state.width - screenX);
-       const distToEdgeY = Math.min(screenY, state.height - screenY);
-       const minDistToEdge = Math.min(distToEdgeX, distToEdgeY);
-       const edgeFade = Math.max(0, Math.min(1, minDistToEdge / MARGIN));
-
-       if (ent.type === game.CONSTANTS.ENTITY_CITY) {
-         // Use game interaction radius (in tiles) scaled to pixels for the visible influence circle
-        const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
-        drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_city', 'rgba(16, 185, 129, 0.18)', edgeFade);
-
-         // Draw city with same fade
-         ctx.save();
-         ctx.globalAlpha = edgeFade;
-         ctx.fillStyle = '#10b981';
-         ctx.fillRect(screenX, screenY, tileSize, tileSize);
-         ctx.fillStyle = '#065f46';
-         ctx.fillRect(screenX + tileSize/2 - tileSize*0.1, screenY, tileSize*0.2, tileSize*0.6);
-         ctx.restore();
-       } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
-         // Use same interaction radius for relic highlight
-        const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
-        drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_relic', 'rgba(245, 158, 11, 0.18)', edgeFade);
-
-         ctx.save();
-         ctx.globalAlpha = edgeFade;
-         ctx.fillStyle = '#f59e0b';
-         ctx.beginPath();
-         ctx.moveTo(screenX + tileSize/2, screenY);
-         ctx.lineTo(screenX + tileSize, screenY + tileSize);
-         ctx.lineTo(screenX, screenY + tileSize);
-         ctx.fill();
-         ctx.restore();
-       }
-    });
-
-    // 5. Player
-    const p = state.player;
-    const px = (p.x - state.camera.x) * tileSize + centerX;
-    const py = (p.y - state.camera.y) * tileSize + centerY;
-
-    ctx.save();
-    ctx.translate(px, py);
-    
-    // Player Shadow
-    if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
-        ctx.save();
-        // Offset the boat shadow in the same continuous direction/length model as trees
-        const shadowLen = cycle.shadowLength;
-        ctx.translate(shadowDir.x * tileSize * shadowLen, shadowDir.y * tileSize * shadowLen);
-        ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha})`;
-        ctx.rotate(p.angle);
-        ctx.fillRect(-tileSize, -tileSize*0.6, tileSize*2, tileSize*1.2);
-        ctx.restore();
-    }
-
-    ctx.rotate(p.angle);
-
-    const raftLen = tileSize * 1.8;
-    const raftWid = tileSize * 1.2;
-
-    // Shadow (Ambient occlusion below raft, separate from sun shadow)
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.fillRect(-raftLen/2 + 2, -raftWid/2 + 2, raftLen, raftWid);
-
-    // Main deck
-    ctx.fillStyle = '#92400e';
-    ctx.fillRect(-raftLen/2, -raftWid/2, raftLen, raftWid);
-
-    // Plank lines
-    ctx.strokeStyle = '#78350f';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
-      const x = -raftLen/2 + (i / 4) * raftLen;
-      ctx.beginPath();
-      ctx.moveTo(x, -raftWid/2);
-      ctx.lineTo(x, raftWid/2);
-      ctx.stroke();
-    }
-
-    // Cabin structure
-    ctx.fillStyle = '#fef3c7';
-    const cabinW = raftLen * 0.4;
-    const cabinH = raftWid * 0.6;
-    ctx.fillRect(-cabinW/2, -cabinH/2, cabinW, cabinH);
-
-    // Cabin window
-    ctx.fillStyle = '#0ea5e9';
-    ctx.fillRect(-cabinW/4, -cabinH/4, cabinW/2, cabinH/3);
-
-    // Bow light
-    ctx.fillStyle = '#fef08a';
-    ctx.shadowColor = '#fef08a';
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.arc(raftLen/2 - 5, 0, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    ctx.restore();
-    
-    // 6. Atmosphere Overlay
+    // Atmosphere overlay
     if (cycle.ambientColor !== 'transparent') {
-        ctx.fillStyle = cycle.ambientColor;
-        // Blend mode could be 'multiply' or 'overlay' but simple alpha is safer for performance
-        ctx.fillRect(0, 0, state.width, state.height);
+      ctx.fillStyle = cycle.ambientColor;
+      ctx.fillRect(0, 0, state.width, state.height);
     }
-    
-    // Debug time
-    /*
-    ctx.fillStyle = 'white';
-    ctx.fillText(`Time: ${state.dayTime.toFixed(2)}`, 10, 20);
-    */
   }
 
   function start() {
