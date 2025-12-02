@@ -35,52 +35,47 @@ export function getCycleProps(state) {
     dayFactor = 1 - smoothstep(duskStart, duskEnd, t);
   }
 
-  // Compute a time-inside-day metric used to produce shadow length that peaks at noon
-  let shadowLength = 0;
-  let shadowAlpha = 0;
-  let shadowDirX = 0;
-  let shadowDirY = 0.4;
+  // Compute shadow properties:
+  // We want shadows to be longest near sunrise and near night (opposite ends),
+  // and shortest at mid-day. The direction flips from morning -> afternoon.
+  // Use a continuous function over the full 0..1 day where distanceFromNoon
+  // is 0 at t=0.5 (noon) and 1 at t=0 or 1 (midnight), producing max length at edges.
+  const distanceFromNoon = Math.abs(t - 0.5) * 2; // 0 at noon, 1 at midnight/edges
+  // Eased length so it smoothly goes to zero at noon and peaks at edges
+  let shadowLength = smoothstep(0, 1, distanceFromNoon);
 
-  if (dayFactor > 0) {
-    // Map t into day progress where 0 at dawnEnd and 1 at duskStart
-    const dayInnerStart = dawnEnd;
-    const dayInnerEnd = duskStart;
-    const dayInnerT = clamp((t - dayInnerStart) / (dayInnerEnd - dayInnerStart), 0, 1);
+  // Shadow alpha follows length but we still want shadows to fade during dawn/dusk transitions.
+  // Compute a visibility multiplier that raises shadow visibility during night/dawn/dusk and
+  // reduces it slightly during the moments the color tint is strongest (middle of dawn/dusk).
+  const transitionFade = Math.max(
+    smoothstep(dawnStart - 0.05, dawnEnd + 0.05, t),
+    1 - smoothstep(duskStart - 0.05, duskEnd + 0.05, t)
+  );
+  // When fully day, keep shadows modest; when near edges/night, let them be stronger.
+  const visibilityMul = lerp(0.6, 1.0, distanceFromNoon) * Math.max(0.25, transitionFade);
 
-    // shadow edge: 0 at mid-day, larger at edges -> use distance from noon-like center
-    const edge = Math.abs(dayInnerT - 0.5) * 2; // 0..1 where 0=noon, 1=edges
-    // Use eased mapping so shadow length smoothly approaches zero at noon and grows towards edges
-    shadowLength = smoothstep(0, 1, edge);
+  shadowLength *= visibilityMul;
 
-    // Make shadows fade with dayFactor so at dawn/dusk they smoothly appear/disappear
-    shadowLength *= dayFactor;
+  // Shadow alpha baseline maps from modest at mid-day to stronger near edges
+  let shadowAlpha = lerp(0.12, 0.55, shadowLength);
+  // Ensure alpha still respects dayFactor fades (so very deep night isn't unrealistically lit)
+  shadowAlpha *= Math.max(0.25, dayFactor + 0.25);
 
-    // Shadow alpha should be modest at midday and increase slightly towards edges,
-    // then modulated by dayFactor to fade in/out during transitions.
-    shadowAlpha = lerp(0.15, 0.45, Math.min(1, 0.35 + edge * 0.65)) * dayFactor;
-
-    // Direction: morning vs afternoon consistent with original design
-    const COS_30_DEG = 0.866025;
-    const SIN_30_DEG = 0.5;
-    const dayT = dayInnerT;
-    if (dayT <= 0.5) {
-      // Morning: Shadow points NW (150 deg)
-      shadowDirX = -COS_30_DEG;
-      shadowDirY = SIN_30_DEG;
-    } else {
-      // Afternoon: Shadow points SE (330 deg)
-      shadowDirX = COS_30_DEG;
-      shadowDirY = -SIN_30_DEG;
-    }
+  // Direction: morning vs afternoon consistent with design; morning when local day-progress < 0.5
+  const COS_30_DEG = 0.866025;
+  const SIN_30_DEG = 0.5;
+  // Map t into a circular day progress where 0..0.5 is morning->noon, 0.5..1 is noon->night
+  const dayInnerT = (t >= 0 && t <= 1) ? t : (t % 1);
+  let shadowDirX = COS_30_DEG;
+  let shadowDirY = -SIN_30_DEG;
+  if (dayInnerT <= 0.5) {
+    // Morning: Shadow points NW (150 deg)
+    shadowDirX = -COS_30_DEG;
+    shadowDirY = SIN_30_DEG;
   } else {
-    // Night baseline (alpha small; shadow lengths short)
-    // We'll still compute a tiny shadow length that can smoothly blend with dawn/dusk ramps later
-    const nearDusk = clamp((t - duskEnd) / 0.05, 0, 1);
-    const nearDawn = clamp((dawnStart - t) / 0.05, 0, 1);
-    shadowLength = 0.25 * (nearDusk + nearDawn) * 0.5;
-    shadowAlpha = 0.08;
-    shadowDirX = 0;
-    shadowDirY = 0.4;
+    // Afternoon/Night: Shadow points SE (330 deg)
+    shadowDirX = COS_30_DEG;
+    shadowDirY = -SIN_30_DEG;
   }
 
   // Ambient tint computation: blend night, dawn, dusk, and day continuously to avoid snapping.
