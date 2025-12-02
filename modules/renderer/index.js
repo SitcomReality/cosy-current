@@ -95,7 +95,7 @@ export function createRenderer({ canvas, state, game, noise }) {
     drawEntities(ctx, state, tileSize, game, centerX, centerY);
 
     // Player
-    drawPlayer(ctx, state, tileSize, cycle, shadowDir);
+    drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise);
 
     // Atmosphere overlay
     if (cycle.ambientColor !== 'transparent') {

@@ -241,7 +241,7 @@ export function drawEntities(ctx, state, tileSize, game, centerX, centerY) {
   });
 }
 
-export function drawPlayer(ctx, state, tileSize, cycle, shadowDir) {
+export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
   const p = state.player;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
@@ -253,11 +253,32 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir) {
 
   if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
     ctx.save();
-    const shadowLen = cycle.shadowLength;
+
+    // Dynamic shadow projection based on water depth
+    let distMod = 1.0;
+    let sizeMod = 1.0;
+
+    if (noise) {
+      // 0 = deep center, 1 = bank edge
+      const info = noise.getRiverSystem(p.x, p.y);
+      const depthT = Math.max(0, Math.min(1, info.value));
+      
+      // As water gets shallower (closer to 1.0):
+      // - Shadow gets closer to boat (ground is rising)
+      // - Shadow gets slightly larger (proximity)
+      distMod = 1.0 - (depthT * 0.75); 
+      sizeMod = 1.0 + (depthT * 0.2);
+    }
+
+    const shadowLen = cycle.shadowLength * distMod;
     ctx.translate(shadowDir.x * tileSize * shadowLen, shadowDir.y * tileSize * shadowLen);
     ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha})`;
     ctx.rotate(p.angle);
-    ctx.fillRect(-tileSize, -tileSize*0.6, tileSize*2, tileSize*1.2);
+    
+    // Scale shadow rect based on depth
+    const w = tileSize * 2 * sizeMod;
+    const h = tileSize * 1.2 * sizeMod;
+    ctx.fillRect(-w/2, -h/2, w, h);
     ctx.restore();
   }
 
