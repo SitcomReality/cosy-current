@@ -1,4 +1,5 @@
 import { ENTITY_CITY, ENTITY_RELIC } from './constants.js';
+import { INTERACTION_RADIUS } from './constants.js';
 
 export function createEntitiesModule(state) {
   function spawnEntity(x, y, type) {
@@ -43,7 +44,20 @@ export function createEntitiesModule(state) {
       }
 
       if (allGrass) {
-        spawnEntity(ex, ey, Math.random() > 0.5 ? ENTITY_CITY : ENTITY_RELIC);
+        // Ensure no other entity is within INTERACTION_RADIUS * 2 (prevent overlapping interaction areas)
+        const minDist = (INTERACTION_RADIUS || 20) * 2;
+        let tooClose = false;
+        for (const e of state.entities) {
+          const d = Math.hypot(e.x - ex, e.y - ey);
+          if (d < minDist) {
+            tooClose = true;
+            break;
+          }
+        }
+
+        if (!tooClose) {
+          spawnEntity(ex, ey, Math.random() > 0.5 ? ENTITY_CITY : ENTITY_RELIC);
+        }
       }
     }
 
