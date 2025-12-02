@@ -127,6 +127,14 @@ export function getCycleProps(state) {
 
   const ambientColor = `rgba(${col.r},${col.g},${col.b},${col.a})`;
 
-  return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor };
+  // Calculate shading factor for tree geometry
+  let shadeProgression = 0; 
+  if (t >= dawnStart && t <= duskEnd) {
+      // 0.18 -> 0.82 is the active day period for shading
+      const activeSpan = duskEnd - dawnStart;
+      shadeProgression = clamp((t - dawnStart) / activeSpan, 0, 1); // 0 at dawnStart, 1 at duskEnd
+  }
+
+  return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor, shadeProgression };
 }
 

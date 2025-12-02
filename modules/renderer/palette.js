@@ -7,7 +7,11 @@ export const PALETTE_DEF = {
   forest: { oklch: 'oklch(52% 0.14 145)', hex: '#2f6b2b' },
   // Removed hill/mountain palette entries to simplify terrain levels.
   treeForest: { oklch: 'oklch(42% 0.14 145)', hex: '#254e22' },
-  treeGrass: { oklch: 'oklch(60% 0.16 140)', hex: '#49a33a' }
+  treeGrass: { oklch: 'oklch(60% 0.16 140)', hex: '#49a33a' },
+
+  // Derived tree colors for dynamic shading
+  treeForestLit: { oklch: 'oklch(55% 0.16 145)', hex: '#4c9945' },
+  treeGrassLit: { oklch: 'oklch(75% 0.18 140)', hex: '#76d168' }
 };
 
 export function chooseColor(entry) {
@@ -32,7 +36,9 @@ export function resolvePalettes(game) {
   // Expose tree colors as resolved hex strings for drawing
   const TREES = {
     treeForest: chooseColor(PALETTE_DEF.treeForest),
-    treeGrass: chooseColor(PALETTE_DEF.treeGrass)
+    treeGrass: chooseColor(PALETTE_DEF.treeGrass),
+    treeForestLit: chooseColor(PALETTE_DEF.treeForestLit),
+    treeGrassLit: chooseColor(PALETTE_DEF.treeGrassLit)
   };
 
   return { WATER_PALETTE, COLORS, TREES };
