@@ -20,8 +20,18 @@ export function initApp({ canvas, controls }) {
   window.addEventListener('keydown', e => { 
     keys[e.code] = true; 
     state.lastInputTime = performance.now();
+
+    // Speed-up key (numpad /) engages a multiplier while held
+    if (e.code === 'NumpadDivide') {
+      state.speedMultiplier = 10;
+    }
   });
-  window.addEventListener('keyup', e => { keys[e.code] = false; });
+  window.addEventListener('keyup', e => { keys[e.code] = false; 
+    // Release speed-up
+    if (e.code === 'NumpadDivide') {
+      state.speedMultiplier = 1;
+    }
+  });
 
   // Mouse wheel zoom handling (scroll to zoom in/out)
   canvas.addEventListener('wheel', (e) => {

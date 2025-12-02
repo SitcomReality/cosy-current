@@ -43,6 +43,9 @@ export function createAppState() {
     noiseType: 'fbm-perlin',
     scale: 0.05, // Increased default scale for larger, smoother features
     speed: 0.2, // Slower time evolution
-    time: 0
+    time: 0,
+
+    // Gameplay modifiers
+    speedMultiplier: 1 // Multiplies movement & acceleration when active (e.g. 10 when holding speed-up)
   };
 }

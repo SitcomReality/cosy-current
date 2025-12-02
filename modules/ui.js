@@ -40,6 +40,15 @@ export function createUI({ container, state, renderer, noise, game }) {
       settingsModal.classList.add('hidden');
     });
 
+    // Speed button behavior: press/hold to enable multiplier
+    const btnSpeed = document.getElementById('btn-speed');
+    if (btnSpeed) {
+      btnSpeed.addEventListener('mousedown', () => { state.speedMultiplier = 10; });
+      window.addEventListener('mouseup', () => { state.speedMultiplier = 1; });
+      btnSpeed.addEventListener('touchstart', (e) => { e.preventDefault(); state.speedMultiplier = 10; }, { passive: false });
+      btnSpeed.addEventListener('touchend', () => { state.speedMultiplier = 1; });
+    }
+
     // Build Settings Controls
     buildSettings();
   }

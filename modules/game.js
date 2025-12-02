@@ -209,8 +209,9 @@ export function createGame({ state, noise }) {
         const clamped = Math.max(-maxStep, Math.min(maxStep, angleDiff));
         p.angle += clamped;
         
-        // Speed
-        if (p.speed < p.targetSpeed) p.speed += dt * 5;
+        // Speed - accelerate faster when multiplier active so boost feels immediate
+        const accel = 5 * (state.speedMultiplier || 1);
+        if (p.speed < p.targetSpeed) p.speed += dt * accel;
         
     } else {
         // Grounded on land!
@@ -221,8 +222,10 @@ export function createGame({ state, noise }) {
     }
 
     // 3. Apply Velocity
-    p.x += Math.cos(p.angle) * p.speed * dt;
-    p.y += Math.sin(p.angle) * p.speed * dt;
+    // Movement uses the active speed multiplier so holding turbo increases travel speed
+    const effectiveSpeed = p.speed * (state.speedMultiplier || 1);
+    p.x += Math.cos(p.angle) * effectiveSpeed * dt;
+    p.y += Math.sin(p.angle) * effectiveSpeed * dt;
 
     // --- Resource Collection ---
     // Passive accumulation based on terrain type
