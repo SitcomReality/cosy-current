@@ -40,7 +40,9 @@ export function createFaunaSystem({ state, game, noise }) {
 
   function spawnCreature(x, y, type, options = {}) {
     const def = CREATURE_TYPES[type];
-    const colorIndex = Math.floor(Math.random() * def.colors.length);
+    const colorIndex = (options.colorIndex != null)
+      ? options.colorIndex
+      : Math.floor(Math.random() * def.colors.length);
     
     const initialAngle = options.angle != null ? options.angle : Math.random() * Math.PI * 2;
 
@@ -54,7 +56,7 @@ export function createFaunaSystem({ state, game, noise }) {
       angle: initialAngle,
       targetAngle: initialAngle,
       turnRate: def.turnRate || 2.0,
-      color: def.colors[colorIndex],
+      color: options.color || def.colors[colorIndex],
       depth: def.depth || 0,
       habitat: def.habitat,
       glow: def.glow || false,
@@ -115,6 +117,7 @@ export function createFaunaSystem({ state, game, noise }) {
 
     if (availableTypes.length > 0) {
       const chosen = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+      const def = CREATURE_TYPES[chosen];
 
       // Determine group size for schooling/flocking species
       let groupSize = 1;
@@ -150,6 +153,12 @@ export function createFaunaSystem({ state, game, noise }) {
 
       const groupId = `${chosen}_${Math.random().toString(36).substr(2, 5)}`;
 
+      // For birds, pick a shared color index so flocks usually match
+      let sharedBirdColorIndex = null;
+      if (chosen === 'bird') {
+        sharedBirdColorIndex = Math.floor(Math.random() * def.colors.length);
+      }
+
       for (let i = 0; i < groupSize; i++) {
         // Small positional offsets so groups cluster loosely
         const r = Math.random() * 3;
@@ -161,7 +170,19 @@ export function createFaunaSystem({ state, game, noise }) {
         const angleOffset = (Math.random() - 0.5) * (chosen === 'bird' ? Math.PI / 10 : Math.PI / 6);
         const memberAngle = baseAngle + angleOffset;
 
-        spawnCreature(sx + ox, sy + oy, chosen, { angle: memberAngle, groupId });
+        let colorIndexOverride = null;
+        if (chosen === 'bird' && sharedBirdColorIndex != null) {
+          // High chance to share the flock color, with some variation allowed
+          if (Math.random() < 0.85) {
+            colorIndexOverride = sharedBirdColorIndex;
+          }
+        }
+
+        spawnCreature(sx + ox, sy + oy, chosen, { 
+          angle: memberAngle, 
+          groupId,
+          colorIndex: colorIndexOverride
+        });
       }
     }
   }

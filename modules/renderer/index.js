@@ -6,7 +6,7 @@ import { createWaterEffects } from '../water.js';
 import { resolvePalettes } from './palette.js';
 import { advanceDayTime, getCycleProps } from './daycycle.js';
 import { drawTreeShadow, drawTree, drawEntities, drawPlayer } from './objects.js';
-import { renderFauna } from './fauna.js';
+import { renderFauna, renderBirds } from './fauna.js';
 
 // This file composes the modular renderer pieces into the original public API
 export function createRenderer({ canvas, state, game, noise }) {
@@ -75,7 +75,7 @@ export function createRenderer({ canvas, state, game, noise }) {
     // Water effects
     waterEffects.render(ctx, state.camera, tileSize);
 
-    // Fauna (before objects so shadows render in correct order)
+    // Fauna behind objects/player (fish, deer, critters, fireflies)
     if (state.fauna && state.fauna.creatures) {
       renderFauna(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise);
     }
@@ -102,6 +102,11 @@ export function createRenderer({ canvas, state, game, noise }) {
 
     // Player
     drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise);
+
+    // Birds in front of the raft
+    if (state.fauna && state.fauna.creatures) {
+      renderBirds(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise);
+    }
 
     // Atmosphere overlay
     if (cycle.ambientColor !== 'transparent') {

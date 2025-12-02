@@ -6,6 +6,38 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
   const centerY = state.height / 2;
 
   creatures.forEach(c => {
+    // Skip birds in this pass; they'll be rendered in front of the player
+    if (c.type === 'bird') return;
+
+    const screenX = (c.x - state.camera.x) * tileSize + centerX;
+    const screenY = (c.y - state.camera.y) * tileSize + centerY;
+
+    // Cull off-screen
+    if (screenX < -tileSize * 5 || screenX > state.width + tileSize * 5 ||
+        screenY < -tileSize * 5 || screenY > state.height + tileSize * 5) return;
+
+    const size = c.size * tileSize;
+
+    // Draw shadow first
+    if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001) {
+      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise);
+    }
+
+    // Draw creature
+    drawCreature(ctx, c, screenX, screenY, size, cycle);
+  });
+}
+
+// New: dedicated bird rendering pass so birds appear in front of the raft
+export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, noise) {
+  if (!creatures || creatures.length === 0) return;
+
+  const centerX = state.width / 2;
+  const centerY = state.height / 2;
+
+  creatures.forEach(c => {
+    if (c.type !== 'bird') return;
+
     const screenX = (c.x - state.camera.x) * tileSize + centerX;
     const screenY = (c.y - state.camera.y) * tileSize + centerY;
 
@@ -61,10 +93,19 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
     ctx.closePath();
     ctx.fill();
   } else {
-    // Land creature shadow (low-poly polygon)
-    const offset = tileSize * cycle.shadowLength * 0.5;
-    const shadowX = screenX + shadowDir.x * offset;
-    const shadowY = screenY + shadowDir.y * offset;
+    // Land / air creature shadow (low-poly polygon)
+    let baseOffset = tileSize * cycle.shadowLength * 0.5;
+
+    // Birds: push shadows further at extreme ends of the day so they feel higher above ground
+    if (c.type === 'bird') {
+      // cycle.shadowLength is ~0 at noon and 1 near sunrise/sunset/night
+      // Boost offset more when shadows are long
+      const edgeBoost = 1 + cycle.shadowLength * 1.5; // up to 2.5x at extremes
+      baseOffset *= edgeBoost;
+    }
+
+    const shadowX = screenX + shadowDir.x * baseOffset;
+    const shadowY = screenY + shadowDir.y * baseOffset;
 
     ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha * 0.4})`;
 
