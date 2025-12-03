@@ -195,29 +195,60 @@ export function createSpawner(game, noise, state) {
       if (groupId) {
         groupPhaseMap.set(groupId, Math.random() * Math.PI * 2);
       }
-      // If this is a bird group, set a shared heading toward the player so flocks arrive and travel cohesively
-      let sharedGroupBaseAngle = null;
-      if (typeKey === 'bird' && groupId) {
-        // Aim roughly toward player from spawn position, with a bit of jitter so not perfectly uniform
-        const px = (state && state.player) ? state.player.x : 0;
-        const py = (state && state.player) ? state.player.y : 0;
-        const aimAngle = Math.atan2(py - sy, px - sx);
-        sharedGroupBaseAngle = aimAngle + (Math.random() - 0.5) * 0.35;
+
+      // Determine Group Heading (for off-screen spawns like birds, aim inwards)
+      let groupHeading = Math.random() * Math.PI * 2;
+      const isDirectedFlock = (typeKey === 'bird' && count > 1);
+      
+      if (isDirectedFlock) {
+         // Aim towards camera center to ensure they traverse the screen
+         const cx = state.camera.x;
+         const cy = state.camera.y;
+         // Vector from spawn to camera
+         groupHeading = Math.atan2(cy - sy, cx - sx);
+         // Add some randomness to the angle so they don't all fly exactly to the center
+         groupHeading += (Math.random() - 0.5) * 0.8;
       }
+
       // Pre-select variations for the group
       const baseColor = def.colors[Math.floor(Math.random() * def.colors.length)];
       // Decide if this group should behave in a loosely flocking / schooling way
       const groupCanFlock = (typeKey === 'fish' || typeKey === 'eel' || typeKey === 'bird');
-      // Make birds much more likely to be flockers and stronger so they turn together
-      const groupIsFlocker = groupCanFlock && (typeKey === 'bird' ? (Math.random() < 0.85) : (Math.random() < 0.45));
-      // Birds get a higher flockStrength bias for more cohesive movement
-      const baseFlockStrength = groupIsFlocker ? (typeKey === 'bird' ? randomRange(0.45, 0.78) : randomRange(0.35, 0.6)) : 0;
+      // Make birds much more likely to be flockers
+      const groupIsFlocker = groupCanFlock && (typeKey === 'bird' ? (Math.random() < 0.95) : (Math.random() < 0.4));
+      const baseFlockStrength = groupIsFlocker ? randomRange(0.35, 0.6) : 0;
 
       for (let i = 0; i < count; i++) {
-        // Slight spread
-        const ox = (Math.random() - 0.5) * 3;
-        const oy = (Math.random() - 0.5) * 3;
+        // Position Logic: "Formation" vs Random Cloud
+        let spawnX = sx;
+        let spawnY = sy;
         
+        if (isDirectedFlock) {
+          // Spread birds out perpendicular to their heading so they appear in a wide front/V-shape
+          const perp = groupHeading + Math.PI / 2;
+          const spread = 2.5; // distance between birds
+          
+          // Offset relative to center of group
+          const offset = (i - (count - 1) / 2) * spread;
+          
+          // Pullback for V-shape effect (center bird is forward, outer birds are back)
+          // Abs offset determines how far back
+          const pullback = Math.abs(i - (count - 1) / 2) * 1.5;
+
+          spawnX += Math.cos(perp) * offset - Math.cos(groupHeading) * pullback;
+          spawnY += Math.sin(perp) * offset - Math.sin(groupHeading) * pullback;
+
+          // Add minor jitter so it's not a perfect robot formation
+          spawnX += (Math.random() - 0.5) * 1.5;
+          spawnY += (Math.random() - 0.5) * 1.5;
+        } else {
+           // Default random blob spread
+           const ox = (Math.random() - 0.5) * 3;
+           const oy = (Math.random() - 0.5) * 3;
+           spawnX += ox;
+           spawnY += oy;
+        }
+
         // Generate segment colors if needed (crabs)
         let segmentColors = null;
         if (def.segments) {
@@ -234,6 +265,12 @@ export function createSpawner(game, noise, state) {
         let segmentCount = undefined;
         if (typeKey === 'eel') {
           segmentCount = Math.floor(randomRange(3, 6)); // 3–5 segments
+        }
+
+        // Initial Angle: If directed flock, align with heading. Else random.
+        let initialAngle = Math.random() * Math.PI * 2;
+        if (isDirectedFlock) {
+          initialAngle = groupHeading + (Math.random() - 0.5) * 0.2; // closely aligned
         }
 
         // Wave phase: group members get a shared base plus a small per-member jitter so schools don't oscillate perfectly in sync
@@ -262,16 +299,13 @@ export function createSpawner(game, noise, state) {
         // Speed multiplier for slight variability in cruising speed (affects c.speedMult in behavior)
         const spawnSpeedMult = 0.92 + Math.random() * 0.16; // ~0.92..1.08
 
-        // assign the shared group base angle to birds so behavior can use it for cohesion
-        const assignedGroupBaseAngle = (typeKey === 'bird' && groupId) ? sharedGroupBaseAngle : undefined;
-
         addCreature(poolName, {
-          x: sx + ox,
-          y: sy + oy,
+          x: spawnX,
+          y: spawnY,
           type: typeKey,
           def: def,
-          angle: Math.random() * Math.PI * 2,
-          targetAngle: Math.random() * Math.PI * 2,
+          angle: initialAngle,
+          targetAngle: initialAngle,
           speed: def.speed * randomRange(0.8, 1.2),
           baseSpeed: def.speed,             // keep base for reference
           turnRate: def.turnRate,
@@ -280,7 +314,6 @@ export function createSpawner(game, noise, state) {
           segmentColors: segmentColors,
           wanderTimer: Math.random(),
           groupId: groupId,
-          groupBaseAngle: typeof assignedGroupBaseAngle === 'number' ? assignedGroupBaseAngle : undefined,
           life: 0,
           id: Math.random().toString(36),
           depth: def.depth,
@@ -289,6 +322,7 @@ export function createSpawner(game, noise, state) {
           // Flocking / schooling metadata
           isFlocker: groupIsFlocker,
           flockStrength: baseFlockStrength,
+          groupBaseAngle: isDirectedFlock ? groupHeading : initialAngle, // Share the formation heading
           wavePhase,                       // <-- attach phase for flowFollow to use
           waveAmpMult,                     // <-- per-creature amplitude multiplier
           waveFreqMult,                    // <-- per-creature frequency multiplier
