@@ -6,6 +6,10 @@ export function updateCreatureBehavior(c, dt, noise, game) {
   c.wanderTimer -= dt;
   if (c.wanderTimer < 0) c.wanderTimer = 0;
 
+  // Reset modifiers per frame
+  c.turnBoost = 1.0;
+  c.speedMult = 1.0;
+
   // 1. Determine Target Angle based on behavior
   const behavior = c.def.behavior || 'wander';
 
@@ -28,12 +32,13 @@ export function updateCreatureBehavior(c, dt, noise, game) {
   if (behavior === 'scuttle' && c.isStopped) {
     // Don't move
   } else {
-    const turnSpeed = c.turnRate * dt;
+    // Apply turn boost if requested by boundary logic for smoother avoidance
+    const turnSpeed = c.turnRate * c.turnBoost * dt;
     const angleDiff = shortestAngleDiff(c.angle, c.targetAngle);
     const turn = Math.max(-turnSpeed, Math.min(turnSpeed, angleDiff));
     c.angle = normalizeAngle(c.angle + turn);
 
-    const speed = c.speed * (c.speedMult || 1.0);
+    const speed = c.speed * c.speedMult;
     c.x += Math.cos(c.angle) * speed * dt;
     c.y += Math.sin(c.angle) * speed * dt;
   }
@@ -76,153 +81,132 @@ function applyFlyStraight(c, dt) {
 }
 
 function applyFlowFollow(c, dt, noise) {
-  // Fish align with river flow but sometimes meander or hover for variety.
-  // River gradient (gx, gy) points to bank. Flow is perpendicular.
+  // Sample current position
   const r = noise.getRiverSystem(c.x, c.y);
 
-  if (c.wanderTimer <= 0) {
-    // Decide sub-behavior with small probabilities to diversify movement
-    const roll = Math.random();
-    if (roll < 0.15) {
-      // Hover / local meander: pick a slow random direction and linger
-      c.wanderTimer = 1.0 + Math.random() * 2.0;
-      c.targetAngle = normalizeAngle(c.angle + (Math.random() - 0.5) * Math.PI);
-      // reduce speed a bit to feel like hovering
-      c.speedMult = 0.6;
-      return;
-    } else if (roll < 0.35) {
-      // True meander: pick a gentle random heading for some time
-      c.wanderTimer = 2.0 + Math.random() * 3.0;
-      c.targetAngle = normalizeAngle(c.angle + (Math.random() - 0.5) * Math.PI * 0.8);
-      c.speedMult = 0.8;
-      return;
-    } else {
-      // Default flow-follow / schooling behavior
-      c.wanderTimer = 0.5;
-      c.speedMult = 1.0;
-    }
+  // 1. Base Flow Direction (tangent to gradient)
+  // Gradient (gx, gy) points to bank. Tangent is (-gy, gx).
+  const flowAngle = Math.atan2(r.gx, -r.gy); 
+  let target = flowAngle;
 
-    // Calculate flow vector (tangent to gradient)
-    // We arbitrarily pick one winding direction (-gy, gx)
-    const flowAngle = Math.atan2(r.gx, -r.gy); // Rotate 90 deg
+  // 2. Wavy Motion (Sinusoidal offset)
+  // Varies by creature ID to desync
+  const waveFreq = 2.5; 
+  const wavePhase = (c.id.charCodeAt(0) % 10);
+  const waveVal = Math.sin(c.life * waveFreq + wavePhase);
+  // Amplitude reduces when near banks to prevent accidental beaching
+  const safeAmplitude = 0.5 * Math.max(0, 1.0 - r.value); 
+  target += waveVal * safeAmplitude;
 
-    // Mix flow angle with some wander
-    const wander = (Math.random() - 0.5) * 0.6;
+  // 3. Look-ahead Avoidance (Whiskers)
+  // Check left and right probes to steer away from rising terrain values
+  const probeDist = 2.5;
+  const probeAngle = 0.6; // ~35 degrees
 
-    // If we are facing roughly against flow, should we turn around?
-    // Let's just steer towards flow.
-    let target = normalizeAngle(flowAngle + wander);
+  const angL = c.angle - probeAngle;
+  const angR = c.angle + probeAngle;
+  
+  // Optimization: only probe if we aren't in deep center
+  if (r.value > 0.15) {
+      const lx = c.x + Math.cos(angL) * probeDist;
+      const ly = c.y + Math.sin(angL) * probeDist;
+      const rx = c.x + Math.cos(angR) * probeDist;
+      const ry = c.y + Math.sin(angR) * probeDist;
+      
+      const vL = noise.getRiverSystem(lx, ly).value;
+      const vR = noise.getRiverSystem(rx, ry).value;
 
-    // Avoid shallow water actively: prefer deeper values (r.value small)
-    // Stronger avoidance of shallow water: start correcting earlier and blend more strongly.
-    if (r.value > 0.3) {
-      // Steer towards deep (0 value), which is opposite to gradient (gx, gy)
-      const deepAngle = Math.atan2(-r.gy, -r.gx);
-      // Blend it in more aggressively so creatures move into deeper channel when near shore
-      const blend = Math.min(1, (r.value - 0.3) * 4.0); // increased sensitivity (starts at 0.3)
-      // Proper angle interpolation: combine weighted contributions
-      // Use slerp-like mix via weighted average then normalize
-      target = normalizeAngle(target * (1 - blend) + deepAngle * blend);
-    }
-
-    // Optional mild flocking / schooling bias:
-    // Some groups share a soft, common heading so they travel in vaguely parallel paths.
-    if (c.isFlocker && c.groupId) {
-      // Derive a deterministic offset from groupId so all members prefer a similar heading.
-      let h = 0;
-      for (let i = 0; i < c.groupId.length; i++) {
-        h = (h * 31 + c.groupId.charCodeAt(i)) >>> 0;
-      }
-      // Map hash to a small angular offset in [-0.35, 0.35] radians
-      const offset = (((h % 1000) / 999) - 0.5) * 0.7;
-      // Base group angle is the river flow plus a small group-specific offset
-      const groupAngle = normalizeAngle(flowAngle + offset);
-      const flockBase = c.flockStrength != null ? c.flockStrength : 0.0;
-
-      // Weaken flock influence near very shallow water so avoidance stays strong
-      const depthFactor = Math.max(0, Math.min(1, 1.0 - r.value));
-      const flockBlend = flockBase * (0.4 + 0.6 * depthFactor); // 0..~flockBase
-
-      if (flockBlend > 0) {
-        target = normalizeAngle(target * (1 - flockBlend) + groupAngle * flockBlend);
-      }
-    }
-
-    c.targetAngle = target;
+      // If one side is significantly shallower (higher value), steer away
+      const diff = vL - vR;
+      // If vL > vR (Left is shallower), diff > 0. We want to turn Right (increase angle).
+      // If vR > vL (Right is shallower), diff < 0. We want to turn Left (decrease angle).
+      const urgency = Math.max(0.5, (r.value - 0.2) * 2.0); 
+      target += diff * urgency * 1.5; 
   }
+
+  // 4. Gradient Descent (Emergency Center Bias)
+  // If very close to bank, override with direct center vector
+  if (r.value > 0.5) {
+      const deepAngle = Math.atan2(-r.gy, -r.gx); // Gradient descent
+      const blend = Math.max(0, Math.min(1, (r.value - 0.5) * 3.0));
+      // Blend current target with deepAngle
+      target = normalizeAngle(target + shortestAngleDiff(target, deepAngle) * blend);
+  }
+
+  // 5. Flocking (Optional)
+  if (c.isFlocker && c.groupId) {
+      let h = 0;
+      for (let i = 0; i < c.groupId.length; i++) h = (h * 31 + c.groupId.charCodeAt(i)) >>> 0;
+      const offset = (((h % 1000) / 999) - 0.5) * 0.5;
+      const groupAngle = normalizeAngle(flowAngle + offset);
+      const flockBase = c.flockStrength || 0;
+      const depthFactor = Math.max(0, Math.min(1, 1.0 - r.value));
+      const flockBlend = flockBase * (0.3 + 0.7 * depthFactor);
+      if (flockBlend > 0) {
+        target = normalizeAngle(target + shortestAngleDiff(target, groupAngle) * flockBlend);
+      }
+  }
+
+  c.targetAngle = target;
+  
+  // Modulate speed based on turn sharpness to simulate physics
+  const turnStress = Math.abs(shortestAngleDiff(c.angle, target));
+  c.speedMult = Math.max(0.5, 1.0 - (turnStress * 0.5));
 }
 
 function enforceBoundaries(c, dt, noise, game) {
-  // Predictive lookahead for steering
-  const lookAhead = 1.6; 
+  // Use a longer lookahead to catch edges early
+  const lookAhead = 2.0; 
   const nx = c.x + Math.cos(c.angle) * lookAhead;
   const ny = c.y + Math.sin(c.angle) * lookAhead;
 
-  const rAhead = noise.getRiverSystem(nx, ny);
-  const isAheadWater = rAhead.value < 1.0;
-  
-  // Current position check for actual collision/separation
-  const rCurr = noise.getRiverSystem(c.x, c.y);
-
+  const river = noise.getRiverSystem(nx, ny);
   const pool = c.def.pool;
 
   if (pool === 'water') {
-    // 1. Gentle pre-avoidance steering while still in water
-    if (rCurr.value > 0.8 && rCurr.value < 1.0) {
-      // Gradient points from deep -> shallow; opposite is deeper.
-      const deepAngle = Math.atan2(-rCurr.gy, -rCurr.gx);
-      const shallowFactor = Math.min(1, Math.max(0, (rCurr.value - 0.8) * 3)); // 0..1
-      const blend = 0.3 * shallowFactor; // up to 30% influence
-      c.targetAngle = normalizeAngle(
-        c.targetAngle * (1 - blend) + deepAngle * blend
-      );
-    }
-
-    // 2. Predictive Avoidance: If heading towards land
-    if (!isAheadWater) {
-      // Find a direction back to water
-      const found = findNearbyWaterDirection(c.x, c.y, noise, 8);
-      const avoidAngle = found !== null ? found : normalizeAngle(Math.atan2(-rCurr.gy, -rCurr.gx));
-
-      // Strong corrective steering
-      const boundaryBlend = 0.75; 
-      c.targetAngle = normalizeAngle(
-        c.targetAngle * (1 - boundaryBlend) + avoidAngle * boundaryBlend
-      );
-    }
-    
-    // 3. Reactive Collision: If actually touching the bank threshold
-    // Use 0.95 as "touching bank" threshold
-    if (rCurr.value >= 0.95) {
-       const found = findNearbyWaterDirection(c.x, c.y, noise, 8);
-       const avoidAngle = found !== null ? found : normalizeAngle(Math.atan2(-rCurr.gy, -rCurr.gx));
-
-       // Physical nudge (separation) - keeps them out of the wall
-       const nudge = 0.15;
-       c.x += Math.cos(avoidAngle) * nudge;
-       c.y += Math.sin(avoidAngle) * nudge;
-       
-       // Visual deflection: rotate actual angle partially to match avoidance immediately
-       // This prevents the "stuck facing wall" jitter where they wait for turn rate to rotate them
-       const diff = shortestAngleDiff(c.angle, avoidAngle);
-       c.angle = normalizeAngle(c.angle + diff * 0.25);
-       
-       // Ensure speed isn't stuck
-       c.speedMult = Math.max(1.0, c.speedMult || 1.0);
-    }
-  } else if (pool === 'land') {
+     // Threshold for "hard boundary"
+     // value 1.0 is bank. We want to stop them before 1.0.
+     if (river.value > 0.9) {
+         // PANIC AVOIDANCE
+         
+         // 1. Find safe water direction via gradient descent
+         const escapeAngle = Math.atan2(-river.gy, -river.gx);
+         
+         // 2. Override target
+         c.targetAngle = escapeAngle;
+         
+         // 3. Boost turn rate significantly to allow tight smooth turn instead of snap
+         c.turnBoost = 5.0; 
+         
+         // 4. Slow down
+         c.speedMult = 0.5;
+         
+         // 5. Only nudge position if we are REALLY stuck (value >= 1.0)
+         // This prevents jitter unless they actually crossed the line
+         if (river.value >= 1.0) {
+             const push = Math.min(0.2, (river.value - 0.95));
+             c.x += Math.cos(escapeAngle) * push;
+             c.y += Math.sin(escapeAngle) * push;
+         }
+     }
+  } 
+  else if (pool === 'land') {
     // Bounce off water and prefer nearby land tiles
-    if (isAheadWater) {
+    const isWater = river.value < 1.0;
+    if (isWater) {
       const foundLand = findNearbyLandDirection(c.x, c.y, noise, 6);
       if (foundLand !== null) {
         c.targetAngle = foundLand;
-        c.x += Math.cos(foundLand) * 0.12;
-        c.y += Math.sin(foundLand) * 0.12;
       } else {
         // If we can't find land, follow gradient back to land
-        c.targetAngle = normalizeAngle(Math.atan2(rAhead.gy, rAhead.gx));
+        c.targetAngle = normalizeAngle(Math.atan2(river.gy, river.gx));
       }
-      c.angle = c.targetAngle; // snap to avoid repeated entering water
+      
+      // Boost turn instead of snapping
+      c.turnBoost = 5.0;
+      
+      // Stop moving forward into water
+      c.speedMult = 0; 
     }
     // Additionally, enforce habitat preference: if creature has habitat and current tile mismatches,
     // gently bias targetAngle towards nearest matching tile.
