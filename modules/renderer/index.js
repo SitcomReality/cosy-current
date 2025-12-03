@@ -1,7 +1,7 @@
 // Main renderer composition: uses chunkManager, palette, daycycle, objects and water effects
 import { createChunkManager } from './chunk.js';
 import { getVertexOffset } from './vertex.js';
-import { createWaterEffects } from '../water.js';
+import { createWaterEffects } from './water/index.js';
 
 import { resolvePalettes } from './palette.js';
 import { advanceDayTime, getCycleProps } from './daycycle.js';
