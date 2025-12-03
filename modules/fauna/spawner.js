@@ -185,12 +185,13 @@ export function createSpawner(game, noise, state) {
       // Spawn Group
       let count = 1;
       if (typeKey === 'firefly') count = randomRange(4, 9);
-      if (typeKey === 'bird')    count = randomRange(2, 5);
+      // Increase bird flock sizes substantially so flocks are common and larger
+      if (typeKey === 'bird')    count = Math.floor(randomRange(4, 14)); // 4..13 birds
       if (typeKey === 'fish')    count = randomRange(2, 6);
       if (typeKey === 'eel')     count = randomRange(1, 3);
 
       const groupId = count > 1 ? Math.random().toString(36) : null;
-      // If group, create and store a base phase so members share similar but not identical wave timing
+      // If group, create and store a base phase so members of a spawned group share a base but not identical phase
       if (groupId) {
         groupPhaseMap.set(groupId, Math.random() * Math.PI * 2);
       }
@@ -198,7 +199,8 @@ export function createSpawner(game, noise, state) {
       const baseColor = def.colors[Math.floor(Math.random() * def.colors.length)];
       // Decide if this group should behave in a loosely flocking / schooling way
       const groupCanFlock = (typeKey === 'fish' || typeKey === 'eel' || typeKey === 'bird');
-      const groupIsFlocker = groupCanFlock && Math.random() < 0.4; // ~40% of eligible groups
+      // Make birds much more likely to be flockers
+      const groupIsFlocker = groupCanFlock && (typeKey === 'bird' ? (Math.random() < 0.7) : (Math.random() < 0.4));
       const baseFlockStrength = groupIsFlocker ? randomRange(0.35, 0.6) : 0;
 
       for (let i = 0; i < count; i++) {
