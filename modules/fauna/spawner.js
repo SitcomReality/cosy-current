@@ -235,6 +235,21 @@ export function createSpawner(game, noise, state) {
           wavePhase = Math.random() * Math.PI * 2;
         }
 
+        // Introduce slight per-creature variation in wave amplitude/frequency and speed
+        // Groups share a base tendency but each member gets a small jitter so they don't sync.
+        const baseWaveAmp = 1.0;
+        const baseWaveFreq = 1.0;
+        let waveAmpMult = baseWaveAmp * (0.85 + Math.random() * 0.3);   // ~0.85..1.15
+        let waveFreqMult = baseWaveFreq * (0.9 + Math.random() * 0.25);  // ~0.9..1.15
+        // If part of a group, bias members to be closer to 1.0 but still jitter
+        if (groupId) {
+          waveAmpMult = baseWaveAmp * (0.95 + (Math.random() - 0.5) * 0.12);
+          waveFreqMult = baseWaveFreq * (0.98 + (Math.random() - 0.5) * 0.06);
+        }
+
+        // Speed multiplier for slight variability in cruising speed (affects c.speedMult in behavior)
+        const spawnSpeedMult = 0.92 + Math.random() * 0.16; // ~0.92..1.08
+
         addCreature(poolName, {
           x: sx + ox,
           y: sy + oy,
@@ -243,6 +258,7 @@ export function createSpawner(game, noise, state) {
           angle: Math.random() * Math.PI * 2,
           targetAngle: Math.random() * Math.PI * 2,
           speed: def.speed * randomRange(0.8, 1.2),
+          baseSpeed: def.speed,             // keep base for reference
           turnRate: def.turnRate,
           size: def.size,
           color: baseColor,
@@ -257,7 +273,10 @@ export function createSpawner(game, noise, state) {
           // Flocking / schooling metadata
           isFlocker: groupIsFlocker,
           flockStrength: baseFlockStrength,
-          wavePhase // <-- attach phase for flowFollow to use
+          wavePhase,                       // <-- attach phase for flowFollow to use
+          waveAmpMult,                     // <-- per-creature amplitude multiplier
+          waveFreqMult,                    // <-- per-creature frequency multiplier
+          spawnSpeedMult                   // <-- per-creature cruising speed bias
         });
       }
     }

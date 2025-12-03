@@ -11,13 +11,20 @@ export function applyFlowFollow(c, dt, noise) {
 
   // 2. Wavy Motion (Sinusoidal offset)
   // Varies by creature ID or explicit per-creature wavePhase to desync group oscillations
-  const waveFreq = 2.5;
+  const baseWaveFreq = 2.5;
   // Prefer an explicit per-creature phase if available (set at spawn), otherwise fall back
   const phaseFromId = (c.id && c.id.length) ? (c.id.charCodeAt(0) % 10) : 0;
   const wavePhase = (typeof c.wavePhase === 'number') ? c.wavePhase : phaseFromId;
+
+  // Use per-creature frequency multiplier if present
+  const waveFreq = baseWaveFreq * (typeof c.waveFreqMult === 'number' ? c.waveFreqMult : 1.0);
   const waveVal = Math.sin(c.life * waveFreq + wavePhase);
+
   // Amplitude reduces when near banks to prevent accidental beaching
-  const safeAmplitude = 0.8 * Math.max(0, 1.0 - r.value);
+  const baseAmp = 0.8 * Math.max(0, 1.0 - r.value);
+  // Apply per-creature amplitude multiplier if provided
+  const ampMult = (typeof c.waveAmpMult === 'number') ? c.waveAmpMult : 1.0;
+  const safeAmplitude = baseAmp * ampMult;
   target += waveVal * safeAmplitude;
 
   // 3. Look-ahead Avoidance (Whiskers)
@@ -77,5 +84,11 @@ export function applyFlowFollow(c, dt, noise) {
 
   // Modulate speed based on turn sharpness to simulate physics
   const turnStress = Math.abs(shortestAngleDiff(c.angle, target));
-  c.speedMult = Math.max(0.5, 1.0 - (turnStress * 0.5));
+  // Base speedMult from turning stress
+  let computedSpeedMult = Math.max(0.5, 1.0 - (turnStress * 0.5));
+  // Allow spawn-provided cruising bias to gently diversify group speeds
+  if (typeof c.spawnSpeedMult === 'number') {
+    computedSpeedMult *= c.spawnSpeedMult;
+  }
+  c.speedMult = computedSpeedMult;
 }
