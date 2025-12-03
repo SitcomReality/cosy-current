@@ -84,7 +84,7 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
   } else if (type === 'kelp') {
     size *= 0.8; // slightly smaller deep kelp
   } else {
-    // seagrass keeps original max size
+    // seagrass keeps original max size for its species
     size *= 1.0;
   }
 
@@ -94,17 +94,16 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
   const scaleJitter = 0.75 + rand01 * 0.7; // ~0.75..1.45
   size *= scaleJitter;
 
-  // Asymmetrical species get a small random rotation so clumps aren't identical
-  let rotation = 0;
-  if (type === 'kelp' || type === 'seagrass') {
-    const r2 = (Math.sin(basePhase * 4.11 + tx * 0.21 - ty * 0.33) + 1) * 0.5;
-    const maxRot = 0.5; // radians, ~28°
-    rotation = (r2 - 0.5) * 2 * maxRot;
-  }
+  // Horizontal flip chance for asymmetrical species; keep everything visually upright.
+  // Use deterministic pseudo-random so flipping is stable per plant.
+  const randFlip = (Math.sin(basePhase * 5.03 + tx * 0.91 - ty * 0.27) + 1) * 0.5; // 0..1
+  const flipX = (type === 'kelp' || type === 'seagrass') && randFlip > 0.5 ? -1 : 1;
 
   ctx.save();
   ctx.translate(sx, sy);
-  if (rotation !== 0) ctx.rotate(rotation);
+  if (flipX === -1) {
+    ctx.scale(-1, 1);
+  }
 
   // Draw Geometry (all straight-edged, no curves/rounded shapes)
   if (type === 'reeds') {
@@ -134,19 +133,33 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
     }
   } else if (type === 'kelp') {
     // Tall jagged ribbon made from straight segments, no curves
-    const segments = 5;
-    const totalH = size;
-    const segmentH = totalH / segments;
-    const baseW = size * 0.16;
+    // Introduce more shape variability using pseudo-random parameters derived from basePhase/position.
+    const randSeg = (Math.sin(basePhase * 4.21 + tx * 0.19 + ty * 0.31) + 1) * 0.5; // 0..1
+    const randW = (Math.sin(basePhase * 2.77 - tx * 0.13 + ty * 0.47) + 1) * 0.5;
+    const randH = (Math.sin(basePhase * 6.13 + tx * 0.07 - ty * 0.29) + 1) * 0.5;
 
-    // Build a zig-zag spine
+    const segments = 4 + Math.floor(randSeg * 3);        // 4–6 segments
+    const totalH = size * (0.9 + randH * 0.4);           // slight height variance
+    const segmentH = totalH / segments;
+    const baseW = size * (0.12 + randW * 0.07);          // subtle width variation
+
+    // Build a jagged, less-regular spine; combine a few straight-edged "kinks".
     const spine = [];
     for (let i = 0; i <= segments; i++) {
       const u = i / segments;
       const y = -u * totalH;
-      const sway = (Math.sin(basePhase * 2.3 + u * Math.PI * 1.4) * 0.5 +
-                    Math.sin(basePhase * 1.1 + u * Math.PI * 2.1) * 0.3);
-      const x = sway * baseW * 1.5;
+
+      // Combine a couple of phase-shifted waves with randomized strengths to avoid identical bends.
+      const swayBase = Math.sin(basePhase + u * Math.PI * (1.2 + randSeg * 0.6));
+      const swayDetail = Math.sin(basePhase * 1.7 + u * Math.PI * (2.0 + randW * 0.8));
+      const swayStepped = (Math.floor((u * 4 + randH * 3)) % 2 === 0 ? 1 : -1); // coarse step for harsher kinks
+
+      const sway =
+        swayBase * (0.25 + randSeg * 0.35) +
+        swayDetail * (0.15 + randW * 0.25) +
+        swayStepped * 0.15;
+
+      const x = sway * baseW * 1.6;
       spine.push({ x, y });
     }
 
@@ -165,9 +178,10 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
       nx /= nLen;
       ny /= nLen;
 
-      // Slight taper towards tip
+      // Slight taper towards tip and slightly thicker mid-body for a leaf-like silhouette
       const t = i / (spine.length - 1);
-      const thickness = baseW * (0.7 + (1 - t) * 0.6);
+      const midBias = 1.0 - Math.abs(t - 0.5) * 1.2; // fuller in the middle
+      const thickness = baseW * (0.6 + (1 - t) * 0.5) * (0.8 + midBias * 0.4);
 
       left.push({ x: p.x + nx * thickness, y: p.y + ny * thickness });
       right.push({ x: p.x - nx * thickness, y: p.y - ny * thickness });
@@ -191,8 +205,8 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
     for (let i = 0; i < shardCount; i++) {
       const idx = 1 + Math.floor((spine.length - 3) * (i / (shardCount - 1 || 1)));
       const p = spine[idx];
-      const shardLen = baseW * 0.9;
-      const shardWid = baseW * 0.6;
+      const shardLen = baseW * (0.7 + randW * 0.5);
+      const shardWid = baseW * (0.5 + randSeg * 0.4);
       const dir = (i % 2 === 0) ? 1 : -1;
 
       ctx.beginPath();
@@ -203,7 +217,7 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
       ctx.fill();
     }
   } else {
-    // Seagrass: small fan of straight blades forming angular polygons
+    // Seagrass: small fan of straight blades forming angular polygons, always upright
     const blades = 5;
     const baseLen = size * 0.7;
     const spread = Math.PI / 3; // total angular spread for the fan
