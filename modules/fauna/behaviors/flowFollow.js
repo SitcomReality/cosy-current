@@ -15,7 +15,7 @@ export function applyFlowFollow(c, dt, noise) {
   const wavePhase = (c.id.charCodeAt(0) % 10);
   const waveVal = Math.sin(c.life * waveFreq + wavePhase);
   // Amplitude reduces when near banks to prevent accidental beaching
-  const safeAmplitude = 0.5 * Math.max(0, 1.0 - r.value);
+  const safeAmplitude = 0.8 * Math.max(0, 1.0 - r.value);
   target += waveVal * safeAmplitude;
 
   // 3. Look-ahead Avoidance (Whiskers)
@@ -40,15 +40,15 @@ export function applyFlowFollow(c, dt, noise) {
     const diff = vL - vR;
     // If vL > vR (Left is shallower), diff > 0. We want to turn Right (increase angle).
     // If vR > vL (Right is shallower), diff < 0. We want to turn Left (decrease angle).
-    const urgency = Math.max(0.5, (r.value - 0.2) * 2.0);
+    const urgency = Math.max(0.1, (r.value - 0.3) * 1.5);
     target += diff * urgency * 1.5;
   }
 
   // 4. Gradient Descent (Emergency Center Bias)
   // If very close to bank, override with direct center vector
-  if (r.value > 0.5) {
+  if (r.value > 0.7) {
     const deepAngle = getCenterAngleAt(noise, c.x, c.y); // toward deeper water
-    const blend = Math.max(0, Math.min(1, (r.value - 0.5) * 3.0));
+    const blend = Math.max(0, Math.min(0.6, (r.value - 0.7) * 2.0));
     // Blend current target with deepAngle
     target = normalizeAngle(target + shortestAngleDiff(target, deepAngle) * blend);
   }
