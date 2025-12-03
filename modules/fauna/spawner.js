@@ -15,6 +15,22 @@ export function createSpawner(game, noise) {
     [POOL_LAND]: 0,
     [POOL_AIR]: 0
   };
+  
+  // Helper: estimate fraction of water tiles in a circular area around player
+  function estimateWaterCoverage(player, sampleRadius, sampleCount = 80) {
+    let water = 0;
+    for (let i = 0; i < sampleCount; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * sampleRadius;
+      const sx = player.x + Math.cos(a) * r;
+      const sy = player.y + Math.sin(a) * r;
+      const tile = game.getTile(Math.floor(sx), Math.floor(sy));
+      if (tile === undefined) continue;
+      const rinfo = noise.getRiverSystem(sx, sy);
+      if (rinfo.value < 1.0 || tile === game.CONSTANTS.TILE_WATER) water++;
+    }
+    return Math.max(0, Math.min(1, water / sampleCount));
+  }
 
   function getWeightedRandomType(poolName, dayTime) {
     const isNight = dayTime < 0.2 || dayTime > 0.8;
@@ -170,7 +186,18 @@ export function createSpawner(game, noise) {
        if (timers[poolName] >= cfg.interval) {
          timers[poolName] = 0;
          if (pools[poolName].length < cfg.cap) {
-           attemptSpawn(poolName, player, dayTime, addCreature);
+           // If water pool, bias spawn attempts by how much nearby view is water
+           if (poolName === POOL_WATER) {
+             // Estimate water coverage within player's view distance (use pool distance as radius)
+             const coverage = estimateWaterCoverage(player, cfg.distance);
+             // coverage in [0..1] — convert to spawn chance: low baseline, scale up with coverage
+             const spawnChance = Math.max(0.15, 0.15 + coverage * 0.85); // 0.15..1.0
+             if (Math.random() < spawnChance) {
+               attemptSpawn(poolName, player, dayTime, addCreature);
+             }
+           } else {
+             attemptSpawn(poolName, player, dayTime, addCreature);
+           }
          }
        }
     }

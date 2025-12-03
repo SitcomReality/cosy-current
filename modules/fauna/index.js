@@ -9,6 +9,7 @@ export function createFaunaSystem({ state, game, noise }) {
     [POOL_AIR]: []
   };
 
+  // Pass state to spawner so it can sample around player/view if needed
   const spawner = createSpawner(game, noise);
   const DESPAWN_DIST = 130;
 
