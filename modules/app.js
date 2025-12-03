@@ -3,7 +3,8 @@ import { createRenderer } from './renderer/index.js';
 import { createUI } from './ui.js';
 import { createNoiseEngine } from './noise.js';
 import { createGame } from './game.js';
-import { createFaunaSystem } from './fauna.js';
+// Change import to the new modular system entry point
+import { createFaunaSystem } from './fauna/index.js';
 
 export function initApp({ canvas, controls }) {
   const state = createAppState();
