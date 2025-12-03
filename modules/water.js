@@ -78,13 +78,13 @@ export function createWaterEffects({ state, game, noise }) {
 
   // Generate shoreline waves at banks
   function updateShorelineWaves(dt) {
-    // Spawn new waves occasionally
-    if (Math.random() < dt * 0.5) {
+    // Spawn new waves more frequently and scan more positions for shorelines
+    if (Math.random() < dt * 1.2) { // increased from 0.5 -> 1.2
       const p = state.player;
       // Find nearby bank / water-edge tiles
-      const searchRadius = 20;
-      for (let dy = -searchRadius; dy <= searchRadius; dy += 2) {
-        for (let dx = -searchRadius; dx <= searchRadius; dx += 2) {
+      const searchRadius = 24; // slightly larger search radius (was 20)
+      for (let dy = -searchRadius; dy <= searchRadius; dy += 1) { // denser scan (step 2 -> 1)
+        for (let dx = -searchRadius; dx <= searchRadius; dx += 1) { // denser scan
           const tx = Math.floor(p.x + dx);
           const ty = Math.floor(p.y + dy);
 
@@ -92,7 +92,7 @@ export function createWaterEffects({ state, game, noise }) {
 
           // We want waves drawn just inside the water along the shore
           if (tile === game.CONSTANTS.TILE_WATER) {
-            // Check if adjacent to bank land
+            // Check if adjacent to bank / land
             const hasBank = [
               game.getTile(tx - 1, ty),
               game.getTile(tx + 1, ty),
@@ -100,20 +100,20 @@ export function createWaterEffects({ state, game, noise }) {
               game.getTile(tx, ty + 1)
             ].some(t => t === game.CONSTANTS.TILE_BANK);
 
-            if (hasBank && Math.random() < 0.08) {
+            if (hasBank && Math.random() < 0.18) { // higher spawn chance at a shoreline (was 0.08)
               // Spawn a wave segment in water at the shoreline
               const angle = Math.random() * Math.PI * 2;
-              const length = MIN_LINE_LENGTH * (0.5 + Math.random() * 1.5);
-
+              const length = MIN_LINE_LENGTH * (0.8 + Math.random() * 2.0); // slightly longer
+              
               shorelineWaves.push({
                 x: tx + Math.random(),
                 y: ty + Math.random(),
                 angle: angle,
                 length: length,
-                width: 0.5 + Math.random(),
-                life: 1.5,
-                maxLife: 1.5,
-                opacity: 0.3
+                width: 0.6 + Math.random() * 1.2, // wider base width (was 0.5 + Math.random())
+                life: 2.5,    // longer life (was 1.5)
+                maxLife: 2.5,
+                opacity: 0.45 + Math.random() * 0.25 // stronger opacity (was 0.3)
               });
             }
           }
@@ -196,8 +196,12 @@ export function createWaterEffects({ state, game, noise }) {
       const endX = screenX + Math.cos(wave.angle) * wave.length * tileSize;
       const endY = screenY + Math.sin(wave.angle) * wave.length * tileSize;
 
-      ctx.strokeStyle = `rgba(200, 230, 255, ${wave.opacity * fade})`;
-      ctx.lineWidth = wave.width;
+      // Make stroke width scale to screen pixels and smaller than full tile to look wave-like
+      // previous code used wave.width directly which is in "tiles" - scale to pixels.
+      const pixelLineWidth = Math.max(1, wave.width * tileSize * 0.06); // tuned multiplier
+
+      ctx.strokeStyle = `rgba(200, 230, 255, ${Math.min(1, wave.opacity * fade)})`;
+      ctx.lineWidth = pixelLineWidth;
       ctx.beginPath();
       ctx.moveTo(screenX, screenY);
       ctx.lineTo(endX, endY);
