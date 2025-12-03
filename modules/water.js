@@ -102,7 +102,12 @@ export function createWaterEffects({ state, game, noise }) {
 
             if (hasBank && Math.random() < 0.18) { // higher spawn chance at a shoreline (was 0.08)
               // Spawn a wave segment in water at the shoreline
-              const angle = Math.random() * Math.PI * 2;
+              // Derive a wave angle from local river flow so waves run roughly parallel
+              // to the channel. Add a small jitter so they don't look perfectly uniform.
+              const rinfo = noise.getRiverSystem(tx + 0.5, ty + 0.5);
+              // Flow angle used elsewhere: tangent to gradient -> atan2(gx, -gy)
+              const flowAngle = Math.atan2(rinfo.gx, -rinfo.gy);
+              const angle = flowAngle + (Math.random() - 0.5) * 0.4; // ±~0.2 rad jitter
               const length = MIN_LINE_LENGTH * (0.8 + Math.random() * 2.0); // slightly longer
               
               shorelineWaves.push({
