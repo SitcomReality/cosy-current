@@ -274,30 +274,108 @@ function drawBird(ctx, c, size, cycle) {
 }
 
 function drawDeer(ctx, c, size) {
+  // Stylized straight-edged deer: compact triangular body, kite-shaped head, and angular antlers.
+  // All geometry uses straight lines and flat fills to match the rigid aesthetic.
+
+  // Body parameters
+  const bodyLen = size * 0.9;
+  const bodyWid = size * 0.6;
+  const halfLen = bodyLen * 0.5;
+  const halfWid = bodyWid * 0.5;
+
+  // Head parameters (kite / diamond shape attached to front)
+  const headLen = size * 0.45;
+  const headWid = size * 0.32;
+
+  // Antler parameters
+  const antlerLen = size * 0.45;
+  const antlerBranch = size * 0.18;
+
+  ctx.save();
+  ctx.translate(0, 0);
+  ctx.rotate(c.angle);
+
+  // Body: a simple forward-pointing trapezoid (flat-shaded)
   ctx.fillStyle = c.color;
   ctx.beginPath();
-  ctx.moveTo(size * 0.4, -size * 0.3);
-  ctx.lineTo(size * 0.4, size * 0.3);
-  ctx.lineTo(-size * 0.5, size * 0.4);
-  ctx.lineTo(-size * 0.5, -size * 0.4);
+  ctx.moveTo(halfLen, 0);                         // front tip
+  ctx.lineTo(-halfLen + halfLen * 0.25, -halfWid); // back-top
+  ctx.lineTo(-halfLen, 0);                        // back center
+  ctx.lineTo(-halfLen + halfLen * 0.25, halfWid);  // back-bottom
   ctx.closePath();
   ctx.fill();
 
+  // Back patch / rump as slightly darker inset polygon
+  ctx.fillStyle = shadeColor(c.color, -12);
   ctx.beginPath();
-  ctx.moveTo(size * 0.4, -size * 0.1);
-  ctx.lineTo(size * 0.7, -size * 0.2);
-  ctx.lineTo(size * 0.4, size * 0.1);
+  ctx.moveTo(-halfLen + halfLen * 0.25, -halfWid * 0.6);
+  ctx.lineTo(-halfLen + halfLen * 0.05, 0);
+  ctx.lineTo(-halfLen + halfLen * 0.25, halfWid * 0.6);
   ctx.closePath();
   ctx.fill();
 
-  ctx.strokeStyle = c.color;
-  ctx.lineWidth = Math.max(1, size * 0.08);
+  // Head: kite (diamond) attached to front-left of body (pointing forward)
+  const headX = halfLen + headLen * 0.0;
+  const headY = 0;
+  ctx.fillStyle = c.color;
   ctx.beginPath();
-  ctx.moveTo(size * 0.6, -size * 0.2);
-  ctx.lineTo(size * 0.75, -size * 0.5);
-  ctx.moveTo(size * 0.65, -size * 0.2);
-  ctx.lineTo(size * 0.85, -size * 0.45);
+  ctx.moveTo(headX + headLen * 0.5, headY);            // front tip
+  ctx.lineTo(headX, headY - headWid * 0.6);            // top
+  ctx.lineTo(headX - headLen * 0.5, headY);            // rear tip (joins body)
+  ctx.lineTo(headX, headY + headWid * 0.6);            // bottom
+  ctx.closePath();
+  ctx.fill();
+
+  // Eye: small square (rigid)
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.fillRect(headX + headLen * 0.15 - 1, headY - 2, 3, 3);
+
+  // Antlers: angular, mirrored lines from top of head
+  ctx.strokeStyle = shadeColor(c.color, -30);
+  ctx.lineWidth = Math.max(1, size * 0.06);
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  // Left antler
+  ctx.moveTo(headX, headY - headWid * 0.6);
+  ctx.lineTo(headX - antlerLen * 0.2, headY - antlerLen * 0.6);
+  ctx.lineTo(headX - antlerLen * 0.45, headY - antlerLen * 0.35);
+  ctx.moveTo(headX - antlerLen * 0.15, headY - antlerLen * 0.35);
+  ctx.lineTo(headX - antlerLen * 0.55, headY - antlerLen * 0.05);
+
+  // Right antler (mirrored)
+  ctx.moveTo(headX, headY - headWid * 0.6);
+  ctx.lineTo(headX + antlerLen * 0.2, headY - antlerLen * 0.6);
+  ctx.lineTo(headX + antlerLen * 0.45, headY - antlerLen * 0.35);
+  ctx.moveTo(headX + antlerLen * 0.15, headY - antlerLen * 0.35);
+  ctx.lineTo(headX + antlerLen * 0.55, headY - antlerLen * 0.05);
+
   ctx.stroke();
+
+  // Tail: small rigid wedge at back
+  ctx.fillStyle = shadeColor(c.color, -8);
+  ctx.beginPath();
+  ctx.moveTo(-halfLen, 0);
+  ctx.lineTo(-halfLen - size * 0.12, -size * 0.08);
+  ctx.lineTo(-halfLen - size * 0.12, size * 0.08);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// Small helper: darken/lighten hex-ish color a bit (expects '#rrggbb' or already rgba)
+function shadeColor(col, amt) {
+  // Fast path for rgba strings: return unchanged if not hex
+  if (!col || col[0] !== '#') return col;
+  const num = parseInt(col.slice(1), 16);
+  let r = (num >> 16) + amt;
+  let g = ((num >> 8) & 0x00FF) + amt;
+  let b = (num & 0x0000FF) + amt;
+  r = Math.max(0, Math.min(255, r));
+  g = Math.max(0, Math.min(255, g));
+  b = Math.max(0, Math.min(255, b));
+  const rr = (r << 16) | (g << 8) | b;
+  return `#${rr.toString(16).padStart(6, '0')}`;
 }
 
 function drawCritter(ctx, c, size) {
