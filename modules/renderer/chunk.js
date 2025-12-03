@@ -131,7 +131,8 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
              hMult = 0.6;
           } else {
              // Deep: Kelp
-             chance = 0.08;
+             // Reduce kelp frequency to ~1/3 of previous rate
+             chance = 0.026;
              type = 'kelp';
              hMult = 1.2;
           }
