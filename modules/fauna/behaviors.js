@@ -6,9 +6,6 @@ export function updateCreatureBehavior(c, dt, noise, game) {
   c.wanderTimer -= dt;
   if (c.wanderTimer < 0) c.wanderTimer = 0;
 
-  // Track how long this creature has been in a "shore contact" state
-  if (c._shoreContactTime == null) c._shoreContactTime = 0;
-
   // 1. Determine Target Angle based on behavior
   const behavior = c.def.behavior || 'wander';
 
@@ -126,9 +123,6 @@ function applyFlowFollow(c, dt, noise) {
       // Proper angle interpolation: combine weighted contributions
       // Use slerp-like mix via weighted average then normalize
       target = normalizeAngle(target * (1 - blend) + deepAngle * blend);
-      // Also apply a small immediate nudge away from shore to reduce beaching
-      c.x += Math.cos(deepAngle) * 0.035;
-      c.y += Math.sin(deepAngle) * 0.035;
     }
 
     // Optional mild flocking / schooling bias:
@@ -159,88 +153,66 @@ function applyFlowFollow(c, dt, noise) {
 }
 
 function enforceBoundaries(c, dt, noise, game) {
-  const lookAhead = 1.6; // look a bit farther ahead so creatures detect shore sooner and can turn smoothly
+  // Predictive lookahead for steering
+  const lookAhead = 1.6; 
   const nx = c.x + Math.cos(c.angle) * lookAhead;
   const ny = c.y + Math.sin(c.angle) * lookAhead;
 
-  const river = noise.getRiverSystem(nx, ny);
-  const isWater = river.value < 1.0;
+  const rAhead = noise.getRiverSystem(nx, ny);
+  const isAheadWater = rAhead.value < 1.0;
+  
+  // Current position check for actual collision/separation
+  const rCurr = noise.getRiverSystem(c.x, c.y);
 
   const pool = c.def.pool;
 
   if (pool === 'water') {
-    // Gentle pre-avoidance while still in water: if the sampled point ahead is very shallow,
-    // blend the heading slightly back toward deeper water to avoid abrupt wall hits.
-    if (isWater && river.value > 0.8) {
+    // 1. Gentle pre-avoidance steering while still in water
+    if (rCurr.value > 0.8 && rCurr.value < 1.0) {
       // Gradient points from deep -> shallow; opposite is deeper.
-      const deepAngle = Math.atan2(-river.gy, -river.gx);
-      const shallowFactor = Math.min(1, Math.max(0, (river.value - 0.8) * 3)); // 0..1
+      const deepAngle = Math.atan2(-rCurr.gy, -rCurr.gx);
+      const shallowFactor = Math.min(1, Math.max(0, (rCurr.value - 0.8) * 3)); // 0..1
       const blend = 0.3 * shallowFactor; // up to 30% influence
       c.targetAngle = normalizeAngle(
         c.targetAngle * (1 - blend) + deepAngle * blend
       );
     }
 
-    if (!isWater) {
-      // Smooth corrective steering: find a direction back to water, then blend toward it
-      // instead of snapping instantly.
-      const found = findNearbyWaterDirection(c.x, c.y, noise, 8); // search farther
-      let avoidAngle;
-      if (found !== null) {
-        avoidAngle = found;
-      } else {
-        // Fallback: reflect away from gradient (try opposite of land normal)
-        avoidAngle = normalizeAngle(Math.atan2(-river.gy, -river.gx));
-      }
+    // 2. Predictive Avoidance: If heading towards land
+    if (!isAheadWater) {
+      // Find a direction back to water
+      const found = findNearbyWaterDirection(c.x, c.y, noise, 8);
+      const avoidAngle = found !== null ? found : normalizeAngle(Math.atan2(-rCurr.gy, -rCurr.gx));
 
-      const boundaryBlend = 0.55; // strong but not instant turn
+      // Strong corrective steering
+      const boundaryBlend = 0.75; 
       c.targetAngle = normalizeAngle(
         c.targetAngle * (1 - boundaryBlend) + avoidAngle * boundaryBlend
       );
+    }
+    
+    // 3. Reactive Collision: If actually touching the bank threshold
+    // Use 0.95 as "touching bank" threshold
+    if (rCurr.value >= 0.95) {
+       const found = findNearbyWaterDirection(c.x, c.y, noise, 8);
+       const avoidAngle = found !== null ? found : normalizeAngle(Math.atan2(-rCurr.gy, -rCurr.gx));
 
-      // Nudge position gently back toward water to keep them from walking on sand,
-      // but with a smaller step so motion looks smooth.
-      let nudge = 0.14;
-
-      // If a creature has been pressing against the shore for a while, apply a stronger
-      // corrective push and snap its heading more decisively away to break jitter loops.
-      c._shoreContactTime = (c._shoreContactTime || 0) + dt;
-      const stuckThreshold = 0.8; // seconds of continuous shore contact
-      if (c._shoreContactTime > stuckThreshold) {
-        const angleToAvoid = avoidAngle;
-        const facingIntoShore = Math.abs(shortestAngleDiff(c.angle, angleToAvoid)) < Math.PI * 0.45;
-        if (facingIntoShore) {
-          // Force the creature to commit to the escape direction
-          c.angle = c.targetAngle = angleToAvoid;
-          // Stronger push straight back into deeper water
-          nudge = 0.32;
-          // Small lateral jitter to dislodge from corners
-          const lateral = 0.15;
-          const side = Math.random() < 0.5 ? -1 : 1;
-          const lateralAngle = angleToAvoid + side * Math.PI * 0.5;
-          c.x += Math.cos(lateralAngle) * lateral;
-          c.y += Math.sin(lateralAngle) * lateral;
-          // Give it a bit more speed so it actually escapes
-          c.speedMult = Math.max(1.1, c.speedMult || 1.0);
-          // Reset wander so it doesn't immediately re-pick a bad direction
-          c.wanderTimer = Math.max(c.wanderTimer, 0.8);
-        }
-      }
-
-      c.x += Math.cos(avoidAngle) * nudge;
-      c.y += Math.sin(avoidAngle) * nudge;
-
-      // Ensure they aren't artificially slowed while escaping shallow edges
-      c.speedMult = Math.max(1.0, c.speedMult || 1.0);
-    } else {
-      // Relax shore contact timer when safely over water
-      if (c._shoreContactTime && c._shoreContactTime > 0) {
-        c._shoreContactTime = Math.max(0, c._shoreContactTime - dt * 2);
-      }
+       // Physical nudge (separation) - keeps them out of the wall
+       const nudge = 0.15;
+       c.x += Math.cos(avoidAngle) * nudge;
+       c.y += Math.sin(avoidAngle) * nudge;
+       
+       // Visual deflection: rotate actual angle partially to match avoidance immediately
+       // This prevents the "stuck facing wall" jitter where they wait for turn rate to rotate them
+       const diff = shortestAngleDiff(c.angle, avoidAngle);
+       c.angle = normalizeAngle(c.angle + diff * 0.25);
+       
+       // Ensure speed isn't stuck
+       c.speedMult = Math.max(1.0, c.speedMult || 1.0);
     }
   } else if (pool === 'land') {
     // Bounce off water and prefer nearby land tiles
-    if (isWater) {
+    if (isAheadWater) {
       const foundLand = findNearbyLandDirection(c.x, c.y, noise, 6);
       if (foundLand !== null) {
         c.targetAngle = foundLand;
@@ -248,7 +220,7 @@ function enforceBoundaries(c, dt, noise, game) {
         c.y += Math.sin(foundLand) * 0.12;
       } else {
         // If we can't find land, follow gradient back to land
-        c.targetAngle = normalizeAngle(Math.atan2(river.gy, river.gx));
+        c.targetAngle = normalizeAngle(Math.atan2(rAhead.gy, rAhead.gx));
       }
       c.angle = c.targetAngle; // snap to avoid repeated entering water
     }
