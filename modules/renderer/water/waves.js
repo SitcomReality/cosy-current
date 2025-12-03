@@ -39,6 +39,11 @@ export function createWaveSystem(game, noise) {
             const angle = flowAngle + (Math.random() - 0.5) * 0.3; // small jitter
             
             const length = MIN_LINE_LENGTH * (0.8 + Math.random() * 2.0);
+
+            // Movement: choose whether wave moves inward (towards deeper river) or outward (towards bank)
+            const dirSign = Math.random() < 0.5 ? -1 : 1; // -1 = toward gradient perp negative, 1 = opposite
+            // Max offset in tiles (world units). Small values so motion is subtle.
+            const maxOffsetTiles = 0.2 + Math.random() * 1.2;
             
             shorelineWaves.push({
               x: wx + (Math.random() - 0.5),
@@ -48,7 +53,10 @@ export function createWaveSystem(game, noise) {
               width: 0.6 + Math.random() * 1.2,
               life: 2.5,
               maxLife: 2.5,
-              opacity: 0.45 + Math.random() * 0.25
+              opacity: 0.45 + Math.random() * 0.25,
+              // New movement properties:
+              dirSign,
+              maxOffsetTiles
             });
           }
         }
@@ -77,16 +85,35 @@ export function createWaveSystem(game, noise) {
       if (screenX < -50 || screenX > state.width + 50 || 
           screenY < -50 || screenY > state.height + 50) return;
 
+      // Compute how far along the life the wave is (0 at spawn, 1 at end)
+      const lifeProgress = 1 - (wave.life / wave.maxLife); // 0..1
+      // Ease-out (quadratic): eased = 1 - (1 - u)^2
+      const eased = 1 - Math.pow(1 - lifeProgress, 2);
+
+      // Compute perpendicular (unit) to the wave's angle to move the line sideways
+      const perpX = Math.cos(wave.angle + Math.PI / 2);
+      const perpY = Math.sin(wave.angle + Math.PI / 2);
+
+      // Convert maxOffset from tiles -> pixels and apply direction and easing
+      const offsetPixels = wave.maxOffsetTiles * tileSize * wave.dirSign * eased;
+
+      // Start and end points for the base line (before perpendicular shift)
       const endX = screenX + Math.cos(wave.angle) * wave.length * tileSize;
       const endY = screenY + Math.sin(wave.angle) * wave.length * tileSize;
+
+      // Shift both endpoints along perpendicular by offsetPixels so the entire line translates
+      const sx = screenX + perpX * offsetPixels;
+      const sy = screenY + perpY * offsetPixels;
+      const ex = endX + perpX * offsetPixels;
+      const ey = endY + perpY * offsetPixels;
 
       const pixelLineWidth = Math.max(1, wave.width * tileSize * 0.06);
 
       ctx.strokeStyle = `rgba(200, 230, 255, ${Math.min(1, wave.opacity * fade)})`;
       ctx.lineWidth = pixelLineWidth;
       ctx.beginPath();
-      ctx.moveTo(screenX, screenY);
-      ctx.lineTo(endX, endY);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
       ctx.stroke();
     });
   }
