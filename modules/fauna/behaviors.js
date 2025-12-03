@@ -114,12 +114,13 @@ function applyFlowFollow(c, dt, noise) {
     let target = normalizeAngle(flowAngle + wander);
 
     // Avoid shallow water actively: prefer deeper values (r.value small)
-    if (r.value > 0.6) {
+    // Stronger avoidance of shallow water: start correcting earlier and blend more strongly.
+    if (r.value > 0.5) {
       // Steer towards deep (0 value), which is opposite to gradient (gx, gy)
       const deepAngle = Math.atan2(-r.gy, -r.gx);
-      // Blend it in (favor deep when shallow)
-      const blend = Math.min(1, (r.value - 0.6) * 2.5); // 0..1
-      // Lerp angles properly
+      // Blend it in more aggressively so creatures move into deeper channel when near shore
+      const blend = Math.min(1, (r.value - 0.5) * 3.0); // greater sensitivity
+      // Proper angle interpolation: combine weighted contributions
       target = normalizeAngle(target * (1 - blend) + deepAngle * blend);
     }
 
@@ -190,7 +191,8 @@ function findNearbyWaterDirection(x, y, noise, maxRadius) {
       const sx = x + Math.cos(a) * r;
       const sy = y + Math.sin(a) * r;
       const info = noise.getRiverSystem(sx, sy);
-      if (info.value < 1.0) {
+      // Require a clearer interior water reading so we bias towards deeper spots
+      if (info.value < 0.8) {
         return Math.atan2(sy - y, sx - x);
       }
     }

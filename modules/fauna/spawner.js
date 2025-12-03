@@ -108,8 +108,10 @@ export function createSpawner(game, noise, state) {
     let valid = false;
 
     if (poolName === POOL_WATER) {
-      // Must be water, check depth
-      if (r.value < 0.9) { // slightly away from strict edge
+      // Prefer deeper water: require a clearer margin from shore to reduce beaching.
+      // Only spawn when the normalized river distance is comfortably inside the channel.
+      if (r.value < 0.8) { // stricter than before (0.9 -> 0.8)
+         // If creature has a preferred depth, ensure it's not too shallow for it.
          if (def.depth && r.value > (1.0 - def.depth)) {
              // Too shallow for this fish/eel
              valid = false;
