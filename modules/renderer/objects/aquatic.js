@@ -30,7 +30,55 @@ export function drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir) 
   if (lengthFactor <= 0.0001) return;
 
   const len = tileSize * h * lengthFactor * 1.2;
-  const tipX = sx + shadowDir.x * len;
+
+  // For kelp, compute a deterministic "base offset" (in pixels) that matches
+  // how drawAquaticPlant builds the spine so the shadow base lines up with the plant base.
+  let baseOffsetPxX = 0;
+  if (type === 'kelp') {
+    // Recreate the minimal pseudo-random parameters used when drawing kelp so we can
+    // estimate the horizontal offset of the first spine point (the base).
+    // This uses the same derivatives from prop.phase/pos as drawAquaticPlant.
+    const basePhase = typeof prop.phase === 'number' ? prop.phase : Math.random() * Math.PI * 2;
+    const txf = tx, tyf = ty;
+
+    const randSeg = (Math.sin(basePhase * 4.21 + txf * 0.19 + tyf * 0.31) + 1) * 0.5; // 0..1
+    const randW = (Math.sin(basePhase * 2.77 - txf * 0.13 + tyf * 0.47) + 1) * 0.5;
+    const randH = (Math.sin(basePhase * 6.13 + txf * 0.07 - tyf * 0.29) + 1) * 0.5;
+
+    // Recreate segments and sizes similar to drawAquaticPlant but only enough to get spine[0].x
+    const segments = 4 + Math.floor(randSeg * 3);        // 4–6 segments
+    // totalH in drawAquaticPlant before halving is: size * (0.9 + randH * 0.4)
+    // there they then halve it: totalH *= 0.5;
+    const sizePixels = (1.0 + 0.0) * h * tileSize; // approximate h->pixel mapping used there; keep factor 1.0
+    let totalH = sizePixels * (0.9 + randH * 0.4);
+    totalH *= 0.5; // match the reduced kelp height used in drawing
+    const baseW = sizePixels * (0.12 + randW * 0.07) * 0.5; // also halved like drawing
+
+    // Compute first spine point x (i === 0 in draw)
+    // In draw: const y = -u * totalH; for i=0 u=0 => y=0, then sway computed
+    const i = 0;
+    const u = i / segments; // 0
+    const swayBase = Math.sin(basePhase + u * Math.PI * (1.2 + randSeg * 0.6));
+    const swayDetail = Math.sin(basePhase * 1.7 + u * Math.PI * (2.0 + randW * 0.8));
+    const swayStepped = (Math.floor((u * 4 + randH * 3)) % 2 === 0 ? 1 : -1);
+    const sway =
+      swayBase * (0.25 + randSeg * 0.35) +
+      swayDetail * (0.15 + randW * 0.25) +
+      swayStepped * 0.15;
+    // spine x is sway * baseW * 1.6 in drawAquaticPlant
+    const spineX = sway * baseW * 1.6;
+
+    // Apply same flipX rule used in drawAquaticPlant for kelp (deterministic pseudo-random)
+    const randFlip = (Math.sin(basePhase * 5.03 + txf * 0.91 - tyf * 0.27) + 1) * 0.5; // 0..1
+    const flipX = randFlip > 0.5 ? -1 : 1;
+
+    baseOffsetPxX = spineX * flipX;
+  }
+
+  // Shift the shadow base horizontally by the computed base offset for kelp so shadow aligns with the plant base
+  const sxBase = sx + baseOffsetPxX;
+
+  const tipX = sxBase + shadowDir.x * len;
   const tipY = sy + shadowDir.y * len;
 
   // Base width varies by type
@@ -42,10 +90,10 @@ export function drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir) 
   const baseW = tileSize * h * baseFactor;
   const halfBaseW = baseW / 2;
 
-  // Draw simple triangle shadow on riverbed
+  // Draw simple triangle shadow on riverbed, using sxBase so kelp base aligns horizontally
   ctx.beginPath();
-  ctx.moveTo(sx - halfBaseW, sy);
-  ctx.lineTo(sx + halfBaseW, sy);
+  ctx.moveTo(sxBase - halfBaseW, sy);
+  ctx.lineTo(sxBase + halfBaseW, sy);
   ctx.lineTo(tipX, tipY);
   ctx.closePath();
   ctx.fill();
