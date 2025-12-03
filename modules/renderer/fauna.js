@@ -290,45 +290,114 @@ function drawFish(ctx, c, size) {
 function drawEel(ctx, c, size) {
   const segments = c.segmentCount || 4;
   const totalLen = size * 2.0;
-  const segLen = totalLen / segments;
+  const segLen = totalLen / Math.max(1, segments);
   // Reduced thickness to make eels sleeker
-  const thickness = size * 0.16;
+  const baseThickness = size * 0.16;
 
-  ctx.fillStyle = c.color;
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  // Slightly thinner outline for sleeker look
-  ctx.lineWidth = Math.max(1, size * 0.05);
-
+  // Build smooth spine points with per-segment sinusoidal offsets.
+  // The head is at +half totalLen, tail at -half totalLen in local coords.
+  const points = [];
+  const speedFactor = 3.8; // how fast the wave travels
+  const time = c.life * speedFactor;
+  const phaseOffset = 0.7; // phase difference between segments
+  const waveAmp = baseThickness * 2.2; // base amplitude
   for (let i = 0; i < segments; i++) {
-    const t = i / (segments - 1 || 1);
-    const centerX = -totalLen * 0.5 + segLen * (i + 0.5);
-
-    // Subtle sine wave along the body for a soft curve
-    const wavePhase = c.life * 4.0 + i * 0.6;
-    const offsetY = Math.sin(wavePhase) * thickness * 0.4;
-
-    const halfL = segLen * 0.5;
-    const halfT = thickness * (0.9 + 0.2 * (1 - t)); // slightly thicker near head
-
-    ctx.beginPath();
-    ctx.moveTo(centerX - halfL, offsetY - halfT);
-    ctx.lineTo(centerX + halfL, offsetY - halfT);
-    ctx.lineTo(centerX + halfL, offsetY + halfT);
-    ctx.lineTo(centerX - halfL, offsetY + halfT);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    const t = i / Math.max(1, segments - 1); // 0..1 along body
+    const x = -totalLen * 0.5 + segLen * (i + 0.5);
+    // Attenuate amplitude towards head so head is steadier and tail more wavy
+    const attenuation = 0.25 + 0.75 * (1 - t);
+    const phase = time + i * phaseOffset;
+    // Subtle, smooth offset along Y
+    const y = Math.sin(phase) * waveAmp * attenuation;
+    points.push({ x, y, t });
   }
 
-  // Simple head tip
-  const headX = totalLen * 0.5 - segLen * 0.2;
-  const headW = thickness * 1.1;
+  // To make body follow a smooth curve, interpolate additional intermediate points.
+  const smoothPts = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i];
+    const p1 = points[i + 1];
+    // push p0
+    smoothPts.push(p0);
+    // insert one mid-point for smoothing
+    smoothPts.push({
+      x: (p0.x + p1.x) * 0.5,
+      y: (p0.y + p1.y) * 0.5,
+      t: (p0.t + p1.t) * 0.5
+    });
+  }
+  smoothPts.push(points[points.length - 1]);
+
+  // Draw body: a thick rounded stroke along the spine for a flexible appearance
+  ctx.save();
+
+  // Main fill (slightly darker core)
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // Stroke for silhouette
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+  ctx.lineWidth = Math.max(1, baseThickness * 2.2);
   ctx.beginPath();
-  ctx.moveTo(headX, 0);
-  ctx.lineTo(headX - segLen * 0.4, -headW * 0.6);
-  ctx.lineTo(headX - segLen * 0.4, headW * 0.6);
-  ctx.closePath();
-  ctx.fill();
+  for (let i = 0; i < smoothPts.length; i++) {
+    const p = smoothPts[i];
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+
+  // Colored body stroke (slightly inset)
+  ctx.strokeStyle = c.color;
+  ctx.lineWidth = Math.max(1, baseThickness * 1.6);
+  ctx.beginPath();
+  for (let i = 0; i < smoothPts.length; i++) {
+    const p = smoothPts[i];
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+
+  // Fill with overlapping circles to give a smooth volumetric body that flexes
+  ctx.fillStyle = c.color;
+  for (let i = 0; i < smoothPts.length; i++) {
+    const p = smoothPts[i];
+    // Slight thickness taper from head (thinner) to mid-body then tail
+    // Use t to modulate radius so eel tapers naturally
+    const radius = baseThickness * (1.1 + 0.8 * (1 - p.t));
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Head: small triangular/rounded tip that follows the final point and orientation
+  // Compute head orient by looking at last two smooth points
+  if (smoothPts.length >= 2) {
+    const pA = smoothPts[smoothPts.length - 2];
+    const pB = smoothPts[smoothPts.length - 1];
+    const dx = pB.x - pA.x;
+    const dy = pB.y - pA.y;
+    const angle = Math.atan2(dy, dx);
+
+    ctx.translate(pB.x, pB.y);
+    ctx.rotate(angle);
+    const headLen = segLen * 0.5;
+    const headWid = baseThickness * 1.6;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(headLen, -headWid * 0.6);
+    ctx.lineTo(headLen, headWid * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = c.color;
+    ctx.fill();
+
+    // small eye/dot
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.arc(headLen * 0.25, -headWid * 0.15, Math.max(1, baseThickness * 0.25), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
 }
 
 function drawBird(ctx, c, size, cycle) {
