@@ -248,6 +248,9 @@ function drawEel(ctx, c, size) {
 function drawBird(ctx, c, size, cycle) {
   const flapPhase = Math.sin(c.life * 8);
   const wingSpan = size * 1.5;
+  // Attach wings to a forward-biased attachment point so triangle body and wings align symmetrically
+  const bodyLen = size * 0.9;
+  const wingAttachX = bodyLen * 0.05; // small forward offset so wings sit naturally on the body
   const wingY = size * 0.3 * flapPhase;
 
   ctx.strokeStyle = c.color;
@@ -255,16 +258,15 @@ function drawBird(ctx, c, size, cycle) {
   ctx.lineCap = 'round';
 
   ctx.beginPath();
-  ctx.moveTo(-wingSpan * 0.5, wingY);
-  ctx.lineTo(0, 0);
-  ctx.lineTo(wingSpan * 0.5, wingY);
+  ctx.moveTo(-wingSpan * 0.5 + wingAttachX, wingY);
+  ctx.lineTo(wingAttachX, 0);
+  ctx.lineTo(wingSpan * 0.5 + wingAttachX, wingY);
   ctx.stroke();
 
   // Replace circular body with a straight-edged triangular body
   ctx.fillStyle = c.color;
   ctx.beginPath();
-  // Triangle pointed forward (tip at front)
-  const bodyLen = size * 0.9;
+  // Triangle pointed forward (tip at front) centered so wings attach at same local x
   const bodyWid = Math.max(0.2, size * 0.6);
   ctx.moveTo(bodyLen * 0.5, 0);                    // front tip
   ctx.lineTo(-bodyLen * 0.5, -bodyWid * 0.5);      // back top
