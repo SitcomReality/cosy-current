@@ -7,13 +7,15 @@ export function drawCreature(ctx, c, screenX, screenY, size, cycle) {
 
   // Rotate the entire bird form by 90 degrees so wings and body are oriented together.
   // This replaces the previous per-bird internal rotation.
-  ctx.rotate(Math.PI / 2);
+  // ctx.rotate(Math.PI / 2);
 
   if (c.type === 'fish') {
     drawFish(ctx, c, size);
   } else if (c.type === 'eel') {
     drawEel(ctx, c, size);
   } else if (c.type === 'bird') {
+    // Apply the extra 90° rotation only to birds so other creatures stay aligned
+    ctx.rotate(Math.PI / 2);
     drawBird(ctx, c, size, cycle);
   } else if (c.type === 'deer') {
     drawDeer(ctx, c, size);
