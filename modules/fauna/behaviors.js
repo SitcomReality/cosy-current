@@ -156,7 +156,7 @@ function applyFlowFollow(c, dt, noise) {
 }
 
 function enforceBoundaries(c, dt, noise, game) {
-  const lookAhead = 1.2; // increase lookahead so creatures detect shore sooner
+  const lookAhead = 1.6; // look a bit farther ahead so creatures detect shore sooner and can turn smoothly
   const nx = c.x + Math.cos(c.angle) * lookAhead;
   const ny = c.y + Math.sin(c.angle) * lookAhead;
 
@@ -165,25 +165,45 @@ function enforceBoundaries(c, dt, noise, game) {
 
   const pool = c.def.pool;
 
-  if (pool === 'water' && !isWater) {
-    // Strong corrective steering: find nearest nearby water direction and steer there,
-    // and nudge position slightly back so creatures don't "walk" across land.
-    const found = findNearbyWaterDirection(c.x, c.y, noise, 8); // search farther
-    if (found !== null) {
-      c.targetAngle = found;
-      // Nudge back along that heading stronger so creatures move back into water quickly
-      c.x += Math.cos(found) * 0.25;
-      c.y += Math.sin(found) * 0.25;
-    } else {
-      // Fallback: reflect away from gradient (try opposite of land normal)
-      c.targetAngle = normalizeAngle(Math.atan2(-river.gy, -river.gx));
-      c.x += Math.cos(c.targetAngle) * 0.12;
-      c.y += Math.sin(c.targetAngle) * 0.12;
+  if (pool === 'water') {
+    // Gentle pre-avoidance while still in water: if the sampled point ahead is very shallow,
+    // blend the heading slightly back toward deeper water to avoid abrupt wall hits.
+    if (isWater && river.value > 0.8) {
+      // Gradient points from deep -> shallow; opposite is deeper.
+      const deepAngle = Math.atan2(-river.gy, -river.gx);
+      const shallowFactor = Math.min(1, Math.max(0, (river.value - 0.8) * 3)); // 0..1
+      const blend = 0.3 * shallowFactor; // up to 30% influence
+      c.targetAngle = normalizeAngle(
+        c.targetAngle * (1 - blend) + deepAngle * blend
+      );
     }
-    // Ensure no lingering slowed multiplier from any prior wander sub-behavior
-    c.speedMult = 1.0;
-    // Aggressively snap angle so we don't continue onto sand
-    c.angle = c.targetAngle;
+
+    if (!isWater) {
+      // Smooth corrective steering: find a direction back to water, then blend toward it
+      // instead of snapping instantly.
+      const found = findNearbyWaterDirection(c.x, c.y, noise, 8); // search farther
+      let avoidAngle;
+      if (found !== null) {
+        avoidAngle = found;
+      } else {
+        // Fallback: reflect away from gradient (try opposite of land normal)
+        avoidAngle = normalizeAngle(Math.atan2(-river.gy, -river.gx));
+      }
+
+      const boundaryBlend = 0.55; // strong but not instant turn
+      c.targetAngle = normalizeAngle(
+        c.targetAngle * (1 - boundaryBlend) + avoidAngle * boundaryBlend
+      );
+
+      // Nudge position gently back toward water to keep them from walking on sand,
+      // but with a smaller step so motion looks smooth.
+      const nudge = 0.14;
+      c.x += Math.cos(avoidAngle) * nudge;
+      c.y += Math.sin(avoidAngle) * nudge;
+
+      // Ensure they aren't artificially slowed while escaping shallow edges
+      c.speedMult = Math.max(1.0, c.speedMult || 1.0);
+    }
   } else if (pool === 'land') {
     // Bounce off water and prefer nearby land tiles
     if (isWater) {
