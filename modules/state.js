@@ -51,7 +51,7 @@ export function createAppState() {
     time: 0,
     
     // Day/Night Cycle
-    dayTime: 0.3, // 0..1 (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset)
+    dayTime: 0.25, // Start at 6:00 (0.25) for consistent morning start
     daySpeed: 0.01, // Portion of day per second (100s day)
 
     // Gameplay modifiers

@@ -27,9 +27,17 @@ export function createUI({ container, state, renderer, noise, game }) {
       // Small delay to allow display:flex to apply before opacity transition if we added one
       
       // Update State
+      // Ensure consistent start conditions: set time to 6:00 and snap camera to player to avoid pan.
+      state.dayTime = 0.25;
       state.isPlaying = true;
-      state.camera.x = 0;
-      state.camera.y = 0;
+      if (state.player) {
+        state.camera.x = state.player.x;
+        state.camera.y = state.player.y;
+        state.cameraLocked = true;
+      } else {
+        state.camera.x = 0;
+        state.camera.y = 0;
+      }
     });
 
     // Settings Toggle
