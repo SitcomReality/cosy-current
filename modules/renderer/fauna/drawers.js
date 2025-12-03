@@ -1,5 +1,4 @@
-// Creature drawing functions extracted from fauna renderer.
-// Each drawer draws a creature centered at screenX, screenY, rotated by c.angle.
+// Fauna drawing helpers (non-shadow geometry)
 
 export function drawCreature(ctx, c, screenX, screenY, size, cycle) {
   ctx.save();
@@ -29,16 +28,16 @@ function drawCrab(ctx, c, size) {
   const colors = c.segmentColors || [c.color, c.color];
   const w = size * 0.8;
   const h = size * 0.6;
-  
+
   // Legs (zigzag lines)
   ctx.strokeStyle = c.color; // Use base color for legs
   ctx.lineWidth = size * 0.15;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  
+
   // Draw 3 legs per side
-  for(let side of [-1, 1]) {
-    for(let i=0; i<3; i++) {
+  for (let side of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
       const legOffset = (i - 1) * (w * 0.4);
       ctx.beginPath();
       ctx.moveTo(0, legOffset);
@@ -58,27 +57,20 @@ function drawCrab(ctx, c, size) {
   // Stacked back-to-front
   const segCount = colors.length;
   const segStep = (h * 1.2) / segCount;
-  
-  for(let i=0; i<segCount; i++) {
+
+  for (let i = 0; i < segCount; i++) {
     const col = colors[i];
-    const yOff = (i - (segCount-1)/2) * segStep * 0.8;
-    const segScale = 1.0 - (i * 0.15); // Front segments slightly smaller? Or back smaller? Let's make back smaller.
-    // Actually standard crab is wide carapace. Let's stack them.
-    
+    const yOff = (i - (segCount - 1) / 2) * segStep * 0.8;
+    const segScale = 1.0 - (i * 0.15);
+
     ctx.fillStyle = col;
     ctx.beginPath();
-    
-    // Draw a sharp angled polygon
+
     const sw = w * (0.8 - i * 0.1); 
     const sh = segStep * 1.2;
-    
-    // Local coords relative to center
-    // Back segment drawn first (i=0)
-    // Shift position forward? 
-    // Let's just draw distinct overlapping shapes.
-    
+
     const localY = (i * segStep) - (h * 0.5);
-    
+
     ctx.moveTo(-sw, localY + sh);
     ctx.lineTo(-sw * 0.8, localY); // top left
     ctx.lineTo(0, localY - sh * 0.3); // top point
@@ -87,18 +79,18 @@ function drawCrab(ctx, c, size) {
     ctx.lineTo(0, localY + sh * 0.8); // bottom center indent
     ctx.closePath();
     ctx.fill();
-    
+
     // Rim
     ctx.strokeStyle = 'rgba(0,0,0,0.2)';
     ctx.lineWidth = 1;
     ctx.stroke();
   }
-  
+
   // Eyes
   ctx.fillStyle = 'black';
   ctx.beginPath();
-  ctx.arc(-w*0.3, -h*0.6, size*0.1, 0, Math.PI*2);
-  ctx.arc(w*0.3, -h*0.6, size*0.1, 0, Math.PI*2);
+  ctx.arc(-w * 0.3, -h * 0.6, size * 0.1, 0, Math.PI * 2);
+  ctx.arc(w * 0.3, -h * 0.6, size * 0.1, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -152,9 +144,7 @@ function drawEel(ctx, c, size) {
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i];
     const p1 = points[i + 1];
-    // push p0
     smoothPts.push(p0);
-    // insert one mid-point for smoothing
     smoothPts.push({
       x: (p0.x + p1.x) * 0.5,
       y: (p0.y + p1.y) * 0.5,
@@ -170,12 +160,10 @@ function drawEel(ctx, c, size) {
 
   for (let i = 0; i < smoothPts.length; i++) {
     const p = smoothPts[i];
-    // Compute tangent by difference to next point (or previous for last)
     const next = smoothPts[Math.min(i + 1, smoothPts.length - 1)];
     const prev = smoothPts[Math.max(i - 1, 0)];
     const dx = next.x - prev.x;
     const dy = next.y - prev.y;
-    // Perpendicular (normal) vector
     let nx = -dy;
     let ny = dx;
     const lenN = Math.hypot(nx, ny) || 1;
@@ -185,22 +173,19 @@ function drawEel(ctx, c, size) {
     // Taper thickness from head (thinner) to mid-body then tail
     const thickness = baseThickness * (1.1 + 0.8 * (1 - p.t));
 
-    // Straight offsets for left and right vertices
     leftVerts.push({ x: p.x + nx * thickness, y: p.y + ny * thickness });
     rightVerts.push({ x: p.x - nx * thickness, y: p.y - ny * thickness });
   }
 
-  // Compose polygon vertices: left side from head->tail then right side tail->head to close
   const poly = [];
   for (let i = 0; i < leftVerts.length; i++) poly.push(leftVerts[i]);
   for (let i = rightVerts.length - 1; i >= 0; i--) poly.push(rightVerts[i]);
 
-  // Draw the straight-edged eel body polygon
   ctx.save();
   ctx.lineJoin = 'miter';
   ctx.lineCap = 'butt';
 
-  // Outline (slightly darker)
+  // Outline
   ctx.beginPath();
   for (let i = 0; i < poly.length; i++) {
     const v = poly[i];
@@ -211,7 +196,7 @@ function drawEel(ctx, c, size) {
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
   ctx.fill();
 
-  // Fill with main color (sharp edges preserved)
+  // Fill
   ctx.beginPath();
   for (let i = 0; i < poly.length; i++) {
     const v = poly[i];
@@ -222,7 +207,7 @@ function drawEel(ctx, c, size) {
   ctx.fillStyle = c.color;
   ctx.fill();
 
-  // Head: draw a straight triangular head cap at the forward-most spine point
+  // Head: triangular cap
   if (smoothPts.length >= 2) {
     const tailIdx = smoothPts.length - 1;
     const headPt = smoothPts[tailIdx];
@@ -231,10 +216,9 @@ function drawEel(ctx, c, size) {
     const dy = headPt.y - prevPt.y;
     const ang = Math.atan2(dy, dx);
 
-    // Triangle pointed forward
     const headLen = segLen * 0.6;
     const headWid = baseThickness * 2.2;
-    // Compute three triangle points in local coords relative to headPt
+
     const hx1 = headPt.x;
     const hy1 = headPt.y;
     const hx2 = headPt.x - Math.cos(ang) * headLen + Math.sin(ang) * headWid * 0.5;
@@ -250,14 +234,13 @@ function drawEel(ctx, c, size) {
     ctx.fillStyle = c.color;
     ctx.fill();
 
-    // small eye as a sharp dot (kept small and geometric)
     const eyeX = headPt.x - Math.cos(ang) * (headLen * 0.25) + Math.sin(ang) * (headWid * 0.12);
     const eyeY = headPt.y - Math.sin(ang) * (headLen * 0.25) - Math.cos(ang) * (headWid * 0.12);
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.fillRect(eyeX - 1, eyeY - 1, 2, 2);
   }
 
-  // Tail tip: straight triangular cap at the tail-most point
+  // Tail tip: triangular cap
   if (smoothPts.length >= 2) {
     const tailPt = smoothPts[0];
     const nextPt = smoothPts[1];

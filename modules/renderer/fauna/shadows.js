@@ -1,4 +1,4 @@
-// Shadow rendering extracted from the original fauna renderer.
+// Fauna shadow rendering helpers
 
 export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise) {
   ctx.save();  
@@ -86,8 +86,7 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
     // Restore transform/stack
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   } else {
-    // Land/Air/Amphibious shadow (unchanged behavior)
-    // Preserve previous non-water shadow logic
+    // Land/Air/Amphibious shadow
     let baseOffset = tileSize * cycle.shadowLength * 0.5;
 
     // Birds: Ensure shadow is noticeably separate

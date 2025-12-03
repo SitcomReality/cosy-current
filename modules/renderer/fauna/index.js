@@ -1,8 +1,8 @@
-// Fauna renderer entrypoint: composes shadows and drawers into the original API
-import { drawCreatureShadow } from './shadow.js';
+// Fauna rendering entrypoint: composes shadows and geometry
+
+import { drawCreatureShadow } from './shadows.js';
 import { drawCreature } from './drawers.js';
 
-// Fauna rendering with depth-aware shadows
 export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, noise) {
   if (!creatures || creatures.length === 0) return;
 
