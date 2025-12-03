@@ -267,6 +267,10 @@ function drawBird(ctx, c, size, cycle) {
   // Replace circular body with a straight-edged triangular body
   ctx.fillStyle = c.color;
 
+  // Rotate the triangular body by 90 degrees so it points forward relative to wings
+  ctx.save();
+  ctx.rotate(Math.PI / 2);
+
   // Draw the body triangle without an extra internal rotation (we rotated the whole bird earlier)
   const bodyLen = size * 0.9;
   const bodyWid = Math.max(0.2, size * 0.6);
@@ -276,6 +280,8 @@ function drawBird(ctx, c, size, cycle) {
   ctx.lineTo(-bodyLen * 0.5, bodyWid * 0.5);       // back bottom
   ctx.closePath();
   ctx.fill();
+
+  ctx.restore();
 }
 
 function drawDeer(ctx, c, size) {
