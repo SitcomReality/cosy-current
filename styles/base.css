@@ -7,7 +7,25 @@
   --accent-hover: #2ea043;
   --glass-bg: rgba(22, 27, 34, 0.7);
   --border-color: #30363d;
-  --font-main: "Oswald", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Use bundled ChineseRocks for main UI and AldotheApache for headings */
+  --font-main: "ChineseRocksRg", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: "AldotheApache", "ChineseRocksRg", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Load local font files */
+@font-face {
+  font-family: "AldotheApache";
+  src: url("/fonts/AldotheApache.ttf") format("truetype");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "ChineseRocksRg";
+  src: url("/fonts/ChineseRocksRg.otf") format("opentype");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
 }
 
 html, body {
