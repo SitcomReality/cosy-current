@@ -219,7 +219,7 @@
   letter-spacing: 4px;
   font-weight: 700;
   text-shadow: 0 4px 10px rgba(0,0,0,0.3);
-  /* Use the bold display font for the main title */
+  /* Use the dedicated heading font for a stiffer, bold title */
   font-family: var(--font-heading);
 }
 
@@ -230,7 +230,6 @@
   letter-spacing: 2px;
   margin: 0;
   text-align: center;
-  font-family: var(--font-main);
 }
 
 .version {
