@@ -139,9 +139,13 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
     const randH = (Math.sin(basePhase * 6.13 + tx * 0.07 - ty * 0.29) + 1) * 0.5;
 
     const segments = 4 + Math.floor(randSeg * 3);        // 4–6 segments
-    const totalH = size * (0.9 + randH * 0.4);           // slight height variance
+    let totalH = size * (0.9 + randH * 0.4);           // slight height variance
     const segmentH = totalH / segments;
-    const baseW = size * (0.12 + randW * 0.07);          // subtle width variation
+    let baseW = size * (0.12 + randW * 0.07);          // subtle width variation
+
+    // Reduce maximum kelp height and width by half for a smaller silhouette
+    totalH *= 0.5;
+    baseW *= 0.5;
 
     // Build a jagged, less-regular spine; combine a few straight-edged "kinks".
     const spine = [];
@@ -183,8 +187,15 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
       const midBias = 1.0 - Math.abs(t - 0.5) * 1.2; // fuller in the middle
       const thickness = baseW * (0.6 + (1 - t) * 0.5) * (0.8 + midBias * 0.4);
 
-      left.push({ x: p.x + nx * thickness, y: p.y + ny * thickness });
-      right.push({ x: p.x - nx * thickness, y: p.y - ny * thickness });
+      // Ensure the bottom edge (base) sits horizontally: force the first pair to have y=0
+      if (i === 0) {
+        // compute horizontal offsets for left/right at base
+        left.push({ x: p.x + nx * thickness, y: 0 });
+        right.push({ x: p.x - nx * thickness, y: 0 });
+      } else {
+        left.push({ x: p.x + nx * thickness, y: p.y + ny * thickness });
+        right.push({ x: p.x - nx * thickness, y: p.y - ny * thickness });
+      }
     }
 
     ctx.beginPath();
