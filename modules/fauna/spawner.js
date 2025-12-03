@@ -110,34 +110,13 @@ export function createSpawner(game, noise, state) {
     if (poolName === POOL_WATER) {
       // Prefer deeper water: require a clearer margin from shore to reduce beaching.
       // Only spawn when the normalized river distance is comfortably inside the channel.
-      // Tighten threshold: require substantially interior channel (was 0.8)
-      if (r.value < 0.6) {
-         // Also ensure a small neighborhood around spawn point is water and not bank
-         let neighClear = true;
-         for (let oy = -1; oy <= 1; oy++) {
-           for (let ox = -1; ox <= 1; ox++) {
-             const tx = Math.floor(sx) + ox;
-             const ty = Math.floor(sy) + oy;
-             const infoN = noise.getRiverSystem(tx + 0.5, ty + 0.5);
-             const t = game.getTile(tx, ty);
-             // require water-like reading (value < 0.95) and not bank tile
-             if (infoN.value >= 0.95 || t === game.CONSTANTS.TILE_BANK) {
-               neighClear = false;
-               break;
-             }
-           }
-           if (!neighClear) break;
-         }
-
+      if (r.value < 0.8) { // stricter than before (0.9 -> 0.8)
          // If creature has a preferred depth, ensure it's not too shallow for it.
-         if (neighClear) {
-             if (def.depth && r.value > (1.0 - def.depth)) {
-                 valid = false;
-             } else {
-                 valid = true;
-             }
+         if (def.depth && r.value > (1.0 - def.depth)) {
+             // Too shallow for this fish/eel
+             valid = false;
          } else {
-           valid = false;
+             valid = true;
          }
       }
     } else if (poolName === POOL_LAND) {

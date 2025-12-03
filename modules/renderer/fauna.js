@@ -246,13 +246,11 @@ function drawEel(ctx, c, size) {
   const segments = c.segmentCount || 4;
   const totalLen = size * 2.0;
   const segLen = totalLen / segments;
-  // Reduced thickness to make eels sleeker
-  const thickness = size * 0.16;
+  const thickness = size * 0.32;
 
   ctx.fillStyle = c.color;
   ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  // Slightly thinner outline for sleeker look
-  ctx.lineWidth = Math.max(1, size * 0.05);
+  ctx.lineWidth = size * 0.08;
 
   for (let i = 0; i < segments; i++) {
     const t = i / (segments - 1 || 1);
