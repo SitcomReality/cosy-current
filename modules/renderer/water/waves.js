@@ -4,6 +4,13 @@ export function createWaveSystem(game, noise) {
   const shorelineWaves = [];
   const MIN_LINE_LENGTH = 1;
 
+  // Helper: compute squared distance between two world-space points
+  function distSq(ax, ay, bx, by) {
+    const dx = ax - bx;
+    const dy = ay - by;
+    return dx * dx + dy * dy;
+  }
+
   function update(dt, player, isPlaying) {
     if (!isPlaying) return;
 
@@ -41,11 +48,48 @@ export function createWaveSystem(game, noise) {
             
             const length = MIN_LINE_LENGTH * (0.8 + Math.random() * 2.0);
 
-            // Movement: choose whether wave moves inward (towards deeper river) or outward (towards bank)
-            const dirSign = Math.random() < 0.5 ? -1 : 1; // -1 = toward gradient perp negative, 1 = opposite
-            // Max offset in tiles (world units). Small values so motion is subtle.
+            // Movement: choose whether wave moves inward (towards the middle of the river)
+            // or outward (towards the bank). We'll coordinate direction with nearby waves
+            // and avoid spawning too close to them to reduce overlap and opposite motion.
+            let proposedDirSign = Math.random() < 0.5 ? -1 : 1;
             const maxOffsetTiles = 0.2 + Math.random() * 1.2;
-            
+
+            // Check nearby existing waves
+            // Use world-space radius so it scales naturally with zoom.
+            const neighborRadius = 3.0;          // tiles
+            const neighborRadiusSq = neighborRadius * neighborRadius;
+            const minSeparation = 1.2;          // tiles; avoid waves this close
+            const minSeparationSq = minSeparation * minSeparation;
+
+            let sumDirSign = 0;
+            let tooClose = false;
+
+            for (let j = 0; j < shorelineWaves.length; j++) {
+              const w = shorelineWaves[j];
+              const d2 = distSq(wx, wy, w.x, w.y);
+
+              // If we are extremely close to an existing wave, skip spawning to avoid overlap
+              if (d2 < minSeparationSq) {
+                tooClose = true;
+                break;
+              }
+
+              // Collect direction votes from waves within a broader neighborhood
+              if (d2 < neighborRadiusSq) {
+                sumDirSign += w.dirSign || 0;
+              }
+            }
+
+            if (tooClose) {
+              // Skip this candidate; continue attempts to keep overall density similar
+              continue;
+            }
+
+            // If there are neighbors, align this wave's motion direction with them
+            if (sumDirSign !== 0) {
+              proposedDirSign = sumDirSign > 0 ? 1 : -1;
+            }
+
             shorelineWaves.push({
               x: wx + (Math.random() - 0.5),
               y: wy + (Math.random() - 0.5),
@@ -56,7 +100,7 @@ export function createWaveSystem(game, noise) {
               maxLife: 2.5,
               opacity: 0.45 + Math.random() * 0.25,
               // New movement properties:
-              dirSign,
+              dirSign: proposedDirSign,
               maxOffsetTiles
             });
           }
