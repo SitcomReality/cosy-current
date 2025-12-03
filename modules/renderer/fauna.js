@@ -57,7 +57,7 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
   ctx.save();  
 
   // Use definition type for logic
-  const isWaterCreature = (c.def && c.def.type === 'water_strict');
+  const isWaterCreature = (c.def && c.def.pool === 'water');
 
   if (isWaterCreature && noise) {
     const riverInfo = noise.getRiverSystem(c.x, c.y);
@@ -66,26 +66,73 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
 
     const depthFactor = waterDepth * creatureDepth;
     const baseOffset = tileSize * cycle.shadowLength * 0.8;
-    const offset = baseOffset * (0.3 + depthFactor * 0.7);
+
+    // Differentiate eel vs generic fish for shadow styling
+    const isEel = c.type === 'eel';
+    // Eels should cast a longer, sleeker shadow
+    const eelLengthMul = isEel ? 1.9 : 1.0;
+    const eelSlimness = isEel ? 0.45 : 0.7;
+
+    // Offset scales with depthFactor so deeper gives a more separated shadow
+    const offset = baseOffset * (0.3 + depthFactor * 0.7) * (isEel ? 1.1 : 1.0);
     const shadowScale = 1.0 + depthFactor * 0.3;
 
-    const shadowX = screenX + shadowDir.x * offset;
-    const shadowY = screenY + shadowDir.y * offset;
+    // Compute oriented shadow by rotating the canvas to the creature angle,
+    // so the shadow aligns with the creature's rotation.
+    ctx.translate(screenX, screenY);
+    ctx.rotate(c.angle);
 
     ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha * 0.6})`;
 
-    const halfLen = size * 0.7 * shadowScale;
-    const halfWid = size * 0.35 * shadowScale;
+    // For eel: draw an elongated rounded rectangle/polygon along the creature's forward axis
+    if (isEel) {
+      const totalLen = size * 0.7 * eelLengthMul * shadowScale; // length in pixels
+      const halfLen = totalLen * 0.5;
+      const halfWid = size * eelSlimness * shadowScale;
 
-    ctx.beginPath();
-    ctx.moveTo(shadowX - halfLen, shadowY);       
-    ctx.lineTo(shadowX, shadowY - halfWid);       
-    ctx.lineTo(shadowX + halfLen, shadowY);       
-    ctx.lineTo(shadowX, shadowY + halfWid);       
-    ctx.closePath();
-    ctx.fill();
+      // Shift shadow away from creature along shadowDir (apply in rotated space)
+      const shiftX = shadowDir.x * offset;
+      const shiftY = shadowDir.y * offset;
+
+      ctx.beginPath();
+      // Rounded capsule: draw rectangle with semicircles at ends
+      // Left semicircle
+      ctx.ellipse(-halfLen + shiftX, shiftY, halfWid, halfWid * 0.9, 0, Math.PI / 2, Math.PI * 3/2);
+      // Body rectangle
+      ctx.moveTo(-halfLen + shiftX, shiftY - halfWid);
+      ctx.lineTo(halfLen + shiftX, shiftY - halfWid);
+      ctx.lineTo(halfLen + shiftX, shiftY + halfWid);
+      ctx.lineTo(-halfLen + shiftX, shiftY + halfWid);
+      ctx.closePath();
+      ctx.fill();
+
+      // Slight taper on head end (subtle darker core)
+      ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha * 0.38})`;
+      ctx.beginPath();
+      ctx.ellipse(halfLen * 0.6 + shiftX, shiftY, halfWid * 0.9, halfWid * 0.65, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Generic water creature (fish) : rotated diamond-ish shadow elongated along facing axis
+      const halfLen = size * 0.7 * shadowScale;
+      const halfWid = size * 0.35 * shadowScale;
+
+      const shiftX = shadowDir.x * offset;
+      const shiftY = shadowDir.y * offset;
+
+      ctx.beginPath();
+      ctx.moveTo(-halfLen + shiftX, 0 + shiftY);
+      ctx.lineTo(0 + shiftX, -halfWid + shiftY);
+      ctx.lineTo(halfLen + shiftX, 0 + shiftY);
+      ctx.lineTo(0 + shiftX, halfWid + shiftY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Restore transform/stack
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   } else {
-    // Land/Air/Amphibious shadow
+    // Land/Air/Amphibious shadow (unchanged behavior)
+    // Preserve previous non-water shadow logic
     let baseOffset = tileSize * cycle.shadowLength * 0.5;
 
     // Birds: Ensure shadow is noticeably separate
@@ -246,11 +293,13 @@ function drawEel(ctx, c, size) {
   const segments = c.segmentCount || 4;
   const totalLen = size * 2.0;
   const segLen = totalLen / segments;
-  const thickness = size * 0.32;
+  // Reduced thickness to make eels sleeker
+  const thickness = size * 0.16;
 
   ctx.fillStyle = c.color;
   ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.lineWidth = size * 0.08;
+  // Slightly thinner outline for sleeker look
+  ctx.lineWidth = Math.max(1, size * 0.05);
 
   for (let i = 0; i < segments; i++) {
     const t = i / (segments - 1 || 1);
