@@ -269,7 +269,8 @@ function drawBird(ctx, c, size, cycle) {
 
   // Rotate the triangular body by 90 degrees so it points forward relative to wings
   ctx.save();
-  ctx.rotate(Math.PI / 2);
+  // Flip the body triangle 180° relative to its current orientation so the point faces the other direction
+  ctx.rotate(Math.PI / 2 + Math.PI);
 
   // Draw the body triangle without an extra internal rotation (we rotated the whole bird earlier)
   const bodyLen = size * 0.9;
