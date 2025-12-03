@@ -16,6 +16,33 @@ export function createWaterEffects({ state, game, noise }) {
 
   let wakeTimer = 0;
 
+  // Helper: estimate local river flow direction near a given world position
+  function getLocalFlowAngle(wx, wy) {
+    // Finite-difference sample on the river "value" field to get a local gradient
+    const sample = (sx, sy) => noise.getRiverSystem(sx, sy).value;
+    const eps = 1.5; // tiles; small spatial step for gradient
+
+    const vL = sample(wx - eps, wy);
+    const vR = sample(wx + eps, wy);
+    const vU = sample(wx, wy - eps);
+    const vD = sample(wx, wy + eps);
+
+    const gradX = vR - vL;
+    const gradY = vD - vU;
+
+    const mag = Math.hypot(gradX, gradY);
+    if (mag < 0.0001) {
+      // If the field is locally flat, fall back to a gentle random direction
+      return Math.random() * Math.PI * 2;
+    }
+
+    // Gradient points from deep (low value) to shallow (high value).
+    // Flow is approximately perpendicular to this gradient; pick one orientation.
+    // Using atan2 on the perpendicular (-gradY, gradX) gives a stable tangent.
+    const flowAngle = Math.atan2(-gradY, gradX);
+    return flowAngle;
+  }
+
   // Generate a wake segment from the player's current position
   function spawnWake(x, y, angle, speed) {
     if (speed < 0.5) return; // Don't generate wake when nearly stopped
@@ -102,17 +129,17 @@ export function createWaterEffects({ state, game, noise }) {
 
             if (hasBank && Math.random() < 0.18) { // higher spawn chance at a shoreline (was 0.08)
               // Spawn a wave segment in water at the shoreline
-              // Derive a wave angle from local river flow so waves run roughly parallel
-              // to the channel. Add a small jitter so they don't look perfectly uniform.
-              const rinfo = noise.getRiverSystem(tx + 0.5, ty + 0.5);
-              // Flow angle used elsewhere: tangent to gradient -> atan2(gx, -gy)
-              const flowAngle = Math.atan2(rinfo.gx, -rinfo.gy);
+              // Derive a wave angle from the *local* river gradient so waves run roughly parallel
+              // to the channel at this point, with a small jitter for natural variation.
+              const wx = tx + 0.5;
+              const wy = ty + 0.5;
+              const flowAngle = getLocalFlowAngle(wx, wy);
               const angle = flowAngle + (Math.random() - 0.5) * 0.4; // ±~0.2 rad jitter
               const length = MIN_LINE_LENGTH * (0.8 + Math.random() * 2.0); // slightly longer
               
               shorelineWaves.push({
-                x: tx + Math.random(),
-                y: ty + Math.random(),
+                x: wx + (Math.random() - 0.5), // keep spawn near the sampled center
+                y: wy + (Math.random() - 0.5),
                 angle: angle,
                 length: length,
                 width: 0.6 + Math.random() * 1.2, // wider base width (was 0.5 + Math.random())
