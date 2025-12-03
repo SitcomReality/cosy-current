@@ -240,32 +240,7 @@ function drawEel(ctx, c, size) {
     ctx.fillRect(eyeX - 1, eyeY - 1, 2, 2);
   }
 
-  // Tail tip: triangular cap
-  if (smoothPts.length >= 2) {
-    const tailPt = smoothPts[0];
-    const nextPt = smoothPts[1];
-    const dx = tailPt.x - nextPt.x;
-    const dy = tailPt.y - nextPt.y;
-    const ang = Math.atan2(dy, dx);
-
-    const tailLen = segLen * 0.5;
-    const tailWid = baseThickness * 1.8;
-
-    const tx1 = tailPt.x;
-    const ty1 = tailPt.y;
-    const tx2 = tailPt.x + Math.cos(ang) * tailLen + Math.sin(ang) * tailWid * 0.5;
-    const ty2 = tailPt.y + Math.sin(ang) * tailLen - Math.cos(ang) * tailWid * 0.5;
-    const tx3 = tailPt.x + Math.cos(ang) * tailLen - Math.sin(ang) * tailWid * 0.5;
-    const ty3 = tailPt.y + Math.sin(ang) * tailLen + Math.cos(ang) * tailWid * 0.5;
-
-    ctx.beginPath();
-    ctx.moveTo(tx1, ty1);
-    ctx.lineTo(tx2, ty2);
-    ctx.lineTo(tx3, ty3);
-    ctx.closePath();
-    ctx.fillStyle = c.color;
-    ctx.fill();
-  }
+  // Tail tip removed so eel appears as one continuous body (no separate triangular cap)
 
   ctx.restore();
 }
