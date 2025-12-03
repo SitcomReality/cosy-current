@@ -36,7 +36,9 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
       // Determine eel length from segmentCount (fallback to size-based estimate)
       const segments = Math.max(1, c.segmentCount || Math.round(size / (tileSize * 0.4)));
       // Base length in pixels: scale with size and segment count
-      const totalLen = size * eelLengthBase * (0.9 + 0.25 * segments);
+      // Reduce shadow length relative to the visual eel body so shadows match bodies more closely.
+      const EEL_SHADOW_REDUCTION = 0.78; // ~22% shorter
+      const totalLen = size * eelLengthBase * (0.9 + 0.25 * segments) * EEL_SHADOW_REDUCTION;
       const halfLen = totalLen * 0.5 * shadowScale;
       // Thin half-width based on size and slimness
       const halfWid = size * eelSlimness * shadowScale;
