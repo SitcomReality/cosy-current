@@ -71,7 +71,8 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
     const isEel = c.type === 'eel';
     // Eels should cast a longer, sleeker shadow
     const eelLengthMul = isEel ? 1.9 : 1.0;
-    const eelSlimness = isEel ? 0.45 : 0.7;
+    // Make eel shadow noticeably slimmer
+    const eelSlimness = isEel ? 0.28 : 0.7;
 
     // Offset scales with depthFactor so deeper gives a more separated shadow
     const offset = baseOffset * (0.3 + depthFactor * 0.7) * (isEel ? 1.1 : 1.0);
@@ -84,9 +85,9 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
 
     ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha * 0.6})`;
 
-    // For eel: draw an elongated rounded rectangle/polygon along the creature's forward axis
+    // For eel: draw a single elongated capsule (rounded rectangle) along the creature's forward axis
     if (isEel) {
-      const totalLen = size * 0.7 * eelLengthMul * shadowScale; // length in pixels
+      const totalLen = size * 0.7 * eelLengthMul * shadowScale; // length in pixels (reduced)
       const halfLen = totalLen * 0.5;
       const halfWid = size * eelSlimness * shadowScale;
 
@@ -94,23 +95,20 @@ function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cyc
       const shiftX = shadowDir.x * offset;
       const shiftY = shadowDir.y * offset;
 
+      // Single thin capsule path (rounded rectangle)
       ctx.beginPath();
-      // Rounded capsule: draw rectangle with semicircles at ends
       // Left semicircle
-      ctx.ellipse(-halfLen + shiftX, shiftY, halfWid, halfWid * 0.9, 0, Math.PI / 2, Math.PI * 3/2);
-      // Body rectangle
-      ctx.moveTo(-halfLen + shiftX, shiftY - halfWid);
+      ctx.arc(-halfLen + shiftX, shiftY, halfWid, Math.PI / 2, Math.PI * 3 / 2);
+      // Top edge
       ctx.lineTo(halfLen + shiftX, shiftY - halfWid);
-      ctx.lineTo(halfLen + shiftX, shiftY + halfWid);
+      // Right semicircle
+      ctx.arc(halfLen + shiftX, shiftY, halfWid, Math.PI * 3 / 2, Math.PI / 2);
+      // Bottom edge back to start
       ctx.lineTo(-halfLen + shiftX, shiftY + halfWid);
       ctx.closePath();
       ctx.fill();
 
-      // Slight taper on head end (subtle darker core)
-      ctx.fillStyle = `rgba(0,0,0,${cycle.shadowAlpha * 0.38})`;
-      ctx.beginPath();
-      ctx.ellipse(halfLen * 0.6 + shiftX, shiftY, halfWid * 0.9, halfWid * 0.65, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // Do not draw additional darker core ellipse — keep single clean shadow
     } else {
       // Generic water creature (fish) : rotated diamond-ish shadow elongated along facing axis
       const halfLen = size * 0.7 * shadowScale;
