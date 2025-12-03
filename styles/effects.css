@@ -10,7 +10,7 @@
   height: 24px;
   width: 24px;
   background-color: #FFF6;
-  border-radius: 15px;
+  border-radius: 0;
   transition: width 30s;
   transition-timing-function: ease;
 }
