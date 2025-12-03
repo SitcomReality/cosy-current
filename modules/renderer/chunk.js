@@ -108,6 +108,51 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
                type: 'grass' 
              });
           }
+        } else if (tile === game.CONSTANTS.TILE_WATER) {
+          // Aquatic flora generation
+          // r.value: 0.0 (deep) -> 1.0 (bank)
+          const r = noise.getRiverSystem(worldX, worldY);
+          
+          // Probability checks based on depth
+          // We want more plants near edges, fewer in deep center channel to keep navigation clear-ish
+          let chance = 0;
+          let type = null;
+          let hMult = 1.0;
+
+          if (r.value > 0.85) {
+             // Very shallow/bank: Reeds
+             chance = 0.25;
+             type = 'reeds';
+             hMult = 0.8;
+          } else if (r.value > 0.4) {
+             // Mid depth: Seagrass
+             chance = 0.15;
+             type = 'seagrass';
+             hMult = 0.6;
+          } else {
+             // Deep: Kelp
+             chance = 0.08;
+             type = 'kelp';
+             hMult = 1.2;
+          }
+
+          if (rand < chance) {
+             const jx = (Math.sin(h) * 0.5) + 0.5; 
+             const jy = (Math.cos(h) * 0.5) + 0.5;
+             
+             // Calculate depth factor (0=surface/bank, 1=deepest) for tinting
+             const depthFactor = Math.max(0, Math.min(1, (1.0 - r.value) * 1.2));
+
+             props.push({ 
+               x: worldX + jx * 0.8, 
+               y: worldY + jy * 0.8, 
+               h: (1.0 + rand * 1.0) * hMult, 
+               type: type,
+               depth: depthFactor,
+               // Store a random phase for any sway animation if we add it later
+               phase: rand * Math.PI * 2
+             });
+          }
         }
       }
     }

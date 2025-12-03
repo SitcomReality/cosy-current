@@ -11,7 +11,13 @@ export const PALETTE_DEF = {
 
   // Derived tree colors for dynamic shading
   treeForestLit: { oklch: 'oklch(55% 0.16 145)', hex: '#4c9945' },
-  treeGrassLit: { oklch: 'oklch(75% 0.18 140)', hex: '#76d168' }
+  treeGrassLit: { oklch: 'oklch(75% 0.18 140)', hex: '#76d168' },
+
+  // Aquatic Flora
+  floraReeds: { hex: '#bef264' },    // bright lime
+  floraSeagrass: { hex: '#4ade80' }, // bright green
+  floraKelp: { hex: '#15803d' },     // dark green
+  deepWaterTint: { hex: '#0f172a' }  // dark blue/slate for depth tinting
 };
 
 export function chooseColor(entry) {
@@ -41,5 +47,12 @@ export function resolvePalettes(game) {
     treeGrassLit: chooseColor(PALETTE_DEF.treeGrassLit)
   };
 
-  return { WATER_PALETTE, COLORS, TREES };
+  const FLORA = {
+    reeds: chooseColor(PALETTE_DEF.floraReeds),
+    seagrass: chooseColor(PALETTE_DEF.floraSeagrass),
+    kelp: chooseColor(PALETTE_DEF.floraKelp),
+    tint: chooseColor(PALETTE_DEF.deepWaterTint)
+  };
+
+  return { WATER_PALETTE, COLORS, TREES, FLORA };
 }

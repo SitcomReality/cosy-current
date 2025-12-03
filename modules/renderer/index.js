@@ -5,14 +5,14 @@ import { createWaterEffects } from './water/index.js';
 
 import { resolvePalettes } from './palette.js';
 import { advanceDayTime, getCycleProps } from './daycycle.js';
-import { drawTreeShadow, drawTree, drawEntities, drawPlayer } from './objects.js';
+import { drawTreeShadow, drawTree, drawAquaticPlant, drawAquaticShadow, drawEntities, drawPlayer } from './objects.js';
 import { renderFauna, renderBirds } from './fauna/index.js';
 
 // This file composes the modular renderer pieces into the original public API
 export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  const { WATER_PALETTE, COLORS, TREES } = resolvePalettes(game);
+  const { WATER_PALETTE, COLORS, TREES, FLORA } = resolvePalettes(game);
 
   const CHUNK_SIZE = 16;
   const chunkManager = createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, game, noise, getVertexOffset });
@@ -84,13 +84,24 @@ export function createRenderer({ canvas, state, game, noise }) {
     for (let cy = startChunkY; cy <= endChunkY; cy++) {
       for (let cx = startChunkX; cx <= endChunkX; cx++) {
         const props = chunkManager.getChunkProps(cx, cy);
+        
         // Draw shadows first
-        for (const tree of props) {
-          drawTreeShadow(ctx, state, state.camera, tileSize, tree, cycle, shadowDir);
+        for (const prop of props) {
+          if (prop.type === 'forest' || prop.type === 'grass') {
+             drawTreeShadow(ctx, state, state.camera, tileSize, prop, cycle, shadowDir);
+          } else {
+             // Aquatic props
+             drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir);
+          }
         }
-        // Then draw tree geometry
-        for (const tree of props) {
-          drawTree(ctx, state, tileSize, tree, TREES, cycle);
+        
+        // Then draw geometry
+        for (const prop of props) {
+          if (prop.type === 'forest' || prop.type === 'grass') {
+             drawTree(ctx, state, tileSize, prop, TREES, cycle);
+          } else {
+             drawAquaticPlant(ctx, state, tileSize, prop, FLORA);
+          }
         }
       }
     }
