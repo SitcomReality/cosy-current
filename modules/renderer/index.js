@@ -6,7 +6,7 @@ import { createWaterEffects } from '../water.js';
 import { resolvePalettes } from './palette.js';
 import { advanceDayTime, getCycleProps } from './daycycle.js';
 import { drawTreeShadow, drawTree, drawEntities, drawPlayer } from './objects.js';
-import { renderFauna, renderBirds } from './fauna.js';
+import { renderFauna, renderBirds } from './fauna/index.js';
 
 // This file composes the modular renderer pieces into the original public API
 export function createRenderer({ canvas, state, game, noise }) {
