@@ -4,13 +4,6 @@ export function createWaveSystem(game, noise) {
   const shorelineWaves = [];
   const MIN_LINE_LENGTH = 1;
 
-  // Helper: compute squared distance between two world-space points
-  function distSq(ax, ay, bx, by) {
-    const dx = ax - bx;
-    const dy = ay - by;
-    return dx * dx + dy * dy;
-  }
-
   function update(dt, player, isPlaying) {
     if (!isPlaying) return;
 
@@ -43,52 +36,65 @@ export function createWaveSystem(game, noise) {
             // Spawn wave aligned with river flow
             const wx = tx + 0.5;
             const wy = ty + 0.5;
+
+            // Estimate local gradient of river "value" to get direction from center -> bank
+            const eps = 2.0;
+            const sampleVal = (sx, sy) => noise.getRiverSystem(sx, sy).value;
+            const vL = sampleVal(wx - eps, wy);
+            const vR = sampleVal(wx + eps, wy);
+            const vU = sampleVal(wx, wy - eps);
+            const vD = sampleVal(wx, wy + eps);
+            const gradX = vR - vL;
+            const gradY = vD - vU;
+            const gradMag = Math.hypot(gradX, gradY);
+
+            // If gradient is too flat, skip spawning here (not clearly near a river edge)
+            if (gradMag < 0.001) {
+              continue;
+            }
+
+            // Unit vector pointing from deep center towards bank
+            const gx = gradX / gradMag;
+            const gy = gradY / gradMag;
+
             const flowAngle = getLocalFlowAngle(noise, wx, wy);
             const angle = flowAngle + (Math.random() - 0.5) * 0.3; // small jitter
-            
+
             const length = MIN_LINE_LENGTH * (0.8 + Math.random() * 2.0);
 
-            // Movement: choose whether wave moves inward (towards the middle of the river)
-            // or outward (towards the bank). We'll coordinate direction with nearby waves
-            // and avoid spawning too close to them to reduce overlap and opposite motion.
-            // Determine movement so waves always push outward toward the bank (away from river center).
-            // We'll compute the local river gradient and choose the perpendicular direction
-            // that aligns with the gradient (gradient points from center->bank).
+            // Movement: always move outward from river center towards bank
+            // We choose the perpendicular direction whose vector aligns best with the gradient.
+            const flowDirX = Math.cos(angle);
+            const flowDirY = Math.sin(angle);
+            // Two perpendicular directions to the wave line
+            const perpAX = -flowDirY;
+            const perpAY = flowDirX;
+            const perpBX = flowDirY;
+            const perpBY = -flowDirX;
+            // Dot products with gradient to see which points outward
+            const dotA = perpAX * gx + perpAY * gy;
+            const dotB = perpBX * gx + perpBY * gy;
+            const dirSign = (dotA >= dotB) ? 1 : -1; // pick perp where dot is larger (closer to gradient)
+
+            // Max offset in tiles (world units). Small values so motion is subtle.
             const maxOffsetTiles = 0.2 + Math.random() * 1.2;
 
-            // Check nearby existing waves
-            // Use world-space radius so it scales naturally with zoom.
-            const neighborRadius = 3.0;          // tiles
-            const neighborRadiusSq = neighborRadius * neighborRadius;
-            const minSeparation = 1.2;          // tiles; avoid waves this close
-            const minSeparationSq = minSeparation * minSeparation;
-
-            let sumDirSign = 0;
+            // Prevent spawning directly on top of other fresh shoreline waves
+            // Allow following older waves but avoid dense clusters of very young ones.
+            const MIN_DIST_TILES = 0.9;
             let tooClose = false;
-
             for (let j = 0; j < shorelineWaves.length; j++) {
               const w = shorelineWaves[j];
-              const d2 = distSq(wx, wy, w.x, w.y);
-
-              // If we are extremely close to an existing wave, skip spawning to avoid overlap
-              if (d2 < minSeparationSq) {
+              const dxw = w.x - wx;
+              const dyw = w.y - wy;
+              const distTiles = Math.hypot(dxw, dyw);
+              const lifeFrac = w.life / w.maxLife; // 1 = new, 0 = about to die
+              if (distTiles < MIN_DIST_TILES && lifeFrac > 0.35) {
                 tooClose = true;
                 break;
               }
             }
-
-            if (tooClose) {
-              // Skip this candidate; continue attempts to keep overall density similar
-              continue;
-            }
-
-            // Compute perpendicular to wave angle and choose the sign that has positive dot with river gradient.
-            // noise.getRiverSystem provides gx,gy (grid gradient) which points toward the bank.
-            const perpX = Math.cos(angle + Math.PI / 2);
-            const perpY = Math.sin(angle + Math.PI / 2);
-            const riverInfoLocal = noise.getRiverSystem(wx, wy);
-            const dot = perpX * (riverInfoLocal.gx || 0) + perpY * (riverInfoLocal.gy || 0);
-            const dirSign = dot >= 0 ? 1 : -1;
+            if (tooClose) continue;
 
             shorelineWaves.push({
               x: wx + (Math.random() - 0.5),
