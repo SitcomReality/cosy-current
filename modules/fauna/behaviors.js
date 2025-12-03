@@ -99,30 +99,9 @@ function applyFlowFollow(c, dt, noise) {
       // Steer towards deep (0 value), which is opposite to gradient (gx, gy)
       const deepAngle = Math.atan2(-r.gy, -r.gx);
       // Blend it in
-      c.targetAngle = normalizeAngle(deepAngle);
+      c.targetAngle = normalizeAngle(deepAngle); 
     }
   }
-}
-
-// New helper: search in expanding rings for nearest tile satisfying predicate
-function findNearestValidDirection(x, y, game, noise, predicate, maxRadius = 20, step = 1) {
-  // sample at integer tile offsets in rings
-  for (let r = 1; r <= maxRadius; r += step) {
-    const samples = Math.max(12, Math.floor(6 * r));
-    for (let i = 0; i < samples; i++) {
-      const a = (i / samples) * Math.PI * 2;
-      const sx = x + Math.cos(a) * r;
-      const sy = y + Math.sin(a) * r;
-      const tx = Math.floor(sx);
-      const ty = Math.floor(sy);
-      const tile = game.getTile(tx, ty);
-      if (tile === undefined) continue;
-      if (predicate({ x: sx, y: sy, tile })) {
-        return { angle: Math.atan2(sy - y, sx - x), dist: r, foundX: sx, foundY: sy };
-      }
-    }
-  }
-  return null;
 }
 
 function enforceBoundaries(c, dt, noise, game) {
@@ -135,73 +114,24 @@ function enforceBoundaries(c, dt, noise, game) {
 
   const pool = c.def.pool;
 
-  if (pool === 'water') {
-    // If creature is not in water currently, actively find nearest water and steer there
-    const currentRiver = noise.getRiverSystem(c.x, c.y);
-    const currentlyWater = currentRiver.value < 1.0;
-
-    if (!currentlyWater) {
-      // Find nearest water tile (prefer deeper bands)
-      const best = findNearestValidDirection(c.x, c.y, game, noise, ({ x, y }) => {
-        const r = noise.getRiverSystem(x, y);
-        return r.value < 1.0;
-      }, 30, 1);
-
-      if (best) {
-        // Head towards found water, reduce speed so we don't overshoot
-        c.targetAngle = normalizeAngle(best.angle);
-        c.speedMult = 0.6; // slow while returning
-      } else {
-        // fallback: use gradient if available
-        c.targetAngle = normalizeAngle(Math.atan2(-river.gy, -river.gx));
-        c.speedMult = 0.6;
-      }
-    } else {
-      // Normal water steering; ensure speedMult resets
-      c.speedMult = 1.0;
-      // Additionally if immediate lookAhead is land, nudge target towards water
-      if (!isWater) {
-        c.targetAngle = normalizeAngle(Math.atan2(-river.gy, -river.gx));
-      }
-    }
-
+  if (pool === 'water' && !isWater) {
+    // Bounce off land
+    const normal = Math.atan2(river.gy, river.gx); // Gradient points to land
+    // We want to reflect or just turn away. 
+    // Simply turning towards deep water (-gradient) is reliable.
+    c.targetAngle = normalizeAngle(Math.atan2(-river.gy, -river.gx));
+    c.angle = c.targetAngle; // Hard snap to avoid stuck
   } else if (pool === 'land') {
-    // If land creature is in water, steer toward nearest land tile
-    const currentRiver = noise.getRiverSystem(c.x, c.y);
-    const currentlyWater = currentRiver.value < 1.0;
-
-    if (currentlyWater) {
-      const best = findNearestValidDirection(c.x, c.y, game, noise, ({ x, y, tile }) => {
-        // land is defined as river.value >= 1.0 OR tile equals bank/grass/forest
-        const r = noise.getRiverSystem(x, y);
-        if (r.value >= 1.0) return true;
-        // fallback check to tile constants
-        const T = game.CONSTANTS;
-        return tile === T.TILE_BANK || tile === T.TILE_GRASS || tile === T.TILE_FOREST;
-      }, 30, 1);
-
-      if (best) {
-        c.targetAngle = normalizeAngle(best.angle);
-        c.speedMult = 0.6; // slow while returning
-      } else {
-        // Hard snap away from water gradient
-        c.targetAngle = normalizeAngle(Math.atan2(river.gy, river.gx));
-        c.speedMult = 0.6;
-      }
-    } else {
-      // On land — ensure crab/land critters don't wander into water immediately
-      c.speedMult = 1.0;
-      if (isWater) {
-        // if immediate forward step would place them into water, nudge angle toward land gradient
-        c.targetAngle = normalizeAngle(Math.atan2(river.gy, river.gx));
-      }
+    // Bounce off water
+    if (isWater) {
+      // Gradient points to land, so just follow gradient
+      c.targetAngle = normalizeAngle(Math.atan2(river.gy, river.gx));
+      c.angle = c.targetAngle;
     }
-  } else {
-    // Air creatures no enforcement
-    c.speedMult = 1.0;
-  }
 
-  // Keep speed multiplier bounded and restore over time
-  if (c.speedMult === undefined) c.speedMult = 1.0;
-  c.speedMult = Math.max(0.4, Math.min(1.0, c.speedMult));
+    // Also optional: enforce habitat preference if wandering?
+    // If not in preferred habitat, steer randomly? 
+    // Kept simple for now to avoid stuckness.
+  }
+  // Air has no boundaries
 }
