@@ -195,13 +195,23 @@ export function createSpawner(game, noise, state) {
       if (groupId) {
         groupPhaseMap.set(groupId, Math.random() * Math.PI * 2);
       }
+      // If this is a bird group, set a shared heading toward the player so flocks arrive and travel cohesively
+      let sharedGroupBaseAngle = null;
+      if (typeKey === 'bird' && groupId) {
+        // Aim roughly toward player from spawn position, with a bit of jitter so not perfectly uniform
+        const px = (state && state.player) ? state.player.x : 0;
+        const py = (state && state.player) ? state.player.y : 0;
+        const aimAngle = Math.atan2(py - sy, px - sx);
+        sharedGroupBaseAngle = aimAngle + (Math.random() - 0.5) * 0.35;
+      }
       // Pre-select variations for the group
       const baseColor = def.colors[Math.floor(Math.random() * def.colors.length)];
       // Decide if this group should behave in a loosely flocking / schooling way
       const groupCanFlock = (typeKey === 'fish' || typeKey === 'eel' || typeKey === 'bird');
-      // Make birds much more likely to be flockers
-      const groupIsFlocker = groupCanFlock && (typeKey === 'bird' ? (Math.random() < 0.7) : (Math.random() < 0.4));
-      const baseFlockStrength = groupIsFlocker ? randomRange(0.35, 0.6) : 0;
+      // Make birds much more likely to be flockers and stronger so they turn together
+      const groupIsFlocker = groupCanFlock && (typeKey === 'bird' ? (Math.random() < 0.85) : (Math.random() < 0.45));
+      // Birds get a higher flockStrength bias for more cohesive movement
+      const baseFlockStrength = groupIsFlocker ? (typeKey === 'bird' ? randomRange(0.45, 0.78) : randomRange(0.35, 0.6)) : 0;
 
       for (let i = 0; i < count; i++) {
         // Slight spread
@@ -252,6 +262,9 @@ export function createSpawner(game, noise, state) {
         // Speed multiplier for slight variability in cruising speed (affects c.speedMult in behavior)
         const spawnSpeedMult = 0.92 + Math.random() * 0.16; // ~0.92..1.08
 
+        // assign the shared group base angle to birds so behavior can use it for cohesion
+        const assignedGroupBaseAngle = (typeKey === 'bird' && groupId) ? sharedGroupBaseAngle : undefined;
+
         addCreature(poolName, {
           x: sx + ox,
           y: sy + oy,
@@ -267,6 +280,7 @@ export function createSpawner(game, noise, state) {
           segmentColors: segmentColors,
           wanderTimer: Math.random(),
           groupId: groupId,
+          groupBaseAngle: typeof assignedGroupBaseAngle === 'number' ? assignedGroupBaseAngle : undefined,
           life: 0,
           id: Math.random().toString(36),
           depth: def.depth,

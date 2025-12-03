@@ -21,6 +21,7 @@ export function applyFlyStraight(c, dt) {
     const groupOffset = (((h % 1000) / 999) - 0.5) * 0.7;
 
     // Compute groupAngle by applying offset to current heading or stored groupAngle
+    // Prefer a stored groupBaseAngle (often set at spawn), fallback to current angle
     const base = (typeof c.groupBaseAngle === 'number') ? c.groupBaseAngle : c.angle;
     const groupAngle = normalizeAngle(base + groupOffset);
 
@@ -29,8 +30,9 @@ export function applyFlyStraight(c, dt) {
 
     // Blend toward the groupAngle smoothly
     const angleDiff = shortestAngleDiff(c.angle, groupAngle);
-    // Apply small fraction per-frame so turn remains smooth; scale with flockStrength
-    const blendFactor = Math.max(0.02, Math.min(0.35, flockStrength * 0.18));
+    // Increase blend factor so birds in flocks more strongly converge to the group heading,
+    // while still keeping turning smooth; clamp to prevent instant snaps.
+    const blendFactor = Math.max(0.06, Math.min(0.85, flockStrength * 0.35));
     c.targetAngle = normalizeAngle(c.targetAngle + angleDiff * blendFactor);
 
     // Slightly reduce per-bird wobble for flock members to keep coherence
@@ -38,6 +40,14 @@ export function applyFlyStraight(c, dt) {
     c._birdWobbleDamp = 0.85;
 
     // Optionally remember base for next frames so the group has a coherent heading anchor
-    c.groupBaseAngle = normalizeAngle(c.groupBaseAngle || c.angle);
+    // If groupBaseAngle wasn't provided at spawn, gently establish one now as an average
+    if (typeof c.groupBaseAngle !== 'number') {
+      c.groupBaseAngle = normalizeAngle(c.angle);
+    } else {
+      // slowly nudge stored base toward current mean to allow the flock to turn together over time
+      const stored = c.groupBaseAngle;
+      const meanDiff = shortestAngleDiff(stored, c.angle);
+      c.groupBaseAngle = normalizeAngle(stored + meanDiff * 0.02);
+    }
   }
 }
