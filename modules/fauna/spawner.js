@@ -1,13 +1,13 @@
 import { CREATURE_DEFS, POOL_WATER, POOL_LAND, POOL_AIR } from './constants.js';
 import { randomRange } from './utils.js';
 
-export function createSpawner(game, noise) {
+export function createSpawner(game, noise, state) {
   
-  // Caps and Rates
+  // Caps and Rates (increased caps and faster intervals for more fauna)
   const POOL_CONFIG = {
-    [POOL_WATER]: { cap: 30, interval: 0.3, distance: 90 },
-    [POOL_LAND]: { cap: 20, interval: 0.5, distance: 90 },
-    [POOL_AIR]: { cap: 15, interval: 0.8, distance: 120 }
+    [POOL_WATER]: { cap: 60, interval: 0.22 },
+    [POOL_LAND]:  { cap: 35, interval: 0.35 },
+    [POOL_AIR]:   { cap: 25, interval: 0.55 }
   };
 
   const timers = {
@@ -45,15 +45,49 @@ export function createSpawner(game, noise) {
       let weight = 1;
       
       if (def.nightOnly && !isNight) weight = 0;
-      if (def.nightOnly && isNight) weight = 10; // High priority for fireflies at night
+      if (def.nightOnly && isNight) weight = 12; // High priority for fireflies at night
       
-      if (key === 'bird' && isDawnDusk) weight = 5; // More birds in morning/evening
+      if (key === 'bird' && isDawnDusk) weight = 6; // More birds in morning/evening
       
-      for(let i=0; i<weight; i++) candidates.push(key);
+      // Make eels a bit more common so they are noticeable
+      if (key === 'eel') weight *= 2;
+
+      for (let i = 0; i < weight; i++) candidates.push(key);
     }
     
     if (candidates.length === 0) return null;
     return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  // Spawn position biased to just outside the current camera view
+  function getOffscreenSpawnPosition() {
+    const tileSize = state.tileSize || 64;
+    const halfW = (state.width / 2) / tileSize;
+    const halfH = (state.height / 2) / tileSize;
+    const margin = 4; // tiles just beyond edge
+
+    const side = Math.floor(Math.random() * 4); // 0=left,1=right,2=top,3=bottom
+    let sx, sy;
+
+    if (side === 0) {
+      // Left
+      sx = state.camera.x - halfW - margin;
+      sy = state.camera.y + (Math.random() * 2 - 1) * halfH;
+    } else if (side === 1) {
+      // Right
+      sx = state.camera.x + halfW + margin;
+      sy = state.camera.y + (Math.random() * 2 - 1) * halfH;
+    } else if (side === 2) {
+      // Top
+      sx = state.camera.x + (Math.random() * 2 - 1) * halfW;
+      sy = state.camera.y - halfH - margin;
+    } else {
+      // Bottom
+      sx = state.camera.x + (Math.random() * 2 - 1) * halfW;
+      sy = state.camera.y + halfH + margin;
+    }
+
+    return { sx, sy };
   }
 
   function attemptSpawn(poolName, player, dayTime, addCreature) {
@@ -64,11 +98,8 @@ export function createSpawner(game, noise) {
     if (!typeKey) return;
     const def = CREATURE_DEFS[typeKey];
 
-    // Pick Location
-    const angle = Math.random() * Math.PI * 2;
-    const dist = randomRange(40, cfg.distance);
-    const sx = player.x + Math.cos(angle) * dist;
-    const sy = player.y + Math.sin(angle) * dist;
+    // Pick Location: spawn just off-screen around camera
+    const { sx, sy } = getOffscreenSpawnPosition();
 
     // Validate Terrain
     const r = noise.getRiverSystem(sx, sy);
@@ -80,7 +111,7 @@ export function createSpawner(game, noise) {
       // Must be water, check depth
       if (r.value < 0.9) { // slightly away from strict edge
          if (def.depth && r.value > (1.0 - def.depth)) {
-             // Too shallow for this fish
+             // Too shallow for this fish/eel
              valid = false;
          } else {
              valid = true;
@@ -117,9 +148,6 @@ export function createSpawner(game, noise) {
            const ty = Math.floor(sy + oy);
            if (game.getTile(tx, ty) === game.CONSTANTS.TILE_FOREST) {
              valid = true;
-             // Update position to the valid tile
-             // (We can't update sx/sy easily here without object wrapper, so we just use the original if close enough, or skip)
-             // Actually let's just let probability handle it.
              break;
            }
         }
@@ -130,15 +158,16 @@ export function createSpawner(game, noise) {
     if (valid) {
       // Spawn Group
       let count = 1;
-      if (typeKey === 'firefly') count = randomRange(3, 8);
-      if (typeKey === 'bird') count = randomRange(1, 4);
-      if (typeKey === 'fish') count = randomRange(1, 5);
+      if (typeKey === 'firefly') count = randomRange(4, 9);
+      if (typeKey === 'bird')    count = randomRange(2, 5);
+      if (typeKey === 'fish')    count = randomRange(2, 6);
+      if (typeKey === 'eel')     count = randomRange(1, 3);
 
       const groupId = count > 1 ? Math.random().toString(36) : null;
       // Pre-select variations for the group
       const baseColor = def.colors[Math.floor(Math.random() * def.colors.length)];
 
-      for(let i=0; i<count; i++) {
+      for (let i = 0; i < count; i++) {
         // Slight spread
         const ox = (Math.random() - 0.5) * 3;
         const oy = (Math.random() - 0.5) * 3;
@@ -153,6 +182,12 @@ export function createSpawner(game, noise) {
                 if (isRainbow) segmentColors.push(def.colors[Math.floor(Math.random() * def.colors.length)]);
                 else segmentColors.push(baseColor);
             }
+        }
+
+        // Eel-specific segment count for rendering
+        let segmentCount = undefined;
+        if (typeKey === 'eel') {
+          segmentCount = Math.floor(randomRange(3, 6)); // 3–5 segments
         }
 
         addCreature(poolName, {
@@ -172,13 +207,17 @@ export function createSpawner(game, noise) {
           life: 0,
           id: Math.random().toString(36),
           depth: def.depth,
-          glow: def.glow
+          glow: def.glow,
+          segmentCount
         });
       }
     }
   }
 
-  function update(dt, dayTime, player, pools, addCreature) {
+  function update(dt, state, pools, addCreature) {
+    const player = state.player;
+    const dayTime = state.dayTime;
+
     for (const poolName of [POOL_WATER, POOL_LAND, POOL_AIR]) {
        timers[poolName] += dt;
        const cfg = POOL_CONFIG[poolName];
@@ -188,10 +227,14 @@ export function createSpawner(game, noise) {
          if (pools[poolName].length < cfg.cap) {
            // If water pool, bias spawn attempts by how much nearby view is water
            if (poolName === POOL_WATER) {
-             // Estimate water coverage within player's view distance (use pool distance as radius)
-             const coverage = estimateWaterCoverage(player, cfg.distance);
-             // coverage in [0..1] — convert to spawn chance: low baseline, scale up with coverage
-             const spawnChance = Math.max(0.15, 0.15 + coverage * 0.85); // 0.15..1.0
+             // Estimate water coverage within player's view-like distance
+             const tileSize = state.tileSize || 64;
+             const halfW = (state.width / 2) / tileSize;
+             const halfH = (state.height / 2) / tileSize;
+             const radius = Math.max(halfW, halfH) + 10;
+             const coverage = estimateWaterCoverage(player, radius);
+             // coverage in [0..1] — convert to spawn chance: higher baseline, scale up with coverage
+             const spawnChance = Math.max(0.35, 0.35 + coverage * 0.65); // 0.35..1.0
              if (Math.random() < spawnChance) {
                attemptSpawn(poolName, player, dayTime, addCreature);
              }

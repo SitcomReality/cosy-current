@@ -126,8 +126,10 @@ function drawCreature(ctx, c, screenX, screenY, size, cycle) {
   ctx.translate(screenX, screenY);
   ctx.rotate(c.angle);
 
-  if (c.type === 'fish' || c.type === 'eel') {
+  if (c.type === 'fish') {
     drawFish(ctx, c, size);
+  } else if (c.type === 'eel') {
+    drawEel(ctx, c, size);
   } else if (c.type === 'bird') {
     drawBird(ctx, c, size, cycle);
   } else if (c.type === 'deer') {
@@ -236,6 +238,48 @@ function drawFish(ctx, c, size) {
   ctx.moveTo(-len * 0.5, 0);
   ctx.lineTo(-len * 0.8, -width * 0.4);
   ctx.lineTo(-len * 0.8, width * 0.4);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawEel(ctx, c, size) {
+  const segments = c.segmentCount || 4;
+  const totalLen = size * 2.0;
+  const segLen = totalLen / segments;
+  const thickness = size * 0.32;
+
+  ctx.fillStyle = c.color;
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = size * 0.08;
+
+  for (let i = 0; i < segments; i++) {
+    const t = i / (segments - 1 || 1);
+    const centerX = -totalLen * 0.5 + segLen * (i + 0.5);
+
+    // Subtle sine wave along the body for a soft curve
+    const wavePhase = c.life * 4.0 + i * 0.6;
+    const offsetY = Math.sin(wavePhase) * thickness * 0.4;
+
+    const halfL = segLen * 0.5;
+    const halfT = thickness * (0.9 + 0.2 * (1 - t)); // slightly thicker near head
+
+    ctx.beginPath();
+    ctx.moveTo(centerX - halfL, offsetY - halfT);
+    ctx.lineTo(centerX + halfL, offsetY - halfT);
+    ctx.lineTo(centerX + halfL, offsetY + halfT);
+    ctx.lineTo(centerX - halfL, offsetY + halfT);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Simple head tip
+  const headX = totalLen * 0.5 - segLen * 0.2;
+  const headW = thickness * 1.1;
+  ctx.beginPath();
+  ctx.moveTo(headX, 0);
+  ctx.lineTo(headX - segLen * 0.4, -headW * 0.6);
+  ctx.lineTo(headX - segLen * 0.4, headW * 0.6);
   ctx.closePath();
   ctx.fill();
 }

@@ -10,7 +10,7 @@ export function createFaunaSystem({ state, game, noise }) {
   };
 
   // Pass state to spawner so it can sample around player/view if needed
-  const spawner = createSpawner(game, noise);
+  const spawner = createSpawner(game, noise, state);
   const DESPAWN_DIST = 130;
 
   function addCreature(poolName, c) {
@@ -21,7 +21,7 @@ export function createFaunaSystem({ state, game, noise }) {
     if (!state.isPlaying) return;
     
     // Spawning
-    spawner.update(dt, state.dayTime, state.player, pools, addCreature);
+    spawner.update(dt, state, pools, addCreature);
 
     // Update & Despawn
     for (const poolName in pools) {
