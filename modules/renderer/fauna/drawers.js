@@ -260,9 +260,16 @@ function drawBird(ctx, c, size, cycle) {
   ctx.lineTo(wingSpan * 0.5, wingY);
   ctx.stroke();
 
+  // Replace circular body with a straight-edged triangular body
   ctx.fillStyle = c.color;
   ctx.beginPath();
-  ctx.arc(0, 0, size * 0.2, 0, Math.PI * 2);
+  // Triangle pointed forward (tip at front)
+  const bodyLen = size * 0.9;
+  const bodyWid = Math.max(0.2, size * 0.6);
+  ctx.moveTo(bodyLen * 0.5, 0);                    // front tip
+  ctx.lineTo(-bodyLen * 0.5, -bodyWid * 0.5);      // back top
+  ctx.lineTo(-bodyLen * 0.5, bodyWid * 0.5);       // back bottom
+  ctx.closePath();
   ctx.fill();
 }
 
