@@ -288,93 +288,75 @@ function drawBird(ctx, c, size, cycle) {
 }
 
 function drawDeer(ctx, c, size) {
-  // Stylized straight-edged deer: compact triangular body, kite-shaped head, and angular antlers.
-  // All geometry uses straight lines and flat fills to match the rigid aesthetic.
+  // Simplified, stylized top-down deer made from simple polygons:
+  // - Rectangular body
+  // - Smaller rectangular head in front
+  // - Four short leg blocks
+  // - Two angular antler lines
+  // The calling code already applies translation/rotation, so draw in local space facing +X.
 
-  // Body parameters
   const bodyLen = size * 0.9;
   const bodyWid = size * 0.6;
-  const halfLen = bodyLen * 0.5;
-  const halfWid = bodyWid * 0.5;
+  const headLen = size * 0.32;
+  const headWid = size * 0.28;
+  const legLen = size * 0.18;
+  const legWid = size * 0.08;
 
-  // Head parameters (kite / diamond shape attached to front)
-  const headLen = size * 0.45;
-  const headWid = size * 0.32;
+  const baseColor = c.color || '#8b5a2b';
+  const rimColor = shadeColor(baseColor, -18);
+  const lightPatch = shadeColor(baseColor, 18);
 
-  // Antler parameters
-  const antlerLen = size * 0.45;
-  const antlerBranch = size * 0.18;
-
-  ctx.save();
-  ctx.translate(0, 0);
-  ctx.rotate(c.angle);
-
-  // Body: a simple forward-pointing trapezoid (flat-shaded)
-  ctx.fillStyle = c.color;
+  // Body (rounded-rectangle-like via simple rectangle + small inset)
+  ctx.fillStyle = baseColor;
   ctx.beginPath();
-  ctx.moveTo(halfLen, 0);                         // front tip
-  ctx.lineTo(-halfLen + halfLen * 0.25, -halfWid); // back-top
-  ctx.lineTo(-halfLen, 0);                        // back center
-  ctx.lineTo(-halfLen + halfLen * 0.25, halfWid);  // back-bottom
-  ctx.closePath();
+  ctx.rect(-bodyLen * 0.5, -bodyWid * 0.5, bodyLen, bodyWid);
   ctx.fill();
 
-  // Back patch / rump as slightly darker inset polygon
-  ctx.fillStyle = shadeColor(c.color, -12);
+  // Slight rump highlight (a smaller rectangle at rear)
+  ctx.fillStyle = rimColor;
   ctx.beginPath();
-  ctx.moveTo(-halfLen + halfLen * 0.25, -halfWid * 0.6);
-  ctx.lineTo(-halfLen + halfLen * 0.05, 0);
-  ctx.lineTo(-halfLen + halfLen * 0.25, halfWid * 0.6);
-  ctx.closePath();
+  ctx.rect(-bodyLen * 0.45, -bodyWid * 0.22, bodyLen * 0.18, bodyWid * 0.44);
   ctx.fill();
 
-  // Head: kite (diamond) attached to front-left of body (pointing forward)
-  const headX = halfLen + headLen * 0.0;
-  const headY = 0;
-  ctx.fillStyle = c.color;
+  // Head as small rectangle attached to front
+  ctx.fillStyle = baseColor;
   ctx.beginPath();
-  ctx.moveTo(headX + headLen * 0.5, headY);            // front tip
-  ctx.lineTo(headX, headY - headWid * 0.6);            // top
-  ctx.lineTo(headX - headLen * 0.5, headY);            // rear tip (joins body)
-  ctx.lineTo(headX, headY + headWid * 0.6);            // bottom
-  ctx.closePath();
+  ctx.rect(bodyLen * 0.5, -headWid * 0.5, headLen, headWid);
   ctx.fill();
 
-  // Eye: small square (rigid)
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
-  ctx.fillRect(headX + headLen * 0.15 - 1, headY - 2, 3, 3);
+  // Light facial square (eye-ish cue) — tiny square on head front
+  ctx.fillStyle = lightPatch;
+  ctx.fillRect(bodyLen * 0.5 + headLen * 0.55, -0.5, headWid * 0.12, headWid * 0.12);
 
-  // Antlers: angular, mirrored lines from top of head
-  ctx.strokeStyle = shadeColor(c.color, -30);
+  // Legs: four small blocks under body corners (abstracted, symmetrical)
+  ctx.fillStyle = rimColor;
+  const legX = -bodyLen * 0.25;
+  const legSpacing = bodyWid * 0.9;
+  for (let i = -1; i <= 1; i += 2) {
+    // front leg
+    ctx.fillRect(legX + bodyLen * 0.35, i * (legSpacing * 0.5) - legWid / 2, legLen, legWid);
+    // rear leg
+    ctx.fillRect(legX - bodyLen * 0.35, i * (legSpacing * 0.5) - legWid / 2, legLen, legWid);
+  }
+
+  // Antlers: two simple angular strokes from the top-front of the head
+  ctx.strokeStyle = rimColor;
   ctx.lineWidth = Math.max(1, size * 0.06);
   ctx.lineCap = 'butt';
   ctx.beginPath();
-  // Left antler
-  ctx.moveTo(headX, headY - headWid * 0.6);
-  ctx.lineTo(headX - antlerLen * 0.2, headY - antlerLen * 0.6);
-  ctx.lineTo(headX - antlerLen * 0.45, headY - antlerLen * 0.35);
-  ctx.moveTo(headX - antlerLen * 0.15, headY - antlerLen * 0.35);
-  ctx.lineTo(headX - antlerLen * 0.55, headY - antlerLen * 0.05);
-
-  // Right antler (mirrored)
-  ctx.moveTo(headX, headY - headWid * 0.6);
-  ctx.lineTo(headX + antlerLen * 0.2, headY - antlerLen * 0.6);
-  ctx.lineTo(headX + antlerLen * 0.45, headY - antlerLen * 0.35);
-  ctx.moveTo(headX + antlerLen * 0.15, headY - antlerLen * 0.35);
-  ctx.lineTo(headX + antlerLen * 0.55, headY - antlerLen * 0.05);
-
+  const antlerBaseX = bodyLen * 0.5 + headLen * 0.1;
+  const antlerBaseY = -headWid * 0.4;
+  // left antler
+  ctx.moveTo(antlerBaseX, antlerBaseY);
+  ctx.lineTo(antlerBaseX + headLen * 0.35, antlerBaseY - headWid * 0.5);
+  ctx.moveTo(antlerBaseX + headLen * 0.18, antlerBaseY - headWid * 0.12);
+  ctx.lineTo(antlerBaseX + headLen * 0.45, antlerBaseY - headWid * 0.22);
+  // right antler
+  ctx.moveTo(antlerBaseX, -antlerBaseY);
+  ctx.lineTo(antlerBaseX + headLen * 0.35, -antlerBaseY + headWid * 0.5);
+  ctx.moveTo(antlerBaseX + headLen * 0.18, -antlerBaseY + headWid * 0.12);
+  ctx.lineTo(antlerBaseX + headLen * 0.45, -antlerBaseY + headWid * 0.22);
   ctx.stroke();
-
-  // Tail: small rigid wedge at back
-  ctx.fillStyle = shadeColor(c.color, -8);
-  ctx.beginPath();
-  ctx.moveTo(-halfLen, 0);
-  ctx.lineTo(-halfLen - size * 0.12, -size * 0.08);
-  ctx.lineTo(-halfLen - size * 0.12, size * 0.08);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.restore();
 }
 
 // Small helper: darken/lighten hex-ish color a bit (expects '#rrggbb' or already rgba)
