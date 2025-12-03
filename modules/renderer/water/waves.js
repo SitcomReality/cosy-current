@@ -51,7 +51,9 @@ export function createWaveSystem(game, noise) {
             // Movement: choose whether wave moves inward (towards the middle of the river)
             // or outward (towards the bank). We'll coordinate direction with nearby waves
             // and avoid spawning too close to them to reduce overlap and opposite motion.
-            let proposedDirSign = Math.random() < 0.5 ? -1 : 1;
+            // Determine movement so waves always push outward toward the bank (away from river center).
+            // We'll compute the local river gradient and choose the perpendicular direction
+            // that aligns with the gradient (gradient points from center->bank).
             const maxOffsetTiles = 0.2 + Math.random() * 1.2;
 
             // Check nearby existing waves
@@ -73,11 +75,6 @@ export function createWaveSystem(game, noise) {
                 tooClose = true;
                 break;
               }
-
-              // Collect direction votes from waves within a broader neighborhood
-              if (d2 < neighborRadiusSq) {
-                sumDirSign += w.dirSign || 0;
-              }
             }
 
             if (tooClose) {
@@ -85,10 +82,13 @@ export function createWaveSystem(game, noise) {
               continue;
             }
 
-            // If there are neighbors, align this wave's motion direction with them
-            if (sumDirSign !== 0) {
-              proposedDirSign = sumDirSign > 0 ? 1 : -1;
-            }
+            // Compute perpendicular to wave angle and choose the sign that has positive dot with river gradient.
+            // noise.getRiverSystem provides gx,gy (grid gradient) which points toward the bank.
+            const perpX = Math.cos(angle + Math.PI / 2);
+            const perpY = Math.sin(angle + Math.PI / 2);
+            const riverInfoLocal = noise.getRiverSystem(wx, wy);
+            const dot = perpX * (riverInfoLocal.gx || 0) + perpY * (riverInfoLocal.gy || 0);
+            const dirSign = dot >= 0 ? 1 : -1;
 
             shorelineWaves.push({
               x: wx + (Math.random() - 0.5),
@@ -100,7 +100,7 @@ export function createWaveSystem(game, noise) {
               maxLife: 2.5,
               opacity: 0.45 + Math.random() * 0.25,
               // New movement properties:
-              dirSign: proposedDirSign,
+              dirSign,
               maxOffsetTiles
             });
           }
