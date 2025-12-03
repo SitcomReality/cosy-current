@@ -6,6 +6,9 @@ export function updateCreatureBehavior(c, dt, noise, game) {
   c.wanderTimer -= dt;
   if (c.wanderTimer < 0) c.wanderTimer = 0;
 
+  // Track how long this creature has been in a "shore contact" state
+  if (c._shoreContactTime == null) c._shoreContactTime = 0;
+
   // 1. Determine Target Angle based on behavior
   const behavior = c.def.behavior || 'wander';
 
@@ -197,12 +200,43 @@ function enforceBoundaries(c, dt, noise, game) {
 
       // Nudge position gently back toward water to keep them from walking on sand,
       // but with a smaller step so motion looks smooth.
-      const nudge = 0.14;
+      let nudge = 0.14;
+
+      // If a creature has been pressing against the shore for a while, apply a stronger
+      // corrective push and snap its heading more decisively away to break jitter loops.
+      c._shoreContactTime = (c._shoreContactTime || 0) + dt;
+      const stuckThreshold = 0.8; // seconds of continuous shore contact
+      if (c._shoreContactTime > stuckThreshold) {
+        const angleToAvoid = avoidAngle;
+        const facingIntoShore = Math.abs(shortestAngleDiff(c.angle, angleToAvoid)) < Math.PI * 0.45;
+        if (facingIntoShore) {
+          // Force the creature to commit to the escape direction
+          c.angle = c.targetAngle = angleToAvoid;
+          // Stronger push straight back into deeper water
+          nudge = 0.32;
+          // Small lateral jitter to dislodge from corners
+          const lateral = 0.15;
+          const side = Math.random() < 0.5 ? -1 : 1;
+          const lateralAngle = angleToAvoid + side * Math.PI * 0.5;
+          c.x += Math.cos(lateralAngle) * lateral;
+          c.y += Math.sin(lateralAngle) * lateral;
+          // Give it a bit more speed so it actually escapes
+          c.speedMult = Math.max(1.1, c.speedMult || 1.0);
+          // Reset wander so it doesn't immediately re-pick a bad direction
+          c.wanderTimer = Math.max(c.wanderTimer, 0.8);
+        }
+      }
+
       c.x += Math.cos(avoidAngle) * nudge;
       c.y += Math.sin(avoidAngle) * nudge;
 
       // Ensure they aren't artificially slowed while escaping shallow edges
       c.speedMult = Math.max(1.0, c.speedMult || 1.0);
+    } else {
+      // Relax shore contact timer when safely over water
+      if (c._shoreContactTime && c._shoreContactTime > 0) {
+        c._shoreContactTime = Math.max(0, c._shoreContactTime - dt * 2);
+      }
     }
   } else if (pool === 'land') {
     // Bounce off water and prefer nearby land tiles
