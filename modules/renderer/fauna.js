@@ -328,72 +328,124 @@ function drawEel(ctx, c, size) {
   }
   smoothPts.push(points[points.length - 1]);
 
-  // Draw body: a thick rounded stroke along the spine for a flexible appearance
+  // Build polygonal straight-edged mesh from the spine by computing normals and placing
+  // left/right vertices per spine point, then connecting them with straight lines.
+  const leftVerts = [];
+  const rightVerts = [];
+
+  for (let i = 0; i < smoothPts.length; i++) {
+    const p = smoothPts[i];
+    // Compute tangent by difference to next point (or previous for last)
+    const next = smoothPts[Math.min(i + 1, smoothPts.length - 1)];
+    const prev = smoothPts[Math.max(i - 1, 0)];
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    // Perpendicular (normal) vector
+    let nx = -dy;
+    let ny = dx;
+    const lenN = Math.hypot(nx, ny) || 1;
+    nx /= lenN;
+    ny /= lenN;
+
+    // Taper thickness from head (thinner) to mid-body then tail
+    const thickness = baseThickness * (1.1 + 0.8 * (1 - p.t));
+
+    // Straight offsets for left and right vertices
+    leftVerts.push({ x: p.x + nx * thickness, y: p.y + ny * thickness });
+    rightVerts.push({ x: p.x - nx * thickness, y: p.y - ny * thickness });
+  }
+
+  // Compose polygon vertices: left side from head->tail then right side tail->head to close
+  const poly = [];
+  for (let i = 0; i < leftVerts.length; i++) poly.push(leftVerts[i]);
+  for (let i = rightVerts.length - 1; i >= 0; i--) poly.push(rightVerts[i]);
+
+  // Draw the straight-edged eel body polygon
   ctx.save();
+  ctx.lineJoin = 'miter';
+  ctx.lineCap = 'butt';
 
-  // Main fill (slightly darker core)
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  // Stroke for silhouette
-  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-  ctx.lineWidth = Math.max(1, baseThickness * 2.2);
+  // Outline (slightly darker)
   ctx.beginPath();
-  for (let i = 0; i < smoothPts.length; i++) {
-    const p = smoothPts[i];
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
+  for (let i = 0; i < poly.length; i++) {
+    const v = poly[i];
+    if (i === 0) ctx.moveTo(v.x, v.y);
+    else ctx.lineTo(v.x, v.y);
   }
-  ctx.stroke();
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.fill();
 
-  // Colored body stroke (slightly inset)
-  ctx.strokeStyle = c.color;
-  ctx.lineWidth = Math.max(1, baseThickness * 1.6);
+  // Fill with main color (sharp edges preserved)
   ctx.beginPath();
-  for (let i = 0; i < smoothPts.length; i++) {
-    const p = smoothPts[i];
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
+  for (let i = 0; i < poly.length; i++) {
+    const v = poly[i];
+    if (i === 0) ctx.moveTo(v.x, v.y);
+    else ctx.lineTo(v.x, v.y);
   }
-  ctx.stroke();
-
-  // Fill with overlapping circles to give a smooth volumetric body that flexes
+  ctx.closePath();
   ctx.fillStyle = c.color;
-  for (let i = 0; i < smoothPts.length; i++) {
-    const p = smoothPts[i];
-    // Slight thickness taper from head (thinner) to mid-body then tail
-    // Use t to modulate radius so eel tapers naturally
-    const radius = baseThickness * (1.1 + 0.8 * (1 - p.t));
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  ctx.fill();
 
-  // Head: small triangular/rounded tip that follows the final point and orientation
-  // Compute head orient by looking at last two smooth points
+  // Head: draw a straight triangular head cap at the forward-most spine point
   if (smoothPts.length >= 2) {
-    const pA = smoothPts[smoothPts.length - 2];
-    const pB = smoothPts[smoothPts.length - 1];
-    const dx = pB.x - pA.x;
-    const dy = pB.y - pA.y;
-    const angle = Math.atan2(dy, dx);
+    const tailIdx = smoothPts.length - 1;
+    const headPt = smoothPts[tailIdx];
+    const prevPt = smoothPts[tailIdx - 1];
+    const dx = headPt.x - prevPt.x;
+    const dy = headPt.y - prevPt.y;
+    const ang = Math.atan2(dy, dx);
 
-    ctx.translate(pB.x, pB.y);
-    ctx.rotate(angle);
-    const headLen = segLen * 0.5;
-    const headWid = baseThickness * 1.6;
+    // Triangle pointed forward
+    const headLen = segLen * 0.6;
+    const headWid = baseThickness * 2.2;
+    // Compute three triangle points in local coords relative to headPt
+    const hx1 = headPt.x;
+    const hy1 = headPt.y;
+    const hx2 = headPt.x - Math.cos(ang) * headLen + Math.sin(ang) * headWid * 0.5;
+    const hy2 = headPt.y - Math.sin(ang) * headLen - Math.cos(ang) * headWid * 0.5;
+    const hx3 = headPt.x - Math.cos(ang) * headLen - Math.sin(ang) * headWid * 0.5;
+    const hy3 = headPt.y - Math.sin(ang) * headLen + Math.cos(ang) * headWid * 0.5;
+
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(headLen, -headWid * 0.6);
-    ctx.lineTo(headLen, headWid * 0.6);
+    ctx.moveTo(hx1, hy1);
+    ctx.lineTo(hx2, hy2);
+    ctx.lineTo(hx3, hy3);
     ctx.closePath();
     ctx.fillStyle = c.color;
     ctx.fill();
 
-    // small eye/dot
+    // small eye as a sharp dot (kept small and geometric)
+    const eyeX = headPt.x - Math.cos(ang) * (headLen * 0.25) + Math.sin(ang) * (headWid * 0.12);
+    const eyeY = headPt.y - Math.sin(ang) * (headLen * 0.25) - Math.cos(ang) * (headWid * 0.12);
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(eyeX - 1, eyeY - 1, 2, 2);
+  }
+
+  // Tail tip: straight triangular cap at the tail-most point
+  if (smoothPts.length >= 2) {
+    const tailPt = smoothPts[0];
+    const nextPt = smoothPts[1];
+    const dx = tailPt.x - nextPt.x;
+    const dy = tailPt.y - nextPt.y;
+    const ang = Math.atan2(dy, dx);
+
+    const tailLen = segLen * 0.5;
+    const tailWid = baseThickness * 1.8;
+
+    const tx1 = tailPt.x;
+    const ty1 = tailPt.y;
+    const tx2 = tailPt.x + Math.cos(ang) * tailLen + Math.sin(ang) * tailWid * 0.5;
+    const ty2 = tailPt.y + Math.sin(ang) * tailLen - Math.cos(ang) * tailWid * 0.5;
+    const tx3 = tailPt.x + Math.cos(ang) * tailLen - Math.sin(ang) * tailWid * 0.5;
+    const ty3 = tailPt.y + Math.sin(ang) * tailLen + Math.cos(ang) * tailWid * 0.5;
+
     ctx.beginPath();
-    ctx.arc(headLen * 0.25, -headWid * 0.15, Math.max(1, baseThickness * 0.25), 0, Math.PI * 2);
+    ctx.moveTo(tx1, ty1);
+    ctx.lineTo(tx2, ty2);
+    ctx.lineTo(tx3, ty3);
+    ctx.closePath();
+    ctx.fillStyle = c.color;
     ctx.fill();
   }
 
