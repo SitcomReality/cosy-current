@@ -189,6 +189,10 @@ export function createSpawner(game, noise, state) {
       const groupId = count > 1 ? Math.random().toString(36) : null;
       // Pre-select variations for the group
       const baseColor = def.colors[Math.floor(Math.random() * def.colors.length)];
+      // Decide if this group should behave in a loosely flocking / schooling way
+      const groupCanFlock = (typeKey === 'fish' || typeKey === 'eel' || typeKey === 'bird');
+      const groupIsFlocker = groupCanFlock && Math.random() < 0.4; // ~40% of eligible groups
+      const baseFlockStrength = groupIsFlocker ? randomRange(0.35, 0.6) : 0;
 
       for (let i = 0; i < count; i++) {
         // Slight spread
@@ -231,7 +235,10 @@ export function createSpawner(game, noise, state) {
           id: Math.random().toString(36),
           depth: def.depth,
           glow: def.glow,
-          segmentCount
+          segmentCount,
+          // Flocking / schooling metadata
+          isFlocker: groupIsFlocker,
+          flockStrength: baseFlockStrength
         });
       }
     }

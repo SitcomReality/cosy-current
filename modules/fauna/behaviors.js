@@ -128,6 +128,29 @@ function applyFlowFollow(c, dt, noise) {
       c.y += Math.sin(deepAngle) * 0.035;
     }
 
+    // Optional mild flocking / schooling bias:
+    // Some groups share a soft, common heading so they travel in vaguely parallel paths.
+    if (c.isFlocker && c.groupId) {
+      // Derive a deterministic offset from groupId so all members prefer a similar heading.
+      let h = 0;
+      for (let i = 0; i < c.groupId.length; i++) {
+        h = (h * 31 + c.groupId.charCodeAt(i)) >>> 0;
+      }
+      // Map hash to a small angular offset in [-0.35, 0.35] radians
+      const offset = (((h % 1000) / 999) - 0.5) * 0.7;
+      // Base group angle is the river flow plus a small group-specific offset
+      const groupAngle = normalizeAngle(flowAngle + offset);
+      const flockBase = c.flockStrength != null ? c.flockStrength : 0.0;
+
+      // Weaken flock influence near very shallow water so avoidance stays strong
+      const depthFactor = Math.max(0, Math.min(1, 1.0 - r.value));
+      const flockBlend = flockBase * (0.4 + 0.6 * depthFactor); // 0..~flockBase
+
+      if (flockBlend > 0) {
+        target = normalizeAngle(target * (1 - flockBlend) + groupAngle * flockBlend);
+      }
+    }
+
     c.targetAngle = target;
   }
 }
