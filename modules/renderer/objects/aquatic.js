@@ -75,69 +75,173 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
   ctx.fillStyle = finalColor;
   ctx.strokeStyle = finalColor;
 
-  const size = h * tileSize;
+  // Base size from height, with per-species max scaling
+  let size = h * tileSize;
 
-  // Draw Geometry
+  // Reeds & kelp should be smaller than mid-depth seagrass visually
   if (type === 'reeds') {
-    // Cluster of vertical lines
-    const spread = size * 0.2;
-    ctx.lineWidth = Math.max(1, size * 0.08);
-    ctx.lineCap = 'round';
+    size *= 0.7; // shrink shallow reeds
+  } else if (type === 'kelp') {
+    size *= 0.8; // slightly smaller deep kelp
+  } else {
+    // seagrass keeps original max size
+    size *= 1.0;
+  }
 
-    // Draw 3 reeds
-    for(let i=-1; i<=1; i++) {
-      const hVar = size * (0.8 + Math.abs(i)*0.1);
-      const xOff = i * spread * 0.6;
-      const tipBend = i * spread * 0.3;
+  // Per-plant variation in overall scale using phase as a stable pseudo-random
+  const basePhase = typeof phase === 'number' ? phase : Math.random() * Math.PI * 2;
+  const rand01 = (Math.sin(basePhase * 3.17 + tx * 0.37 + ty * 0.53) + 1) * 0.5; // 0..1
+  const scaleJitter = 0.75 + rand01 * 0.7; // ~0.75..1.45
+  size *= scaleJitter;
+
+  // Asymmetrical species get a small random rotation so clumps aren't identical
+  let rotation = 0;
+  if (type === 'kelp' || type === 'seagrass') {
+    const r2 = (Math.sin(basePhase * 4.11 + tx * 0.21 - ty * 0.33) + 1) * 0.5;
+    const maxRot = 0.5; // radians, ~28°
+    rotation = (r2 - 0.5) * 2 * maxRot;
+  }
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  if (rotation !== 0) ctx.rotate(rotation);
+
+  // Draw Geometry (all straight-edged, no curves/rounded shapes)
+  if (type === 'reeds') {
+    // Cluster of 3-4 straight, segmented stalks forming zig-zag polygons
+    const stalkCount = 3 + (rand01 > 0.6 ? 1 : 0);
+    const spread = size * 0.18;
+    const stalkHeight = size;
+
+    ctx.lineWidth = Math.max(1, size * 0.08);
+    ctx.lineCap = 'butt';
+
+    for (let i = 0; i < stalkCount; i++) {
+      const t = (i - (stalkCount - 1) / 2);
+      const xOff = t * spread;
+      const heightVar = stalkHeight * (0.7 + Math.abs(t) * 0.12);
+      const kink = (t * 0.35) * heightVar;
+
+      // Simple 3-point polyline: base -> mid kink -> tip
+      const midY = -heightVar * 0.5;
+      const tipY = -heightVar;
 
       ctx.beginPath();
-      ctx.moveTo(sx + xOff, sy);
-      ctx.quadraticCurveTo(sx + xOff, sy - hVar * 0.6, sx + xOff + tipBend, sy - hVar);
+      ctx.moveTo(xOff, 0);
+      ctx.lineTo(xOff + kink * 0.15, midY);
+      ctx.lineTo(xOff + kink * 0.3, tipY);
       ctx.stroke();
     }
-
   } else if (type === 'kelp') {
-    // Tall wavy ribbon
-    ctx.lineWidth = Math.max(2, size * 0.12);
-    ctx.lineCap = 'round';
+    // Tall jagged ribbon made from straight segments, no curves
+    const segments = 5;
+    const totalH = size;
+    const segmentH = totalH / segments;
+    const baseW = size * 0.16;
 
-    // Use phase for a static wave shape (no animation requested, just shape)
-    const waveAmp = size * 0.15;
+    // Build a zig-zag spine
+    const spine = [];
+    for (let i = 0; i <= segments; i++) {
+      const u = i / segments;
+      const y = -u * totalH;
+      const sway = (Math.sin(basePhase * 2.3 + u * Math.PI * 1.4) * 0.5 +
+                    Math.sin(basePhase * 1.1 + u * Math.PI * 2.1) * 0.3);
+      const x = sway * baseW * 1.5;
+      spine.push({ x, y });
+    }
+
+    // Build left/right polygon points along the spine
+    const left = [];
+    const right = [];
+    for (let i = 0; i < spine.length; i++) {
+      const p = spine[i];
+      const next = spine[Math.min(i + 1, spine.length - 1)];
+      const prev = spine[Math.max(i - 1, 0)];
+      const dx = next.x - prev.x;
+      const dy = next.y - prev.y;
+      let nx = -dy;
+      let ny = dx;
+      const nLen = Math.hypot(nx, ny) || 1;
+      nx /= nLen;
+      ny /= nLen;
+
+      // Slight taper towards tip
+      const t = i / (spine.length - 1);
+      const thickness = baseW * (0.7 + (1 - t) * 0.6);
+
+      left.push({ x: p.x + nx * thickness, y: p.y + ny * thickness });
+      right.push({ x: p.x - nx * thickness, y: p.y - ny * thickness });
+    }
 
     ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    // Draw a bezier curve that snakes up
-    ctx.bezierCurveTo(
-      sx + waveAmp, sy - size * 0.33,
-      sx - waveAmp, sy - size * 0.66,
-      sx, sy - size
-    );
-    ctx.stroke();
-
-    // Maybe a couple of leaf blobs
-    ctx.beginPath();
-    ctx.ellipse(sx + waveAmp*0.5, sy - size * 0.4, size*0.1, size*0.06, 0.5, 0, Math.PI*2);
+    for (let i = 0; i < left.length; i++) {
+      const p = left[i];
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    for (let i = right.length - 1; i >= 0; i--) {
+      const p = right[i];
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
     ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(sx - waveAmp*0.5, sy - size * 0.7, size*0.1, size*0.06, -0.5, 0, Math.PI*2);
-    ctx.fill();
 
-  } else {
-    // Seagrass: bushy bottom clump
-    const blades = 5;
-    ctx.lineWidth = Math.max(1, size * 0.06);
-
-    for(let i=0; i<blades; i++) {
-      const angle = -Math.PI/2 + (i - (blades-1)/2) * 0.3;
-      const len = size * (0.6 + (i%2)*0.2);
-
-      const tx2 = sx + Math.cos(angle) * len;
-      const ty2 = sy + Math.sin(angle) * len;
+    // Optional rigid "leaf" shards along one side using small triangles
+    const shardCount = 2;
+    for (let i = 0; i < shardCount; i++) {
+      const idx = 1 + Math.floor((spine.length - 3) * (i / (shardCount - 1 || 1)));
+      const p = spine[idx];
+      const shardLen = baseW * 0.9;
+      const shardWid = baseW * 0.6;
+      const dir = (i % 2 === 0) ? 1 : -1;
 
       ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.quadraticCurveTo(sx, sy - len*0.5, tx2, ty2);
-      ctx.stroke();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + dir * shardLen, p.y - shardWid * 0.4);
+      ctx.lineTo(p.x + dir * shardLen * 0.6, p.y + shardWid * 0.6);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else {
+    // Seagrass: small fan of straight blades forming angular polygons
+    const blades = 5;
+    const baseLen = size * 0.7;
+    const spread = Math.PI / 3; // total angular spread for the fan
+
+    ctx.lineWidth = Math.max(1, size * 0.06);
+    ctx.lineCap = 'butt';
+
+    for (let i = 0; i < blades; i++) {
+      const t = (i - (blades - 1) / 2) / ((blades - 1) / 2 || 1);
+      const angle = -Math.PI / 2 + t * spread;
+      const len = baseLen * (0.75 + (1 - Math.abs(t)) * 0.3);
+
+      const tipX = Math.cos(angle) * len;
+      const tipY = Math.sin(angle) * len;
+
+      // Create a thin, straight-edged blade as a 4-point polygon
+      const sideOffset = size * 0.06;
+      const perpX = -Math.sin(angle);
+      const perpY = Math.cos(angle);
+
+      const b0x = 0 + perpX * sideOffset;
+      const b0y = 0 + perpY * sideOffset;
+      const b1x = 0 - perpX * sideOffset;
+      const b1y = 0 - perpY * sideOffset;
+      const t0x = tipX + perpX * sideOffset * 0.6;
+      const t0y = tipY + perpY * sideOffset * 0.6;
+      const t1x = tipX - perpX * sideOffset * 0.6;
+      const t1y = tipY - perpY * sideOffset * 0.6;
+
+      ctx.beginPath();
+      ctx.moveTo(b0x, b0y);
+      ctx.lineTo(t0x, t0y);
+      ctx.lineTo(t1x, t1y);
+      ctx.lineTo(b1x, b1y);
+      ctx.closePath();
+      ctx.fill();
     }
   }
+
+  ctx.restore();
 }
