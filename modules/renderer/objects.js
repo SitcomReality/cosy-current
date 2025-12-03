@@ -386,11 +386,19 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
   ctx.fillStyle = '#0ea5e9';
   ctx.fillRect(-cabinW/4, -cabinH/4, cabinW/2, cabinH/3);
 
-  ctx.fillStyle = '#fef08a';
-  ctx.shadowColor = '#fef08a';
-  ctx.shadowBlur = 8;
+  // Rigid triangular light cap at the front of the raft (replaces round light)
+  ctx.shadowColor = '#fef3c7';
+  ctx.shadowBlur = 6; // small softening while keeping a crisp shape
   ctx.beginPath();
-  ctx.arc(raftLen/2 - 5, 0, 3, 0, Math.PI * 2);
+  const lx = raftLen/2 - 6;
+  const ly = 0;
+  const triH = 6; // triangle height in pixels
+  const triW = 6; // triangle half-width in pixels
+  // Triangle points (pointing forward)
+  ctx.moveTo(lx + triH, ly);             // tip
+  ctx.lineTo(lx - triH * 0.3, ly - triW); // back-top
+  ctx.lineTo(lx - triH * 0.3, ly + triW); // back-bottom
+  ctx.closePath();
   ctx.fill();
   ctx.shadowBlur = 0;
 
