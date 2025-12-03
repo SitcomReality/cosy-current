@@ -5,6 +5,10 @@ export function drawCreature(ctx, c, screenX, screenY, size, cycle) {
   ctx.translate(screenX, screenY);
   ctx.rotate(c.angle);
 
+  // Rotate the entire bird form by 90 degrees so wings and body are oriented together.
+  // This replaces the previous per-bird internal rotation.
+  ctx.rotate(Math.PI / 2);
+
   if (c.type === 'fish') {
     drawFish(ctx, c, size);
   } else if (c.type === 'eel') {
@@ -263,20 +267,15 @@ function drawBird(ctx, c, size, cycle) {
   // Replace circular body with a straight-edged triangular body
   ctx.fillStyle = c.color;
 
-  // Draw the body triangle rotated 90 degrees relative to the current rotation
-  // so the triangle points perpendicular to the wings and appears symmetrical.
-  ctx.save();
-  ctx.rotate(Math.PI / 2); // rotate the triangle by 90 degrees
-  ctx.beginPath();
-  // Triangle pointed forward (tip at front) but rotated so it aligns symmetrically with wings
+  // Draw the body triangle without an extra internal rotation (we rotated the whole bird earlier)
   const bodyLen = size * 0.9;
   const bodyWid = Math.max(0.2, size * 0.6);
-  ctx.moveTo(bodyLen * 0.5, 0);                    // front tip (after rotation)
+  ctx.beginPath();
+  ctx.moveTo(bodyLen * 0.5, 0);                    // front tip
   ctx.lineTo(-bodyLen * 0.5, -bodyWid * 0.5);      // back top
   ctx.lineTo(-bodyLen * 0.5, bodyWid * 0.5);       // back bottom
   ctx.closePath();
   ctx.fill();
-  ctx.restore();
 }
 
 function drawDeer(ctx, c, size) {
