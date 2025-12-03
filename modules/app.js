@@ -52,6 +52,16 @@ export function initApp({ canvas, controls }) {
   }, { passive: false });
 
   let lastTime = performance.now();
+  const MAX_DT = 0.12; // seconds — clamp large dt after tab switches or stalls
+  // Keep a visibility handler to reset timing when tab regains focus to avoid huge dt spikes
+  function handleVisibilityChange() {
+    if (!document.hidden) {
+      // reset lastTime so the next frame doesn't integrate a huge dt
+      lastTime = performance.now();
+      state.lastInputTime = performance.now();
+    }
+  }
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   // --- MMB panning support ---
   let isPanning = false;
@@ -103,7 +113,10 @@ export function initApp({ canvas, controls }) {
   window.addEventListener('blur', () => { isPanning = false; });
 
   function loop(timestamp) {
-    const dt = (timestamp - lastTime) / 1000;
+    let dt = (timestamp - lastTime) / 1000;
+    // Clamp dt to avoid runaway simulation after tab is hidden / system sleep
+    if (!isFinite(dt) || dt <= 0) dt = 0;
+    if (dt > MAX_DT) dt = MAX_DT;
     lastTime = timestamp;
 
     // 1. Update Game Logic
