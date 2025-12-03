@@ -10,9 +10,11 @@ export function applyFlowFollow(c, dt, noise) {
   let target = flowAngle;
 
   // 2. Wavy Motion (Sinusoidal offset)
-  // Varies by creature ID to desync
+  // Varies by creature ID or explicit per-creature wavePhase to desync group oscillations
   const waveFreq = 2.5;
-  const wavePhase = (c.id.charCodeAt(0) % 10);
+  // Prefer an explicit per-creature phase if available (set at spawn), otherwise fall back
+  const phaseFromId = (c.id && c.id.length) ? (c.id.charCodeAt(0) % 10) : 0;
+  const wavePhase = (typeof c.wavePhase === 'number') ? c.wavePhase : phaseFromId;
   const waveVal = Math.sin(c.life * waveFreq + wavePhase);
   // Amplitude reduces when near banks to prevent accidental beaching
   const safeAmplitude = 0.8 * Math.max(0, 1.0 - r.value);

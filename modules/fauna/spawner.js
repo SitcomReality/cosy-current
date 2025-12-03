@@ -16,6 +16,9 @@ export function createSpawner(game, noise, state) {
     [POOL_AIR]: 0
   };
   
+  // Map to keep deterministic/group base phases so members of a spawned group share a base but not identical phase
+  const groupPhaseMap = new Map();
+  
   // Helper: estimate fraction of water tiles in a circular area around player
   function estimateWaterCoverage(player, sampleRadius, sampleCount = 80) {
     let water = 0;
@@ -187,6 +190,10 @@ export function createSpawner(game, noise, state) {
       if (typeKey === 'eel')     count = randomRange(1, 3);
 
       const groupId = count > 1 ? Math.random().toString(36) : null;
+      // If group, create and store a base phase so members share similar but not identical wave timing
+      if (groupId) {
+        groupPhaseMap.set(groupId, Math.random() * Math.PI * 2);
+      }
       // Pre-select variations for the group
       const baseColor = def.colors[Math.floor(Math.random() * def.colors.length)];
       // Decide if this group should behave in a loosely flocking / schooling way
@@ -217,6 +224,17 @@ export function createSpawner(game, noise, state) {
           segmentCount = Math.floor(randomRange(3, 6)); // 3–5 segments
         }
 
+        // Wave phase: group members get a shared base plus a small per-member jitter so schools don't oscillate perfectly in sync
+        let wavePhase;
+        if (groupId) {
+          const basePhase = groupPhaseMap.get(groupId) || (Math.random() * Math.PI * 2);
+          // small deterministic-ish per-member offset so positions differ
+          wavePhase = basePhase + (i * 0.27) + (Math.random() * 0.18 - 0.09);
+        } else {
+          // solitary creatures get fully random phase
+          wavePhase = Math.random() * Math.PI * 2;
+        }
+
         addCreature(poolName, {
           x: sx + ox,
           y: sy + oy,
@@ -238,7 +256,8 @@ export function createSpawner(game, noise, state) {
           segmentCount,
           // Flocking / schooling metadata
           isFlocker: groupIsFlocker,
-          flockStrength: baseFlockStrength
+          flockStrength: baseFlockStrength,
+          wavePhase // <-- attach phase for flowFollow to use
         });
       }
     }
