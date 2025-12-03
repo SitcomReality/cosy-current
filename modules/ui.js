@@ -30,6 +30,12 @@ export function createUI({ container, state, renderer, noise, game }) {
       // Ensure consistent start conditions: set time to 6:00 and snap camera to player to avoid pan.
       state.dayTime = 0.25;
       state.isPlaying = true;
+      // Start the game zoomed out to the maximum zoom-out level
+      // Minimum allowed tileSize is 32 (enforced elsewhere), so set it here.
+      state.tileSize = 32;
+      // Clear renderer caches so chunks redraw at new tileSize
+      if (renderer && typeof renderer.clearCache === 'function') renderer.clearCache();
+
       if (state.player) {
         state.camera.x = state.player.x;
         state.camera.y = state.player.y;
