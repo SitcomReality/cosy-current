@@ -8,11 +8,12 @@ export function createWaveSystem(game, noise) {
     if (!isPlaying) return;
 
     // Spawn new waves
-    if (Math.random() < dt * 1.5) { 
+    // Increased spawn probability and attempts to make shoreline waves more frequent
+    if (Math.random() < dt * 4.0) { 
       const searchRadius = 26; 
       // Perform a random scattering of checks instead of a full dense grid scan every frame to save perf
       // while maintaining coverage over time.
-      const attempts = 15;
+      const attempts = 30;
       
       for (let i = 0; i < attempts; i++) {
         const dx = (Math.random() - 0.5) * 2 * searchRadius;
