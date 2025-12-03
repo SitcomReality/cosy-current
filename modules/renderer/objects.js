@@ -387,8 +387,10 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
   ctx.fillRect(-cabinW/4, -cabinH/4, cabinW/2, cabinH/3);
 
   // Rigid triangular light cap at the front of the raft (replaces round light)
-  ctx.shadowColor = '#fef3c7';
+  // Use an orange/yellow tone for the light to match the low-poly palette
+  ctx.shadowColor = '#f59e0b';
   ctx.shadowBlur = 6; // small softening while keeping a crisp shape
+  ctx.fillStyle = '#f59e0b'; // orange light
   ctx.beginPath();
   const lx = raftLen/2 - 6;
   const ly = 0;
