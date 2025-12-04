@@ -182,25 +182,21 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
           const p = hull[i];
           const wx = startX + p.x;
           const wy = startY + p.y;
-          const v = (externalVertexOffset || getVertexOffset)(wx, wy, 0) ? ( (externalVertexOffset || getVertexOffset) : (getVertexOffset) ) : null;
-          const vert = (function(){
-            // fallback to local helper semantics
-            if (typeof (externalVertexOffset || getVertexOffset) === 'function') {
-              // reuse same perturb behavior as prior impl
-              const onChunkBoundary =
-                ( (startX + p.x) % CHUNK_SIZE === 0) ||
-                ( (startY + p.y) % CHUNK_SIZE === 0);
-              const baseX = p.x * tileSize;
-              const baseY = p.y * tileSize;
-              if (onChunkBoundary) return { x: baseX, y: baseY };
-              const perturbScale = tileSize * 0.15;
-              const ox = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 0) * perturbScale;
-              const oy = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 1) * perturbScale;
-              return { x: baseX + ox, y: baseY + oy };
-            } else {
-              return { x: p.x * tileSize, y: p.y * tileSize };
-            }
-          })();
+          // Compute perturbed vertex safely, using externalVertexOffset if provided.
+          const onChunkBoundary =
+            ((startX + p.x) % CHUNK_SIZE === 0) ||
+            ((startY + p.y) % CHUNK_SIZE === 0);
+          const baseX = p.x * tileSize;
+          const baseY = p.y * tileSize;
+          let vert;
+          if (onChunkBoundary) {
+            vert = { x: baseX, y: baseY };
+          } else {
+            const perturbScale = tileSize * 0.15;
+            const ox = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 0) * perturbScale;
+            const oy = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 1) * perturbScale;
+            vert = { x: baseX + ox, y: baseY + oy };
+          }
 
           if (i === 0) cCtx.moveTo(vert.x, vert.y);
           else cCtx.lineTo(vert.x, vert.y);
@@ -218,18 +214,21 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
             const p = hull[i];
             const wx = startX + p.x;
             const wy = startY + p.y;
-            const vert = (function(){
-              const onChunkBoundary =
-                ( (startX + p.x) % CHUNK_SIZE === 0) ||
-                ( (startY + p.y) % CHUNK_SIZE === 0);
-              const baseX = p.x * tileSize;
-              const baseY = p.y * tileSize;
-              if (onChunkBoundary) return { x: baseX, y: baseY };
+            // Compute perturbed vertex safely, using externalVertexOffset if provided.
+            const onChunkBoundary =
+              ((startX + p.x) % CHUNK_SIZE === 0) ||
+              ((startY + p.y) % CHUNK_SIZE === 0);
+            const baseX = p.x * tileSize;
+            const baseY = p.y * tileSize;
+            let vert;
+            if (onChunkBoundary) {
+              vert = { x: baseX, y: baseY };
+            } else {
               const perturbScale = tileSize * 0.15;
               const ox = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 0) * perturbScale;
               const oy = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 1) * perturbScale;
-              return { x: baseX + ox, y: baseY + oy };
-            })();
+              vert = { x: baseX + ox, y: baseY + oy };
+            }
             if (i === 0) cCtx.moveTo(vert.x, vert.y);
             else cCtx.lineTo(vert.x, vert.y);
           }
@@ -245,18 +244,21 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
             const p = hull[i];
             const wx = startX + p.x;
             const wy = startY + p.y;
-            const vert = (function(){
-              const onChunkBoundary =
-                ( (startX + p.x) % CHUNK_SIZE === 0) ||
-                ( (startY + p.y) % CHUNK_SIZE === 0);
-              const baseX = p.x * tileSize;
-              const baseY = p.y * tileSize;
-              if (onChunkBoundary) return { x: baseX, y: baseY };
+            // Compute perturbed vertex safely, using externalVertexOffset if provided.
+            const onChunkBoundary =
+              ((startX + p.x) % CHUNK_SIZE === 0) ||
+              ((startY + p.y) % CHUNK_SIZE === 0);
+            const baseX = p.x * tileSize;
+            const baseY = p.y * tileSize;
+            let vert;
+            if (onChunkBoundary) {
+              vert = { x: baseX, y: baseY };
+            } else {
               const perturbScale = tileSize * 0.15;
               const ox = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 0) * perturbScale;
               const oy = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 1) * perturbScale;
-              return { x: baseX + ox, y: baseY + oy };
-            })();
+              vert = { x: baseX + ox, y: baseY + oy };
+            }
             if (i === 0) cCtx.moveTo(vert.x, vert.y);
             else cCtx.lineTo(vert.x, vert.y);
           }
