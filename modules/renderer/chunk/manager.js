@@ -87,7 +87,11 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         if (tileType === game.CONSTANTS.TILE_WATER) {
           const riverInfo = noise.getRiverSystem(worldX, worldY);
           const v = Math.max(0, Math.min(1, riverInfo.value));
-          let band = Math.floor(v * WATER_BAND_COUNT);
+          // Invert mapping so low river.value (deep center = 0) becomes deeper band index (0 -> deepest)
+          // and higher river.value (near-bank -> 1) maps to shallower bands.
+          // Compute a depthFactor where 1.0 = deep center, 0.0 = bank/shallow.
+          const depthFactor = Math.max(0, Math.min(1, 1.0 - v));
+          let band = Math.floor(depthFactor * WATER_BAND_COUNT);
           if (band >= WATER_BAND_COUNT) band = WATER_BAND_COUNT - 1;
           if (band < 0) band = 0;
           depthBandGrid[y][x] = band;
