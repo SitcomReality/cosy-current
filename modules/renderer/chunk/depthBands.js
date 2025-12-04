@@ -7,30 +7,17 @@ import { lerpColorHex, getPerturbedVertex } from './helpers.js';
 // This function assumes tileGrid and depthBandGrid have already been prepared.
 export function renderWaterBands(cCtx, startX, startY, CHUNK_SIZE, tileSize, tileGrid, depthBandGrid, WATER_BAND_COUNT, WATER_PALETTE, getVertexOffset) {
   const visitedWater = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(false));
+
   for (let y = 0; y < CHUNK_SIZE; y++) {
     for (let x = 0; x < CHUNK_SIZE; x++) {
-      if (tileGrid[y][x] !== undefined && tileGrid[y][x] !== undefined && tileGrid[y][x] !== null) {
-        // proceed
-      }
-      if (tileGrid[y][x] !== undefined && tileGrid[y][x] === undefined) continue;
-      if (tileGrid[y][x] !== undefined && tileGrid[y][x] !== undefined) {}
-      if (tileGrid[y][x] !== game?.CONSTANTS?.TILE_WATER) {}
-      // Skip non-water
-      if (tileGrid[y][x] !== undefined && tileGrid[y][x] !== null && tileGrid[y][x] !== 0) {
-        // allow generic check (most projects map TILE_WATER to 0)
-      }
-      if (tileGrid[y][x] !== undefined && tileGrid[y][x] !== null && tileGrid[y][x] !== game?.CONSTANTS?.TILE_WATER) {
-        // Skip non-water - nothing to do
-      }
-
-      // Formal check (defensive): skip if not water by using depthBandGrid marker
-      if (depthBandGrid[y][x] < 0) continue;
+      // Skip cells that are not part of water bands
+      if (!depthBandGrid || depthBandGrid[y][x] === undefined || depthBandGrid[y][x] < 0) continue;
       if (visitedWater[y][x]) continue;
 
       const band = depthBandGrid[y][x];
       if (band < 0) continue;
 
-      const cells = floodFillBand(depthBandGrid, visitedWater, x, y, band);
+      const cells = floodFillBand(depthBandGrid, visitedWater, x, y, band, CHUNK_SIZE);
       if (!cells.length) continue;
 
       const corners = new Set();
@@ -49,7 +36,7 @@ export function renderWaterBands(cCtx, startX, startY, CHUNK_SIZE, tileSize, til
       const hull = convexHull(points);
       if (hull.length < 3) continue;
 
-      const bandCenterT = (band + 0.5) / WATER_BAND_COUNT;
+      const bandCenterT = (band + 0.5) / Math.max(1, WATER_BAND_COUNT);
       const color = lerpColorHex(WATER_PALETTE.deep, WATER_PALETTE.shallow, bandCenterT);
 
       cCtx.fillStyle = color;
@@ -74,14 +61,14 @@ export function renderWaterBands(cCtx, startX, startY, CHUNK_SIZE, tileSize, til
   }
 
   // Helper flood-fill for band grid (4-neighbour)
-  function floodFillBand(grid, visitedGrid, sx, sy, bandValue) {
+  function floodFillBand(grid, visitedGrid, sx, sy, bandValue, size) {
     const cells = [];
     const stack = [[sx, sy]];
     const dirs = [[0,1],[1,0],[0,-1],[-1,0]];
 
     while (stack.length) {
       const [cx, cy] = stack.pop();
-      if (cx < 0 || cx >= CHUNK_SIZE || cy < 0 || cy >= CHUNK_SIZE) continue;
+      if (cx < 0 || cx >= size || cy < 0 || cy >= size) continue;
       if (visitedGrid[cy][cx]) continue;
       if (grid[cy][cx] !== bandValue) continue;
 
