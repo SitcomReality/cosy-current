@@ -1,21 +1,21 @@
-// Refactored chunk manager that composes smaller modules to keep concerns separated.
+// Moved and slightly refactored chunk manager (original monolith extracted here).
+// Plant spawn chances reduced by ~50%.
 
 import { convexHull, floodFill } from '../hull.js';
-import { getVertexOffset } from '../vertex.js';
-import { lerpColorHex as _lerpColorHex } from './helpers.js';
-import { createPropsGenerator } from './propsGenerator.js';
-import { renderWaterBands } from './depthBands.js';
-import { hexToRgb, lerpColorHex } from './helpers.js'; // some helpers reused
+import { lerpColorHex } from './color.js';
+import { renderWaterBands } from './waterBands.js';
+import { createChunkPropsManager } from './props.js';
 
-export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, game, noise, getVertexOffset: externalVertexOffset }) {
+// Factory to create chunk manager so it can close over state/game/noise/COLORS etc.
+export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, game, noise, getVertexOffset }) {
   const chunkCache = new Map();
-  const chunkPropsCache = new Map();
 
-  const propsGen = createPropsGenerator({ CHUNK_SIZE, game, noise });
+  // Props manager (trees + aquatic flora) now lives in its own module
+  const propsManager = createChunkPropsManager({ CHUNK_SIZE, game, noise });
 
   function clearCache() {
     chunkCache.clear();
-    chunkPropsCache.clear();
+    propsManager.clearPropsCache();
   }
 
   function pruneCache() {
@@ -26,26 +26,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
           chunkCache.delete(key);
         }
       }
-      for (const [key, val] of chunkPropsCache) {
-        if (now - val.lastUsed > 2000) {
-          chunkPropsCache.delete(key);
-        }
-      }
+      // Also prune props
+      propsManager.prunePropsCache();
     }
-  }
-
-  function getChunkProps(cx, cy) {
-    const key = `${cx},${cy}`;
-    if (chunkPropsCache.has(key)) {
-      const data = chunkPropsCache.get(key);
-      data.lastUsed = performance.now();
-      return data.props;
-    }
-
-    const props = propsGen.getChunkProps(cx, cy);
-
-    chunkPropsCache.set(key, { props, lastUsed: performance.now() });
-    return props;
   }
 
   // Generate or return existing chunk canvas
@@ -70,9 +53,11 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
     const tileGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(0));
     const heightGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(0));
     const visited = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(false));
+    // New: depth bands for water, and visited flags for band flood-fill
     const depthBandGrid = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(-1));
     const visitedWater = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(false));
 
+    // Number of quantized depth bands for water
     const WATER_BAND_COUNT = 4;
 
     for (let y = 0; y < CHUNK_SIZE; y++) {
@@ -84,14 +69,11 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         tileGrid[y][x] = tileType;
         heightGrid[y][x] = game.getHeight(worldX, worldY);
 
+        // Precompute water depth band per cell
         if (tileType === game.CONSTANTS.TILE_WATER) {
           const riverInfo = noise.getRiverSystem(worldX, worldY);
-          const v = Math.max(0, Math.min(1, riverInfo.value));
-          // Invert mapping so low river.value (deep center = 0) becomes deeper band index (0 -> deepest)
-          // and higher river.value (near-bank -> 1) maps to shallower bands.
-          // Compute a depthFactor where 1.0 = deep center, 0.0 = bank/shallow.
-          const depthFactor = Math.max(0, Math.min(1, 1.0 - v));
-          let band = Math.floor(depthFactor * WATER_BAND_COUNT);
+          const v = Math.max(0, Math.min(1, riverInfo.value)); // 0 = deep, 1 = shallow
+          let band = Math.floor(v * WATER_BAND_COUNT);
           if (band >= WATER_BAND_COUNT) band = WATER_BAND_COUNT - 1;
           if (band < 0) band = 0;
           depthBandGrid[y][x] = band;
@@ -99,7 +81,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       }
     }
 
-    // Remove isolated specks (same logic as before)
+    // Post-process to remove isolated single-tile terrain "specks"
+    // If a cell has no 8-neighborhood neighbor with the same tile type,
+    // flatten it into the most common neighboring tile type.
     {
       const dirs8 = [
         [-1, -1], [0, -1], [1, -1],
@@ -125,6 +109,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
           }
 
           if (!hasSameNeighbor && neighborCounts.size > 0) {
+            // Pick the most common neighboring tile type to flatten into
             let bestType = current;
             let bestCount = -1;
             for (const [tType, count] of neighborCounts.entries()) {
@@ -144,16 +129,53 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       }
     }
 
-    // Water Phase: quantized depth bands
-    if (WATER_PALETTE && game.CONSTANTS.TILE_WATER !== undefined) {
-      // Use the extracted water band renderer
-      renderWaterBands(cCtx, startX, startY, CHUNK_SIZE, tileSize, tileGrid, depthBandGrid, WATER_BAND_COUNT, WATER_PALETTE, externalVertexOffset || getVertexOffset);
+    const perturbScale = tileSize * 0.15;
+
+    // Helper: compute a vertex position with deterministic perturbation,
+    // but keep vertices that lie on chunk boundaries perfectly aligned
+    function getPerturbedVertex(worldX, worldY, localGridX, localGridY) {
+      // Vertices lying exactly on chunk grid lines (in tile space) are shared
+      // between adjacent chunks; do not perturb them so edges stay flush.
+      const onChunkBoundary = 
+        (worldX % CHUNK_SIZE === 0) ||
+        (worldY % CHUNK_SIZE === 0);
+
+      const baseX = localGridX * tileSize;
+      const baseY = localGridY * tileSize;
+
+      if (onChunkBoundary) {
+        return { x: baseX, y: baseY };
+      }
+
+      const ox = getVertexOffset(worldX, worldY, 0) * perturbScale;
+      const oy = getVertexOffset(worldX, worldY, 1) * perturbScale;
+      return { x: baseX + ox, y: baseY + oy };
     }
 
-    // Terrain hull polygons
+    // Phase 1: Water Rendering as quantized depth bands using hull polygons
+    if (WATER_PALETTE && game.CONSTANTS.TILE_WATER !== undefined) {
+      renderWaterBands({
+        cCtx,
+        CHUNK_SIZE,
+        startX,
+        startY,
+        tileGrid,
+        depthBandGrid,
+        visitedWater,
+        visited,
+        WATER_BAND_COUNT,
+        game,
+        WATER_PALETTE,
+        getPerturbedVertex
+      });
+    }
+
+    // Phase 2: Hull polygons for terrain components
     for (let y = 0; y < CHUNK_SIZE; y++) {
       for (let x = 0; x < CHUNK_SIZE; x++) {
         const tileType = tileGrid[y][x];
+        // Skip already processed tiles and any special road tiles (if defined),
+        // but DO NOT skip tileType === 0 so deep water renders as normal terrain.
         if (visited[y][x] || (game.CONSTANTS.TILE_ROAD && tileType === game.CONSTANTS.TILE_ROAD)) continue;
 
         const { cells, avgH } = floodFill(tileGrid, heightGrid, visited, x, y, tileType, CHUNK_SIZE);
@@ -174,40 +196,27 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         const hull = convexHull(points);
         if (hull.length < 3) continue;
 
+        // Base color: each tile type uses a single flat color; shallow water
+        // no longer blends toward sand or deep water so it forms one uniform band.
         let baseColor = COLORS[tileType] || '#f0f';
 
         const shadeAmt = (avgH - 0.5) * 0.4;
 
         cCtx.fillStyle = baseColor;
-        cCtx.strokeStyle = baseColor;
-        cCtx.lineWidth = 2;
+        cCtx.strokeStyle = baseColor; 
+        cCtx.lineWidth = 2; 
         cCtx.beginPath();
         for (let i = 0; i < hull.length; i++) {
           const p = hull[i];
           const wx = startX + p.x;
           const wy = startY + p.y;
-          // Compute perturbed vertex safely, using externalVertexOffset if provided.
-          const onChunkBoundary =
-            ((startX + p.x) % CHUNK_SIZE === 0) ||
-            ((startY + p.y) % CHUNK_SIZE === 0);
-          const baseX = p.x * tileSize;
-          const baseY = p.y * tileSize;
-          let vert;
-          if (onChunkBoundary) {
-            vert = { x: baseX, y: baseY };
-          } else {
-            const perturbScale = tileSize * 0.15;
-            const ox = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 0) * perturbScale;
-            const oy = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 1) * perturbScale;
-            vert = { x: baseX + ox, y: baseY + oy };
-          }
-
-          if (i === 0) cCtx.moveTo(vert.x, vert.y);
-          else cCtx.lineTo(vert.x, vert.y);
+          const v = getPerturbedVertex(wx, wy, p.x, p.y);
+          if (i === 0) cCtx.moveTo(v.x, v.y);
+          else cCtx.lineTo(v.x, v.y);
         }
         cCtx.closePath();
         cCtx.fill();
-        cCtx.stroke();
+        cCtx.stroke(); // Apply stroke to terrain hull for overlap
 
         if (shadeAmt !== 0) {
           cCtx.fillStyle = shadeAmt > 0
@@ -218,23 +227,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
             const p = hull[i];
             const wx = startX + p.x;
             const wy = startY + p.y;
-            // Compute perturbed vertex safely, using externalVertexOffset if provided.
-            const onChunkBoundary =
-              ((startX + p.x) % CHUNK_SIZE === 0) ||
-              ((startY + p.y) % CHUNK_SIZE === 0);
-            const baseX = p.x * tileSize;
-            const baseY = p.y * tileSize;
-            let vert;
-            if (onChunkBoundary) {
-              vert = { x: baseX, y: baseY };
-            } else {
-              const perturbScale = tileSize * 0.15;
-              const ox = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 0) * perturbScale;
-              const oy = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 1) * perturbScale;
-              vert = { x: baseX + ox, y: baseY + oy };
-            }
-            if (i === 0) cCtx.moveTo(vert.x, vert.y);
-            else cCtx.lineTo(vert.x, vert.y);
+            const v = getPerturbedVertex(wx, wy, p.x, p.y);
+            if (i === 0) cCtx.moveTo(v.x, v.y);
+            else cCtx.lineTo(v.x, v.y);
           }
           cCtx.closePath();
           cCtx.fill();
@@ -248,23 +243,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
             const p = hull[i];
             const wx = startX + p.x;
             const wy = startY + p.y;
-            // Compute perturbed vertex safely, using externalVertexOffset if provided.
-            const onChunkBoundary =
-              ((startX + p.x) % CHUNK_SIZE === 0) ||
-              ((startY + p.y) % CHUNK_SIZE === 0);
-            const baseX = p.x * tileSize;
-            const baseY = p.y * tileSize;
-            let vert;
-            if (onChunkBoundary) {
-              vert = { x: baseX, y: baseY };
-            } else {
-              const perturbScale = tileSize * 0.15;
-              const ox = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 0) * perturbScale;
-              const oy = (externalVertexOffset || getVertexOffset)(startX + p.x, startY + p.y, 1) * perturbScale;
-              vert = { x: baseX + ox, y: baseY + oy };
-            }
-            if (i === 0) cCtx.moveTo(vert.x, vert.y);
-            else cCtx.lineTo(vert.x, vert.y);
+            const v = getPerturbedVertex(wx, wy, p.x, p.y);
+            if (i === 0) cCtx.moveTo(v.x, v.y);
+            else cCtx.lineTo(v.x, v.y);
           }
           cCtx.closePath();
           cCtx.stroke();
@@ -276,5 +257,10 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
     return cCanvas;
   }
 
-  return { getChunk, getChunkProps, clearCache, pruneCache };
+  return { 
+    getChunk, 
+    getChunkProps: propsManager.getChunkProps, 
+    clearCache, 
+    pruneCache 
+  };
 }
