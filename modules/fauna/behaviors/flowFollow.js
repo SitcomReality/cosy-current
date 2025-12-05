@@ -9,6 +9,61 @@ export function applyFlowFollow(c, dt, noise) {
   const flowAngle = getFlowAngleAt(noise, c.x, c.y);
   let target = flowAngle;
 
+  // --- Soft "loiter / orbit" mode for water creatures ---
+  // Occasionally, instead of marching along the river, a creature will hang around
+  // a small area, orbiting a local center in smooth curves.
+  if (c.loiterTimer === undefined) c.loiterTimer = 0;
+  if (!c.loiterPhase) c.loiterPhase = Math.random() * Math.PI * 2;
+
+  const depthVal = r.value; // 0 = deep center, 1 = bank/land
+  let inLoiter = c.loiterTimer > 0;
+
+  // Chance to start loitering when in usable water band
+  if (!inLoiter) {
+    const depthOk = depthVal > 0.25 && depthVal < 0.9;
+    // dt‑scaled probability so it's resolution independent
+    if (depthOk && Math.random() < dt * 0.07) {
+      inLoiter = true;
+      c.loiterTimer = 4 + Math.random() * 8; // 4–12 seconds
+      const radius = 4 + Math.random() * 6;  // tiles around current point
+      const ang = Math.random() * Math.PI * 2;
+      c.loiterCenter = {
+        x: c.x + Math.cos(ang) * radius,
+        y: c.y + Math.sin(ang) * radius
+      };
+      // Keep existing phase but jitter slightly so multiple entries differ
+      c.loiterPhase += (Math.random() - 0.5) * 0.8;
+    }
+  }
+
+  if (inLoiter) {
+    c.loiterTimer -= dt;
+    if (c.loiterTimer <= 0) {
+      c.loiterTimer = 0;
+    }
+
+    const center = c.loiterCenter || { x: c.x, y: c.y };
+    const toCenter = Math.atan2(center.y - c.y, center.x - c.x);
+
+    // Orbit around the center; prefer a consistent direction using sideBias when present
+    const sideBias = (typeof c.sideBias === 'number') ? c.sideBias : 0;
+    const orbitDir = sideBias !== 0 ? Math.sign(sideBias) : (Math.random() < 0.5 ? -1 : 1);
+
+    c.loiterPhase += dt * 0.6;
+    const wiggle = Math.sin(c.loiterPhase) * 0.3;
+    const orbitOffset = orbitDir * 0.9; // roughly perpendicular to center direction
+
+    target = normalizeAngle(toCenter + orbitOffset + wiggle);
+
+    // While loitering, move more gently; deeper water allows a little more motion.
+    const depthFactor = Math.max(0, Math.min(1, 1.0 - depthVal));
+    c.speedMult = 0.15 + depthFactor * 0.35;
+    c.turnBoost = 1.2;
+
+    c.targetAngle = target;
+    return;
+  }
+
   // 2. Wavy Motion (Sinusoidal offset)
   // Varies by creature ID or explicit per-creature wavePhase to desync group oscillations
   const baseWaveFreq = 2.5;
@@ -55,11 +110,21 @@ export function applyFlowFollow(c, dt, noise) {
 
   // 4. Gradient Descent (Emergency Center Bias)
   // If very close to bank, override with direct center vector
-  if (r.value > 0.7) {
+  // Soften this so creatures can explore near-bank regions without snapping to center.
+  if (r.value > 0.8) {
     const deepAngle = getCenterAngleAt(noise, c.x, c.y); // toward deeper water
-    const blend = Math.max(0, Math.min(0.6, (r.value - 0.7) * 2.0));
+    const blend = Math.max(0, Math.min(0.45, (r.value - 0.8) * 2.0));
     // Blend current target with deepAngle
     target = normalizeAngle(target + shortestAngleDiff(target, deepAngle) * blend);
+  }
+
+  // 4.5 Subtle per-creature side bias so some individuals favor one side of the river.
+  const sideBias = (typeof c.sideBias === 'number') ? c.sideBias : 0;
+  if (sideBias !== 0) {
+    // Stronger in deeper water; fades out near banks so they can still escape
+    const depthCenter = Math.max(0, Math.min(1, 1.0 - r.value));
+    const biasStrength = 0.35 * depthCenter;
+    target += sideBias * biasStrength;
   }
 
   // 5. Flocking (Optional)
@@ -80,7 +145,7 @@ export function applyFlowFollow(c, dt, noise) {
     }
   }
 
-  c.targetAngle = target;
+  c.targetAngle = normalizeAngle(target);
 
   // Modulate speed based on turn sharpness to simulate physics
   const turnStress = Math.abs(shortestAngleDiff(c.angle, target));

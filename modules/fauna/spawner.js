@@ -223,7 +223,15 @@ export function createSpawner(game, noise, state) {
       const groupCanFlock = (typeKey === 'fish' || typeKey === 'eel' || typeKey === 'bird');
       // Make birds much more likely to be flockers
       const groupIsFlocker = groupCanFlock && (typeKey === 'bird' ? (Math.random() < 0.95) : (Math.random() < 0.4));
-      const baseFlockStrength = groupIsFlocker ? randomRange(0.35, 0.6) : 0;
+      // Water schools should still cohere, but with weaker, more varied alignment than birds.
+      let baseFlockStrength = 0;
+      if (groupIsFlocker) {
+        if (typeKey === 'fish' || typeKey === 'eel') {
+          baseFlockStrength = randomRange(0.15, 0.45);
+        } else {
+          baseFlockStrength = randomRange(0.35, 0.6);
+        }
+      }
 
       for (let i = 0; i < count; i++) {
         // Position Logic: "Formation" vs Random Cloud
@@ -333,7 +341,9 @@ export function createSpawner(game, noise, state) {
           wavePhase,                       // <-- attach phase for flowFollow to use
           waveAmpMult,                     // <-- per-creature amplitude multiplier
           waveFreqMult,                    // <-- per-creature frequency multiplier
-          spawnSpeedMult                   // <-- per-creature cruising speed bias
+          spawnSpeedMult,                    // <-- per-creature cruising speed bias
+          // Per-creature lateral preference within the river; only meaningful for water fauna.
+          sideBias: def.pool === POOL_WATER ? (Math.random() - 0.5) * 0.7 : 0
         });
       }
     }
