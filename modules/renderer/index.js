@@ -45,32 +45,30 @@ export function createRenderer({ canvas, state, game, noise }) {
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
 
-    // Helper: derive a night-time tree shadeProgression from raft headlight
-    // based on distance falloff and the obliqueness of the shadow direction.
-    function computeTreeShadeFromHeadlight(falloff, shadowDirVec) {
-      const sx = Math.abs(shadowDirVec.x);
-      const sy = Math.abs(shadowDirVec.y);
-      const sum = sx + sy || 1;
-      // obliqueness: 0 when shadow is almost axis-aligned (very slivery),
-      // 1 when x/y components are equal (shadow triangle has equal legs).
-      const oblique = 1 - Math.abs(sx - sy) / sum;
-      const brightness = falloff * oblique;
-      // Map to tree shading range: 0.05 ≈ mostly dark, 0.95 ≈ fully lit
-      const base = 0.05 + brightness * 0.9;
+    // Helper: derive a night-time tree shadeProgression from raft headlight.
+    // - The SIDE of the light (left/right on screen) comes from the headlight direction.
+    // - The AMOUNT of lit area comes from distance/brightness (falloff * intensity).
+    // This maps into the same shadeProgression space that drawTree() uses:
+    //   S in [0.05, 0.45]  -> "morning" branch, light on the right side.
+    //   S in [0.55, 0.95]  -> "afternoon" branch, light on the left side.
+    function computeTreeShadeFromHeadlight(falloffBrightness, lightDirX) {
+      // Clamp 0..1 brightness from distance & light intensity
+      const b = Math.max(0, Math.min(1, falloffBrightness || 0));
+      // Decide which SCREEN side the light comes from: x>0 ≈ from the right, x<0 ≈ from the left.
+      const fromRight = lightDirX >= 0;
 
-      // Determine which screen-side the light is coming from.
-      // shadowDirVec is a vector from light -> prop (so shadows point away from light).
-      // If the light's X component is negative, light is coming from the left side (so left face should be lit).
-      const lightFromLeft = (shadowDirVec.x < 0);
-
-      // Convert base (0.05..0.95) into a shadeProgression where:
-      // - values < 0.5 indicate the right face is the lit side,
-      // - values > 0.5 indicate the left face is the lit side.
-      // We bias around 0.5 by half of the computed brightness range so that both
-      // intensity and side are encoded.
-      const normalized = (base - 0.05) / 0.9; // 0..1
-      const bias = normalized * 0.45; // max +/-0.45 from 0.5 -> yields ~0.05..0.95
-      return lightFromLeft ? (0.5 + bias) : (0.5 - bias);
+      if (fromRight) {
+        // Morning-style shading: right side lit.
+        const minS = 0.05;
+        const maxS = 0.45;
+        return minS + b * (maxS - minS);
+      } else {
+        // Afternoon-style shading: left side lit.
+        const minS = 0.55;
+        const maxS = 0.95;
+        // b=0 -> near 0.95 (mostly dark), b=1 -> near 0.55 (mostly lit)
+        return maxS - b * (maxS - minS);
+      }
     }
 
     if (!state.isPlaying) {
@@ -141,10 +139,12 @@ export function createRenderer({ canvas, state, game, noise }) {
               // Shadow points away from player
               propShadowDir = { x: dx / dist, y: dy / dist };
 
-              // For trees, derive a smoother night shading value from the same
-              // falloff and the shadow direction; for aquatic props keep prior behavior.
+              // For trees, derive a directional night shading value:
+              //   - light side from headlight direction (propShadowDir.x sign)
+              //   - lit area proportion from brightness (falloff)
               if (prop.type === 'forest' || prop.type === 'grass') {
-                const nightShade = computeTreeShadeFromHeadlight(falloff, propShadowDir);
+                const brightness = Math.max(0, Math.min(1, falloff));
+                const nightShade = computeTreeShadeFromHeadlight(brightness, propShadowDir.x);
                 propCycle = Object.assign({}, cycle, {
                   shadowAlpha: 0.6 * falloff,
                   shadowLength: 1.0,
@@ -185,9 +185,11 @@ export function createRenderer({ canvas, state, game, noise }) {
                const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
 
                if (prop.type === 'forest' || prop.type === 'grass') {
-                 // Use the same smooth night shading for tree geometry as for their shadows
-                 const lightDir = { x: dx / Math.max(dist, 1e-6), y: dy / Math.max(dist, 1e-6) };
-                 const nightShade = computeTreeShadeFromHeadlight(falloff, lightDir);
+                 // Use the same directional night shading for tree geometry as for their shadows:
+                 // headlight X direction decides lit side, falloff decides how much is lit.
+                 const lightDirX = dx / Math.max(dist, 1e-6);
+                 const brightness = Math.max(0, Math.min(1, falloff));
+                 const nightShade = computeTreeShadeFromHeadlight(brightness, lightDirX);
                  propCycle = Object.assign({}, cycle, {
                    shadeProgression: nightShade,
                    shadowAlpha: 0.6 * falloff
