@@ -135,6 +135,7 @@ export function getCycleProps(state) {
       shadeProgression = clamp((t - dawnStart) / activeSpan, 0, 1); // 0 at dawnStart, 1 at duskEnd
   }
 
-  return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor, shadeProgression };
+  // Return cycle properties including dayFactor for external logic (raft light gating)
+  return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor, shadeProgression, dayFactor };
 }
 
