@@ -51,7 +51,7 @@ export function drawJaggedInfluence(ctx, centerX, centerY, radius, seedStr, fill
   ctx.restore();
 }
 
-export function drawEntities(ctx, state, tileSize, game, centerX, centerY, light) {
+export function drawEntities(ctx, state, tileSize, game, centerX, centerY) {
   const MARGIN = tileSize * 2;
   state.entities.forEach(ent => {
     const screenX = (ent.x - state.camera.x) * tileSize + centerX;

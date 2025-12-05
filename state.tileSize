@@ -1,9 +1,0 @@
-// Raft headlight: active only when the sun's shadows have fully faded (night).
-const useRaftLight = (cycle.dayFactor || 0) < 0.01;
-const raftLight = useRaftLight ? {
-  mode: 'raft',
-  enabled: true,
-  x: state.player.x,
-  y: state.player.y
-} : null;
-

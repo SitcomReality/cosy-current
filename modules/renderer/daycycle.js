@@ -21,6 +21,10 @@ export function getCycleProps(state) {
   const duskStart = 0.70;  // start fading to evening
   const duskEnd = 0.82;    // fully night after this
 
+  // Check for raft light activation (Deep Night)
+  // Active when sun shadows are completely gone (before dawnStart or after duskEnd)
+  const raftLightActive = (t < dawnStart || t > duskEnd);
+
   // Determine normalized progress through day (0..1 where 1 is full daytime)
   let dayFactor = 0;
   if (t <= dawnStart || t >= duskEnd) {
@@ -67,6 +71,10 @@ export function getCycleProps(state) {
     shadowLengthBase = 1;
   }
 
+  // If raft light is active, we override shadow params later per-object, 
+  // but for global sun shadows, they should be zero/off.
+  // We'll let the standard logic fade them out.
+  
   shadowLength = shadowLengthBase;
 
   // Shadow alpha: fade in/out with dayFactor, and strengthen slightly near morning/evening
@@ -135,7 +143,6 @@ export function getCycleProps(state) {
       shadeProgression = clamp((t - dawnStart) / activeSpan, 0, 1); // 0 at dawnStart, 1 at duskEnd
   }
 
-  // Return cycle properties including dayFactor for external logic (raft light gating)
-  return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor, shadeProgression, dayFactor };
+  return { shadowDirX, shadowDirY, shadowLength, shadowAlpha, ambientColor, shadeProgression, raftLightActive };
 }
 

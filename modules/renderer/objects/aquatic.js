@@ -1,5 +1,4 @@
 // Aquatic flora drawing helpers: shadows and plant geometry
-import { shortestAngleDiff } from '/modules/fauna/utils.js';
 
 // Helper to blend two hex colors
 function lerpColor(aHex, bHex, t) {
@@ -16,46 +15,18 @@ function lerpColor(aHex, bHex, t) {
   return `rgb(${r},${g},${b})`;
 }
 
-export function drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir, light) {
+export function drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir) {
   const { x: tx, y: ty, h, type } = prop;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
   const sx = (tx - state.camera.x) * tileSize + centerX;
   const sy = (ty - state.camera.y) * tileSize + centerY;
 
-  let alpha = Math.max(0, Math.min(0.9, cycle.shadowAlpha * 1.5)); // Sunlight alpha
-  let lengthFactor = cycle.shadowLength;
-  
-  // Raft Light Shadow Calculation Override
-  if (light && light.enabled) {
-    const dxL = tx - light.x;
-    const dyL = ty - light.y;
-    const distSq = dxL * dxL + dyL * dyL;
-    const rangeSq = 25 * 25; 
-
-    if (distSq < rangeSq) {
-      // Check cone angle for shadows (a bit wider than visualization cone)
-      const angleToProp = Math.atan2(dyL, dxL);
-      const angleDiff = Math.abs(shortestAngleDiff(angleToProp, light.angle));
-      const coneAngle = Math.PI / 3; // 60 degrees total arc
-
-      if (angleDiff < coneAngle) {
-         const lenL = Math.hypot(dxL, dyL) || 1;
-         shadowDir = { x: dxL / lenL, y: dyL / lenL };
-         
-         // Scale shadow visibility based on proximity to light source
-         const dist = Math.sqrt(distSq);
-         const intensity = 1.0 - (dist / 25.0);
-         
-         alpha = 0.5 * intensity; // Max shadow alpha 0.5 under raft light
-         lengthFactor = 0.5 * intensity; // Max shadow length factor 0.5
-      }
-    }
-  }
-
+  const alpha = Math.max(0, Math.min(0.9, cycle.shadowAlpha * 1.5)); // Slightly lighter than trees
   if (alpha <= 0.0001) return;
   ctx.fillStyle = `rgba(0,0,0,${alpha})`;
 
+  const lengthFactor = cycle.shadowLength;
   if (lengthFactor <= 0.0001) return;
 
   const len = tileSize * h * lengthFactor * 1.2;
@@ -128,7 +99,7 @@ export function drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir, 
   ctx.fill();
 }
 
-export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors, light) {
+export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors) {
   const { x: tx, y: ty, h, type, depth, phase } = prop;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
@@ -139,41 +110,15 @@ export function drawAquaticPlant(ctx, state, tileSize, prop, floraColors, light)
   const m = tileSize * 2;
   if (sx < -m || sx > state.width + m || sy < -m || sy > state.height + m) return;
 
-  // Resolve base color
+  // Resolve color with depth tint
   let baseColor;
   if (type === 'reeds') baseColor = floraColors.reeds;
   else if (type === 'kelp') baseColor = floraColors.kelp;
   else baseColor = floraColors.seagrass; // seagrass
 
-  // Determine lighting and depth tint
-  let finalColor;
-  let depthTintFactor = depth * 0.75; // Max 0.75 depth tint
-
-  if (light && light.enabled) {
-    const dx = tx - light.x;
-    const dy = ty - light.y;
-    const distSq = dx * dx + dy * dy;
-    const range = 25; // 25 tiles radius
-    const rangeSq = range * range;
-    
-    if (distSq < rangeSq) {
-      const angleToLight = Math.atan2(dy, dx);
-      const angleDiff = Math.abs(shortestAngleDiff(angleToLight, light.angle));
-      const coneAngle = Math.PI / 3; // 60 degrees total arc
-
-      if (angleDiff < coneAngle) {
-        // Intensity 1.0 near raft, 0.0 at edge
-        const dist = Math.sqrt(distSq);
-        const intensity = 1.0 - (dist / range);
-
-        // Reduce depth tint when lit by raft
-        depthTintFactor *= (1.0 - intensity * 0.7); 
-      }
-    }
-  }
-
   // Apply tint based on depth (deeper = more tinted)
-  finalColor = lerpColor(baseColor, floraColors.tint, depthTintFactor);
+  // depth is 0..1. Mix factor maxes out at ~0.7 to keep some local color
+  const finalColor = lerpColor(baseColor, floraColors.tint, depth * 0.75);
 
   ctx.fillStyle = finalColor;
   ctx.strokeStyle = finalColor;

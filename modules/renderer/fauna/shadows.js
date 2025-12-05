@@ -1,13 +1,10 @@
 // Fauna shadow rendering helpers
 
-export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise, light) {
+export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise) {
   ctx.save();  
 
   // Use definition type for logic
   const isWaterCreature = (c.def && c.def.pool === 'water');
-
-  // Determine whether we're using the raft light (night) for this water creature
-  const useRaftLight = !!(light && light.mode === 'raft' && light.enabled && isWaterCreature);
 
   if (isWaterCreature && noise) {
     const riverInfo = noise.getRiverSystem(c.x, c.y);
@@ -27,15 +24,6 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
     // Offset scales with depthFactor so deeper gives a more separated shadow
     const offset = baseOffset * (0.3 + depthFactor * 0.7) * (isEel ? 1.05 : 1.0);
     const shadowScale = 1.0 + depthFactor * 0.3;
-
-    // If using raft light, recompute the light direction per-creature so the shadow
-    // points away from the raft light instead of using the global sun direction.
-    if (useRaftLight) {
-      const dxL = c.x - light.x;
-      const dyL = c.y - light.y;
-      const lenL = Math.hypot(dxL, dyL) || 1;
-      shadowDir = { x: dxL / lenL, y: dyL / lenL };
-    }
 
     // Compute oriented shadow by rotating the canvas to the creature angle,
     // so the shadow aligns with the creature's rotation.

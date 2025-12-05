@@ -38,7 +38,7 @@ export function drawTreeShadow(ctx, state, camera, tileSize, tree, cycle, shadow
   ctx.fill();
 }
 
-export function drawTree(ctx, state, tileSize, tree, treeColors, cycle, light) {
+export function drawTree(ctx, state, tileSize, tree, treeColors, cycle) {
   const { x: tx, y: ty, h, type } = tree;
   const centerX = state.width / 2;
   const centerY = state.height / 2;

@@ -1,6 +1,6 @@
 // Player (raft) drawing helpers, including depth-aware shadow
 
-export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise, light) {
+export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
   const p = state.player;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
@@ -8,7 +8,8 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise, light)
   const py = (p.y - state.camera.y) * tileSize + centerY;
 
   // Depth-aware Shadow Rendering
-  if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001 && noise) {
+  // Skip player shadow if raft light is active (source is on the raft)
+  if (!cycle.raftLightActive && cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001 && noise) {
     const raftHalfLen = 1.0; // Slightly larger than raft (0.9) to match original shadow size
     const raftHalfWid = 0.6;
     
@@ -103,7 +104,7 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise, light)
     ctx.fill();
   } 
   // Fallback for when noise isn't ready or shadow is off (though we usually want to skip drawing)
-  else if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
+  else if (!cycle.raftLightActive && cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
     // Legacy simple shadow
     ctx.save();
     const shadowLen = cycle.shadowLength;
@@ -146,25 +147,27 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise, light)
   ctx.fillRect(-cabinW/4, -cabinH/4, cabinW/2, cabinH/3);
 
   // Rigid triangular light cap at the front of the raft (replaces round light)
-  // Only draw if light is active (night)
-  if (light && light.enabled) {
-    // Use an orange/yellow tone for the light to match the low-poly palette
-    ctx.shadowColor = '#f59e0b';
-    ctx.shadowBlur = 6; // small softening while keeping a crisp shape
-    ctx.fillStyle = '#f59e0b'; // orange light
-    ctx.beginPath();
-    const lx = raftLen/2 - 6;
-    const ly = 0;
-    const triH = 6; // triangle height in pixels
-    const triW = 6; // triangle half-width in pixels
-    // Triangle points (pointing forward)
-    ctx.moveTo(lx + triH, ly);             // tip
-    ctx.lineTo(lx - triH * 0.3, ly - triW); // back-top
-    ctx.lineTo(lx - triH * 0.3, ly + triW); // back-bottom
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowBlur = 0;
-  }
+  // Use an orange/yellow tone for the light to match the low-poly palette
+  
+  // If light is active, make the lamp look brighter/lit
+  const lightColor = cycle.raftLightActive ? '#fff' : '#f59e0b';
+  const lightGlow = cycle.raftLightActive ? 15 : 6;
+
+  ctx.shadowColor = '#f59e0b';
+  ctx.shadowBlur = lightGlow; // small softening while keeping a crisp shape
+  ctx.fillStyle = lightColor; // orange light
+  ctx.beginPath();
+  const lx = raftLen/2 - 6;
+  const ly = 0;
+  const triH = 6; // triangle height in pixels
+  const triW = 6; // triangle half-width in pixels
+  // Triangle points (pointing forward)
+  ctx.moveTo(lx + triH, ly);             // tip
+  ctx.lineTo(lx - triH * 0.3, ly - triW); // back-top
+  ctx.lineTo(lx - triH * 0.3, ly + triW); // back-bottom
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
 
   ctx.restore();
 }

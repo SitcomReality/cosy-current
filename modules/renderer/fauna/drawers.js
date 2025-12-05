@@ -1,6 +1,6 @@
 // Fauna drawing helpers (non-shadow geometry)
 
-export function drawCreature(ctx, c, screenX, screenY, size, cycle, light) {
+export function drawCreature(ctx, c, screenX, screenY, size, cycle) {
   ctx.save();
   ctx.translate(screenX, screenY);
   ctx.rotate(c.angle);
