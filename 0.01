@@ -1,0 +1,53 @@
+if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
+  currentlyLit = true;
+  litFalloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
+  propShadowDir = { x: dx / Math.max(dist, 1e-6), y: dy / Math.max(dist, 1e-6) };
+}
+
+// Remember last non-zero lit falloff and shadow direction so fading out
+// can blend from the prior lit state instead of recomputing "unlit".
+if (!prop._lastLitFalloff) prop._lastLitFalloff = 0;
+if (!prop._lastShadowDir) prop._lastShadowDir = { x: 0, y: 0 };
+
+if (currentlyLit) {
+  // Update last-known lit metrics when actually lit
+  prop._lastLitFalloff = litFalloff;
+  prop._lastShadowDir = propShadowDir;
+} else {
+  // While fading out, reuse the last known lit metrics so blended visuals
+  // transition smoothly instead of snapping to the unlit calculation.
+  litFalloff = prop._lastLitFalloff || 0;
+  propShadowDir = prop._lastShadowDir || propShadowDir;
+}
+
+// Update fade: quick fade-in, slightly slower fade-out for smoother exit
+const fadeInRate = 12.0;  // per second
+const fadeOutRate = 6.0;  // per second
+if (currentlyLit) {
+  prop._raftLitFade = Math.min(1, prop._raftLitFade + dt * fadeInRate);
+} else {
+  prop._raftLitFade = Math.max(0, prop._raftLitFade - dt * fadeOutRate);
+}
+
+if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
+  currentlyLit = true;
+  litFalloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
+  propShadowDirX = dx / Math.max(dist, 1e-6);
+}
+
+// Build blended cycle only if there is some fade value
+if (prop._raftLitFade > 0.001) {
+  if (prop.type === 'forest' || prop.type === 'grass') {
+    const nightShade = computeTreeShadeFromHeadlight(litFalloff, propShadowDirX);
+    const blendedShade = (cycle.shadeProgression * (1 - prop._raftLitFade)) + (nightShade * prop._raftLitFade);
+    propCycle = Object.assign({}, cycle, {
+      shadeProgression: blendedShade,
+      shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade
+    });
+  } else {
+    propCycle = Object.assign({}, cycle, {
+      shadeProgression: 0.5,
+      shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade
+    });
+  }
+}
