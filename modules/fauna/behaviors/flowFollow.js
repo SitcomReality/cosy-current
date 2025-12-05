@@ -76,15 +76,18 @@ export function applyFlowFollow(c, dt, noise) {
   const waveVal = Math.sin(c.life * waveFreq + wavePhase);
 
   // Amplitude reduces when near banks to prevent accidental beaching
-  const baseAmp = 0.8 * Math.max(0, 1.0 - r.value);
+  // Reduce base amplitude so creatures don't hug the bank as much.
+  const baseAmp = 0.6 * Math.max(0, 1.0 - r.value);
   // Apply per-creature amplitude multiplier if provided
   const ampMult = (typeof c.waveAmpMult === 'number') ? c.waveAmpMult : 1.0;
+  // If part of a group, bias members to be closer to 1.0 but still jitter
   const safeAmplitude = baseAmp * ampMult;
   target += waveVal * safeAmplitude;
 
   // 3. Look-ahead Avoidance (Whiskers)
   // Check left and right probes to steer away from rising terrain values
-  const probeDist = 2.5;
+  // Increase probe distance so creatures detect banks earlier and steer away sooner.
+  const probeDist = 3.5;
   const probeAngle = 0.6; // ~35 degrees
 
   const angL = c.angle - probeAngle;
@@ -104,16 +107,18 @@ export function applyFlowFollow(c, dt, noise) {
     const diff = vL - vR;
     // If vL > vR (Left is shallower), diff > 0. We want to turn Right (increase angle).
     // If vR > vL (Right is shallower), diff < 0. We want to turn Left (decrease angle).
-    const urgency = Math.max(0.1, (r.value - 0.3) * 1.5);
-    target += diff * urgency * 1.5;
+    // Increase urgency scaling so creatures react more strongly when near banks.
+    const urgency = Math.max(0.12, (r.value - 0.3) * 2.2);
+    target += diff * urgency * 1.8;
   }
 
   // 4. Gradient Descent (Emergency Center Bias)
-  // If very close to bank, override with direct center vector
-  // Soften this so creatures can explore near-bank regions without snapping to center.
-  if (r.value > 0.8) {
+  // If approaching banks, more strongly bias back toward center so creatures stay further from edge.
+  // Apply this earlier and allow a stronger blend as they get closer.
+  if (r.value > 0.65) {
     const deepAngle = getCenterAngleAt(noise, c.x, c.y); // toward deeper water
-    const blend = Math.max(0, Math.min(0.45, (r.value - 0.8) * 2.0));
+    // Blend ramps from 0 at 0.65 up to ~0.8 when at extreme edge
+    const blend = Math.max(0, Math.min(0.8, (r.value - 0.65) * 1.6));
     // Blend current target with deepAngle
     target = normalizeAngle(target + shortestAngleDiff(target, deepAngle) * blend);
   }
@@ -121,9 +126,9 @@ export function applyFlowFollow(c, dt, noise) {
   // 4.5 Subtle per-creature side bias so some individuals favor one side of the river.
   const sideBias = (typeof c.sideBias === 'number') ? c.sideBias : 0;
   if (sideBias !== 0) {
-    // Stronger in deeper water; fades out near banks so they can still escape
+    // Stronger in deeper water; fade the influence overall so side-preference doesn't pull them onto sand.
     const depthCenter = Math.max(0, Math.min(1, 1.0 - r.value));
-    const biasStrength = 0.35 * depthCenter;
+    const biasStrength = 0.25 * depthCenter;
     target += sideBias * biasStrength;
   }
 
