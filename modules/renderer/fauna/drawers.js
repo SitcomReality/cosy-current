@@ -392,24 +392,34 @@ function drawCritter(ctx, c, size) {
 }
 
 function drawFirefly(ctx, c, size) {
-  const glowIntensity = 0.5 + 0.5 * Math.sin(c.life * 3 + c.id.charCodeAt(0));
-  ctx.shadowColor = c.color;
-  ctx.shadowBlur = size * 4 * glowIntensity;
-  ctx.fillStyle = c.color;
-  ctx.globalAlpha = 0.8;
+  // Brighter, tiny square center with thin yellow outline and stronger glow
+  const baseColor = '#ffffff';
+  const rimColor = '#fef08a'; // soft yellow outline
+  // Pulsing factor for subtle glow animation
+  const pulse = 0.65 + 0.35 * Math.sin(c.life * 4 + (c.id ? c.id.charCodeAt(0) : 0));
+  const glow = Math.max(1, size * 6 * pulse);
 
-  ctx.beginPath();
-  ctx.moveTo(size * 0.3, 0);
-  ctx.lineTo(-size * 0.2, -size * 0.2);
-  ctx.lineTo(-size * 0.2, size * 0.2);
-  ctx.closePath();
-  ctx.fill();
+  ctx.save();
+  ctx.translate(0, 0);
 
-  ctx.shadowBlur = size * 6 * glowIntensity;
-  ctx.beginPath();
-  ctx.arc(0, 0, size * 0.3, 0, Math.PI * 2);
-  ctx.fill();
+  // Glow (bigger than before)
+  ctx.shadowColor = rimColor;
+  ctx.shadowBlur = glow;
+  ctx.globalAlpha = 0.95;
 
+  // Tiny filled white square at center
+  const coreSize = Math.max(1, Math.min(3, size * 0.18));
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(-coreSize / 2, -coreSize / 2, coreSize, coreSize);
+
+  // Thin yellow outline
+  ctx.shadowBlur = glow * 0.6; // slightly smaller blur for outline
+  ctx.strokeStyle = rimColor;
+  ctx.lineWidth = Math.max(0.5, coreSize * 0.25);
+  ctx.strokeRect(-coreSize / 2, -coreSize / 2, coreSize, coreSize);
+
+  // Reset shadow and alpha
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
+  ctx.restore();
 }

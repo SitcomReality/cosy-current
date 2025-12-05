@@ -154,7 +154,14 @@ export function createSpawner(game, noise, state) {
         // If habitat is defined, one must match
         if (habits.length > 0) {
             if (habits.some(h => mapping[h] === tile)) {
-                valid = true;
+                // For fireflies, prefer forest over grass: allow grass but with lower chance
+                if (typeKey === 'firefly' && tile === T.TILE_GRASS) {
+                  // ~35% of the time accept grass spawn so fireflies remain rarer on grass
+                  if (Math.random() < 0.35) valid = true;
+                  else valid = false;
+                } else {
+                  valid = true;
+                }
             }
         } else {
             valid = true;
