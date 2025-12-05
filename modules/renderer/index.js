@@ -168,6 +168,22 @@ export function createRenderer({ canvas, state, game, noise }) {
             prop._raftLitFade = Math.max(0, prop._raftLitFade - dt * fadeOutRate);
           }
 
+          // Initialize a persistent currentShade for the prop so shading doesn't "reset"
+          if (prop._currentShade === undefined) prop._currentShade = cycle.shadeProgression;
+
+          // Compute the target shade the headlight wants for this prop
+          const desiredShade = (prop.type === 'forest' || prop.type === 'grass')
+            ? computeTreeShadeFromHeadlight(litFalloff, propShadowDir.x)
+            : 0.5;
+
+          // Blend at a per-second rate (faster when entering light, slower when leaving)
+          const shadeInRate = 18.0;
+          const shadeOutRate = 8.0;
+          const shadeRate = currentlyLit ? shadeInRate : shadeOutRate;
+          // Exponential-like lerp step clamped to avoid overshoot on large dt
+          const lerpU = Math.min(1, dt * shadeRate);
+          prop._currentShade += (desiredShade - prop._currentShade) * lerpU;
+
           // If no effective fade, skip drawing lit shadows to avoid sudden pops
           if (prop._raftLitFade <= 0.001) {
             // For aquatic props and normal night-case we still want no special raft shadow
@@ -175,21 +191,19 @@ export function createRenderer({ canvas, state, game, noise }) {
             continue;
           }
 
-          // Build propCycle blended by fade
+          // Build propCycle blended by fade for shadow properties, but use _currentShade for geometry shading
           if (prop.type === 'forest' || prop.type === 'grass') {
-            const nightShade = computeTreeShadeFromHeadlight(litFalloff, propShadowDir.x);
-            // Blend between current global cycle.shadeProgression and the nightShade by fade
-            const blendedShade = (cycle.shadeProgression * (1 - prop._raftLitFade)) + (nightShade * prop._raftLitFade);
+            // Keep shadowAlpha driven by distance/fade but shadeProgression driven by the smooth per-prop interpolator
             propCycle = Object.assign({}, cycle, {
               shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade,
               shadowLength: 1.0,
-              shadeProgression: blendedShade
+              shadeProgression: prop._currentShade
             });
           } else {
             propCycle = Object.assign({}, cycle, {
               shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade,
               shadowLength: 1.0,
-              shadeProgression: 0.5
+              shadeProgression: prop._currentShade
             });
           }
 
@@ -226,18 +240,30 @@ export function createRenderer({ canvas, state, game, noise }) {
             }
           }
 
+          // Initialize persistent shade if missing (keeps geometry consistent with shadow pass)
+          if (prop._currentShade === undefined) prop._currentShade = cycle.shadeProgression;
+
+          // Recompute desired shade and advance the per-prop currentShade smoothly
+          const desiredShadeGeom = (prop.type === 'forest' || prop.type === 'grass')
+            ? computeTreeShadeFromHeadlight(litFalloff, propShadowDirX)
+            : 0.5;
+          const shadeInRateGeom = 18.0;
+          const shadeOutRateGeom = 8.0;
+          const shadeRateGeom = currentlyLit ? shadeInRateGeom : shadeOutRateGeom;
+          const lerpUGeom = Math.min(1, dt * shadeRateGeom);
+          prop._currentShade += (desiredShadeGeom - prop._currentShade) * lerpUGeom;
+
           // Build blended cycle only if there is some fade value
           if (prop._raftLitFade > 0.001) {
             if (prop.type === 'forest' || prop.type === 'grass') {
-              const nightShade = computeTreeShadeFromHeadlight(litFalloff, propShadowDirX);
-              const blendedShade = (cycle.shadeProgression * (1 - prop._raftLitFade)) + (nightShade * prop._raftLitFade);
+              // Use the persistent interpolated shade rather than abrupt blend from global
               propCycle = Object.assign({}, cycle, {
-                shadeProgression: blendedShade,
+                shadeProgression: prop._currentShade,
                 shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade
               });
             } else {
               propCycle = Object.assign({}, cycle, {
-                shadeProgression: 0.5,
+                shadeProgression: prop._currentShade,
                 shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade
               });
             }
