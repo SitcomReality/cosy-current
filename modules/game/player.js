@@ -33,39 +33,9 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     // We assume riverModule is the object { getSmartSteering: ... } or similar
     // We'll call the function we just wrote.
     const steering = riverModule.getSmartSteering(noise, p.x, p.y, p.angle);
-
-    // Smooth the steering recommendation so we don't snap to each new discrete result.
-    // We keep an internal "steering angle" that eases toward the latest suggestion.
-    if (p._steerAngle === undefined) {
-      p._steerAngle = p.angle;
-    }
-    const rawSteerAngle = steering.angle;
-    const steerDiff = shortestAngleDiff(p._steerAngle, rawSteerAngle);
-    const steerBlend = 0.12; // lower = smoother, higher = more responsive
-    p._steerAngle += steerDiff * steerBlend;
-
-    let targetAngle = p._steerAngle;
+    
+    const targetAngle = steering.angle;
     const confidence = steering.confidence;
-
-    // Flow lock: once we commit to a good channel, keep that heading for a bit
-    // so intersections feel decisive and smooth.
-    if (!p.flowLockActive) {
-      // Start a lock when confidence is high and we're roughly aligned already.
-      const diffToSteer = shortestAngleDiff(p.angle, targetAngle);
-      if (confidence > 0.65 && Math.abs(diffToSteer) < Math.PI * 0.4) {
-        p.flowLockActive = true;
-        p.flowLockAngle = targetAngle;
-        p.flowLockTimer = 3.0; // seconds of committed steering
-      }
-    } else {
-      // Maintain lock while timer and confidence stay reasonable.
-      p.flowLockTimer -= dt;
-      if (p.flowLockTimer > 0 && confidence > 0.25) {
-        targetAngle = p.flowLockAngle;
-      } else {
-        p.flowLockActive = false;
-      }
-    }
 
     // Smoothly turn towards target
     // We turn slower if confidence is high (cruising), faster if confidence is low (panic/turn)
@@ -73,17 +43,15 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     
     const diff = shortestAngleDiff(p.angle, targetAngle);
     
-    // Turn speed:
-    // - High confidence: gentle, gliding turns
-    // - Low confidence (e.g. near banks/intersections): allow a bit more turn, but still capped
-    const baseTurnRate = 0.9; // overall gentler turning baseline
-    const extraTurnFromUncertainty = (1 - Math.max(0, Math.min(1, confidence))) * 0.9;
-    const turnRate = baseTurnRate + extraTurnFromUncertainty;
-
-    // Apply turn with a fairly small per-frame cap to avoid snap rotations
+    // Turn speed
+    // If diff is large, we need to turn hard.
+    // Adjusted to be smoother on straights (low base) but snappy on hard corners to avoid beaching.
+    const turnRate = 0.7 + Math.abs(diff) * 1.5; 
+    
+    // Apply turn
     const maxTurn = turnRate * dt;
-    const clamped = Math.max(-maxTurn, Math.min(maxTurn, diff));
-    p.angle += clamped;
+    const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
+    p.angle += turn;
 
     // Speed control
     // If facing target and confident, speed up.
