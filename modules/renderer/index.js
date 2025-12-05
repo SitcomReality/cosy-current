@@ -107,12 +107,11 @@ export function createRenderer({ canvas, state, game, noise }) {
 
             if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
               // Lit by raft
-              // Create a modified cycle object for this prop
-              const falloff = 1.0 - (dist / LIGHT_RADIUS);
+              const falloff = (1.0 - (dist / LIGHT_RADIUS)) * (cycle.raftLightIntensity || 0);
               propCycle = Object.assign({}, cycle, {
-                 shadowAlpha: 0.6 * falloff, // Shadows fade at distance
+                 shadowAlpha: 0.6 * falloff,
                  shadowLength: 1.0,
-                 shadeProgression: 0.5 // Force "noon" shading for lit effect
+                 shadeProgression: 0.5
               });
               // Shadow points away from player
               propShadowDir = { x: dx/dist, y: dy/dist };
@@ -141,8 +140,10 @@ export function createRenderer({ canvas, state, game, noise }) {
             const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
             if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
+               const falloff = (1.0 - (dist / LIGHT_RADIUS)) * (cycle.raftLightIntensity || 0);
                propCycle = Object.assign({}, cycle, {
-                 shadeProgression: 0.5 // Force daylight appearance
+                 shadeProgression: 0.5,
+                 shadowAlpha: 0.6 * falloff
                });
             }
           }

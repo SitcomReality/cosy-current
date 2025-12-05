@@ -151,7 +151,7 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
   
   // If light is active, make the lamp look brighter/lit
   const lightColor = cycle.raftLightActive ? '#fff' : '#f59e0b';
-  const lightGlow = cycle.raftLightActive ? 15 : 6;
+  const lightGlow = (cycle.raftLightIntensity || 0) * 15;
 
   ctx.shadowColor = '#f59e0b';
   ctx.shadowBlur = lightGlow; // small softening while keeping a crisp shape
