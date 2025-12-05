@@ -34,6 +34,16 @@ export function createRenderer({ canvas, state, game, noise }) {
     advanceDayTime(state);
     const cycle = getCycleProps(state);
     const shadowDir = { x: cycle.shadowDirX, y: cycle.shadowDirY };
+    
+    // Raft headlight: active only when the sun's shadows have fully faded (night).
+    const useRaftLight = (cycle.dayFactor || 0) < 0.01 && state.isPlaying;
+    const raftLight = useRaftLight ? {
+      mode: 'raft',
+      enabled: true,
+      x: state.player.x,
+      y: state.player.y,
+      angle: state.player.angle
+    } : null;
 
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
@@ -77,7 +87,7 @@ export function createRenderer({ canvas, state, game, noise }) {
 
     // Fauna behind objects/player (fish, deer, critters, fireflies)
     if (state.fauna && state.fauna.creatures) {
-      renderFauna(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise);
+      renderFauna(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, raftLight);
     }
 
     // Objects: draw shadows then geometry for chunks in view
@@ -91,7 +101,7 @@ export function createRenderer({ canvas, state, game, noise }) {
              drawTreeShadow(ctx, state, state.camera, tileSize, prop, cycle, shadowDir);
           } else {
              // Aquatic props
-             drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir);
+             drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir, raftLight);
           }
         }
         
@@ -100,7 +110,7 @@ export function createRenderer({ canvas, state, game, noise }) {
           if (prop.type === 'forest' || prop.type === 'grass') {
              drawTree(ctx, state, tileSize, prop, TREES, cycle);
           } else {
-             drawAquaticPlant(ctx, state, tileSize, prop, FLORA);
+             drawAquaticPlant(ctx, state, tileSize, prop, FLORA, raftLight);
           }
         }
       }
@@ -109,20 +119,82 @@ export function createRenderer({ canvas, state, game, noise }) {
     chunkManager.pruneCache();
 
     // Entities
-    drawEntities(ctx, state, tileSize, game, centerX, centerY);
+    drawEntities(ctx, state, tileSize, game, centerX, centerY, raftLight);
 
     // Player
-    drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise);
+    drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise, raftLight);
 
     // Birds in front of the raft
     if (state.fauna && state.fauna.creatures) {
-      renderBirds(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise);
+      renderBirds(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, raftLight);
     }
 
     // Atmosphere overlay
     if (cycle.ambientColor !== 'transparent') {
-      ctx.fillStyle = cycle.ambientColor;
-      ctx.fillRect(0, 0, state.width, state.height);
+      
+      if (raftLight) {
+        // Night mode with Raft Light enabled: Use masking to carve out the light cone.
+        ctx.save();
+        
+        // 1. Draw the ambient shade over the entire screen
+        ctx.fillStyle = cycle.ambientColor;
+        ctx.fillRect(0, 0, state.width, state.height);
+
+        // 2. Create a "hole" where the raft light shines using destination-out
+        const pX = (state.player.x - state.camera.x) * tileSize + centerX;
+        const pY = (state.player.y - state.camera.y) * tileSize + centerY;
+        
+        const lightAngle = raftLight.angle;
+        // Light range must be large enough to cover the visible area, 25 tiles * tileSize
+        const lightRange = tileSize * 25; 
+        const coneAngle = Math.PI / 3; // 60 degrees total arc
+
+        ctx.globalCompositeOperation = 'destination-out';
+        
+        // Draw the light cone shape to carve a hole
+        ctx.beginPath();
+        ctx.moveTo(pX, pY);
+        
+        const startAngle = lightAngle - coneAngle / 2;
+        const endAngle = lightAngle + coneAngle / 2;
+        
+        // Use an oversized radius to ensure polygon covers the canvas edge even when light source is off-center
+        const R = Math.max(state.width, state.height) * 2; 
+
+        // Point 1 (start of arc)
+        const x1 = pX + R * Math.cos(startAngle);
+        const y1 = pY + R * Math.sin(startAngle);
+        ctx.lineTo(x1, y1);
+        
+        // Arc approximation steps
+        const STEPS = 10;
+        for (let i = 1; i <= STEPS; i++) {
+          const u = i / STEPS;
+          const currentAngle = startAngle + (endAngle - startAngle) * u;
+          const x = pX + R * Math.cos(currentAngle);
+          const y = pY + R * Math.sin(currentAngle);
+          ctx.lineTo(x, y);
+        }
+        
+        // Point N (end of arc)
+        const xN = pX + R * Math.cos(endAngle);
+        const yN = pY + R * Math.sin(endAngle);
+        ctx.lineTo(xN, yN);
+        
+        ctx.closePath();
+        
+        // Alpha is what carves the hole
+        ctx.fillStyle = 'white'; 
+        ctx.fill();
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+
+      } else {
+        // Normal ambient coloring (Day or Transition)
+        ctx.fillStyle = cycle.ambientColor;
+        ctx.fillRect(0, 0, state.width, state.height);
+      }
     }
   }
 

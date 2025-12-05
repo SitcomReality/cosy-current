@@ -24,16 +24,16 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
 
     // Draw shadow first
     if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001) {
-      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise);
+      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise, light);
     }
 
     // Draw creature
-    drawCreature(ctx, c, screenX, screenY, size, cycle);
+    drawCreature(ctx, c, screenX, screenY, size, cycle, light);
   });
 }
 
 // Dedicated bird rendering pass
-export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, noise) {
+export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, noise, light) {
   if (!creatures || creatures.length === 0) return;
 
   const centerX = state.width / 2;
@@ -51,8 +51,8 @@ export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, n
     const size = c.size * tileSize;
 
     if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001) {
-      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise);
+      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise, light);
     }
-    drawCreature(ctx, c, screenX, screenY, size, cycle);
+    drawCreature(ctx, c, screenX, screenY, size, cycle, light);
   });
 }

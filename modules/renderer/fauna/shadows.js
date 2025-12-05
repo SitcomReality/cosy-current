@@ -28,6 +28,15 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
     const offset = baseOffset * (0.3 + depthFactor * 0.7) * (isEel ? 1.05 : 1.0);
     const shadowScale = 1.0 + depthFactor * 0.3;
 
+    // If using raft light, recompute the light direction per-creature so the shadow
+    // points away from the raft light instead of using the global sun direction.
+    if (useRaftLight) {
+      const dxL = c.x - light.x;
+      const dyL = c.y - light.y;
+      const lenL = Math.hypot(dxL, dyL) || 1;
+      shadowDir = { x: dxL / lenL, y: dyL / lenL };
+    }
+
     // Compute oriented shadow by rotating the canvas to the creature angle,
     // so the shadow aligns with the creature's rotation.
     ctx.translate(screenX, screenY);
