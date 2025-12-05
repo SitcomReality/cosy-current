@@ -56,7 +56,21 @@ export function createRenderer({ canvas, state, game, noise }) {
       const oblique = 1 - Math.abs(sx - sy) / sum;
       const brightness = falloff * oblique;
       // Map to tree shading range: 0.05 ≈ mostly dark, 0.95 ≈ fully lit
-      return 0.05 + brightness * 0.9;
+      const base = 0.05 + brightness * 0.9;
+
+      // Determine which screen-side the light is coming from.
+      // shadowDirVec is a vector from light -> prop (so shadows point away from light).
+      // If the light's X component is negative, light is coming from the left side (so left face should be lit).
+      const lightFromLeft = (shadowDirVec.x < 0);
+
+      // Convert base (0.05..0.95) into a shadeProgression where:
+      // - values < 0.5 indicate the right face is the lit side,
+      // - values > 0.5 indicate the left face is the lit side.
+      // We bias around 0.5 by half of the computed brightness range so that both
+      // intensity and side are encoded.
+      const normalized = (base - 0.05) / 0.9; // 0..1
+      const bias = normalized * 0.45; // max +/-0.45 from 0.5 -> yields ~0.05..0.95
+      return lightFromLeft ? (0.5 + bias) : (0.5 - bias);
     }
 
     if (!state.isPlaying) {
