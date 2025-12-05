@@ -51,7 +51,7 @@ export const CREATURE_DEFS = {
     type: 'firefly',
     pool: POOL_LAND,
     habitat: ['forest', 'grass'],
-    size: 0.1, speed: 0.8,
+    size: 0.2, speed: 0.8,
     colors: ['#fef08a'],
     behavior: 'wander_hover',
     nightOnly: true, glow: true,

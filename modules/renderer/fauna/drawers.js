@@ -397,7 +397,7 @@ function drawFirefly(ctx, c, size) {
   const rimColor = '#fef08a'; // soft yellow outline
   // Pulsing factor for subtle glow animation
   const pulse = 0.65 + 0.35 * Math.sin(c.life * 4 + (c.id ? c.id.charCodeAt(0) : 0));
-  const glow = Math.max(1, size * 6 * pulse);
+  const glow = Math.max(1, size * 10 * pulse); // Increased multiplier from 6 to 10
 
   ctx.save();
   ctx.translate(0, 0);
@@ -408,7 +408,7 @@ function drawFirefly(ctx, c, size) {
   ctx.globalAlpha = 0.95;
 
   // Tiny filled white square at center
-  const coreSize = Math.max(1, Math.min(3, size * 0.18));
+  const coreSize = Math.max(2, Math.min(4, size * 0.25)); // Increased minimum core size for visibility
   ctx.fillStyle = baseColor;
   ctx.fillRect(-coreSize / 2, -coreSize / 2, coreSize, coreSize);
 
