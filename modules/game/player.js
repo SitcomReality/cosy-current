@@ -63,14 +63,17 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     
     const diff = shortestAngleDiff(p.angle, targetAngle);
     
-    // Turn speed
-    // If diff is large, we need to turn hard.
-    const turnRate = 1.5 + Math.abs(diff) * 1.0; 
-    
-    // Apply turn
+    // Turn speed:
+    // - High confidence: gentle, gliding turns
+    // - Low confidence (e.g. near banks/intersections): allow a bit more turn, but still capped
+    const baseTurnRate = 0.9; // overall gentler turning baseline
+    const extraTurnFromUncertainty = (1 - Math.max(0, Math.min(1, confidence))) * 0.9;
+    const turnRate = baseTurnRate + extraTurnFromUncertainty;
+
+    // Apply turn with a fairly small per-frame cap to avoid snap rotations
     const maxTurn = turnRate * dt;
-    const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
-    p.angle += turn;
+    const clamped = Math.max(-maxTurn, Math.min(maxTurn, diff));
+    p.angle += clamped;
 
     // Speed control
     // If facing target and confident, speed up.

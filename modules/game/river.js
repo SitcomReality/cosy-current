@@ -85,10 +85,16 @@ export function getSmartSteering(noise, x, y, currentAngle) {
   }
 
   let targetAngle = Math.atan2(sumY, sumX);
+
+  // Softly bias the recommendation toward the current heading so steering changes
+  // arrive as gentle curves instead of sudden snaps.
+  const blendFactor = 0.25; // 0 = ignore suggestion, 1 = full suggestion
+  const rawDiff = shortestAngleDiff(currentAngle, targetAngle);
+  targetAngle = currentAngle + rawDiff * blendFactor;
   
   // Hard safety: avoid auto-steering into a U-turn relative to current heading.
-  // Clamp recommended direction so it never points more than ~135° away.
-  const MAX_TURN = Math.PI * 0.75;
+  // Clamp recommended direction so it never points more than ~120° away.
+  const MAX_TURN = Math.PI * 0.67;
   let diff = shortestAngleDiff(currentAngle, targetAngle);
   if (Math.abs(diff) > MAX_TURN) {
     diff = Math.sign(diff) * MAX_TURN;
