@@ -55,7 +55,8 @@ export function createRenderer({ canvas, state, game, noise }) {
       // Clamp 0..1 brightness from distance & light intensity
       const b = Math.max(0, Math.min(1, falloffBrightness || 0));
       // Decide which SCREEN side the light comes from: x>0 ≈ from the right, x<0 ≈ from the left.
-      const fromRight = lightDirX >= 0;
+      // Invert side so raft headlight lights the opposite face of trees
+      const fromRight = lightDirX < 0;
 
       if (fromRight) {
         // Morning-style shading: right side lit.
