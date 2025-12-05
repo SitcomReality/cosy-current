@@ -397,7 +397,8 @@ function drawFirefly(ctx, c, size) {
   const rimColor = '#fef08a'; // soft yellow outline
   // Pulsing factor for subtle glow animation
   const pulse = 0.65 + 0.35 * Math.sin(c.life * 4 + (c.id ? c.id.charCodeAt(0) : 0));
-  const glow = Math.max(1, size * 10 * pulse); // Increased multiplier from 6 to 10
+  // Reduced multiplier for glow from 10 -> 5 for less intense blur
+  const glow = Math.max(1, size * 5 * pulse); // was 10
 
   ctx.save();
   ctx.translate(0, 0);
