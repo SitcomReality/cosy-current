@@ -1,0 +1,12 @@
+// Compute oriented shadow by rotating the canvas to the creature angle,
+
+// If using raft light, recompute the light direction per-creature so the shadow
+// points away from the raft light instead of using the global sun direction.
+if (useRaftLight) {
+  const dxL = c.x - light.x;
+  const dyL = c.y - light.y;
+  const lenL = Math.hypot(dxL, dyL) || 1;
+  shadowDir = { x: dxL / lenL, y: dyL / lenL };
+}
+
+// Compute oriented shadow by rotating the canvas to the creature angle,

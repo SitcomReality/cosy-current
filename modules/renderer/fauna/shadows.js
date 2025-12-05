@@ -1,10 +1,13 @@
 // Fauna shadow rendering helpers
 
-export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise) {
+export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise, light) {
   ctx.save();  
 
   // Use definition type for logic
   const isWaterCreature = (c.def && c.def.pool === 'water');
+
+  // Determine whether we're using the raft light (night) for this water creature
+  const useRaftLight = !!(light && light.mode === 'raft' && light.enabled && isWaterCreature);
 
   if (isWaterCreature && noise) {
     const riverInfo = noise.getRiverSystem(c.x, c.y);

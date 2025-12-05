@@ -15,7 +15,7 @@ function lerpColor(aHex, bHex, t) {
   return `rgb(${r},${g},${b})`;
 }
 
-export function drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir) {
+export function drawAquaticShadow(ctx, state, tileSize, prop, cycle, shadowDir, light) {
   const { x: tx, y: ty, h, type } = prop;
   const centerX = state.width / 2;
   const centerY = state.height / 2;

@@ -8,8 +8,7 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
   const py = (p.y - state.camera.y) * tileSize + centerY;
 
   // Depth-aware Shadow Rendering
-  // Skip player shadow if raft light is active (source is on the raft)
-  if (!cycle.raftLightActive && cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001 && noise) {
+  if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001 && noise) {
     const raftHalfLen = 1.0; // Slightly larger than raft (0.9) to match original shadow size
     const raftHalfWid = 0.6;
     
@@ -104,7 +103,7 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
     ctx.fill();
   } 
   // Fallback for when noise isn't ready or shadow is off (though we usually want to skip drawing)
-  else if (!cycle.raftLightActive && cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
+  else if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.0001) {
     // Legacy simple shadow
     ctx.save();
     const shadowLen = cycle.shadowLength;
@@ -148,14 +147,9 @@ export function drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise) {
 
   // Rigid triangular light cap at the front of the raft (replaces round light)
   // Use an orange/yellow tone for the light to match the low-poly palette
-  
-  // If light is active, make the lamp look brighter/lit
-  const lightColor = cycle.raftLightActive ? '#fff' : '#f59e0b';
-  const lightGlow = cycle.raftLightActive ? 15 : 6;
-
   ctx.shadowColor = '#f59e0b';
-  ctx.shadowBlur = lightGlow; // small softening while keeping a crisp shape
-  ctx.fillStyle = lightColor; // orange light
+  ctx.shadowBlur = 6; // small softening while keeping a crisp shape
+  ctx.fillStyle = '#f59e0b'; // orange light
   ctx.beginPath();
   const lx = raftLen/2 - 6;
   const ly = 0;
