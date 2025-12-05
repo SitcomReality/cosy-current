@@ -19,6 +19,9 @@ export function createRenderer({ canvas, state, game, noise }) {
   const chunkManager = createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, game, noise, getVertexOffset });
   const waterEffects = createWaterEffects({ state, game, noise });
 
+  // Track last frame time to compute dt for fades
+  let _lastRenderTs = null;
+
   function resize() {
     const dpr = state.pixelRatio;
     state.width = window.innerWidth;
@@ -31,6 +34,15 @@ export function createRenderer({ canvas, state, game, noise }) {
   }
 
   function renderFrame(timestamp) {
+    // compute dt (seconds) for per-prop fades; clamp reasonable max
+    let dt = 0.016;
+    if (_lastRenderTs !== null) {
+      dt = (timestamp - _lastRenderTs) / 1000;
+      if (!isFinite(dt) || dt <= 0) dt = 0.016;
+      if (dt > 0.2) dt = 0.2;
+    }
+    _lastRenderTs = timestamp;
+
     // Advance day cycle
     advanceDayTime(state);
     const cycle = getCycleProps(state);
@@ -127,6 +139,12 @@ export function createRenderer({ canvas, state, game, noise }) {
           let propCycle = cycle;
           let propShadowDir = shadowDir;
 
+          // Ensure each prop has a fade tracker
+          if (prop._raftLitFade === undefined) prop._raftLitFade = 0;
+
+          // Determine if prop is currently inside the raft beam
+          let currentlyLit = false;
+          let litFalloff = 0;
           if (cycle.raftLightActive && effectiveLightRadius > 0.01) {
             const dx = prop.x - state.player.x;
             const dy = prop.y - state.player.y;
@@ -135,33 +153,44 @@ export function createRenderer({ canvas, state, game, noise }) {
             const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
             if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
-              // Lit by raft
-              const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
-              // Shadow points away from player
-              propShadowDir = { x: dx / dist, y: dy / dist };
-
-              // For trees, derive a directional night shading value:
-              //   - light side from headlight direction (propShadowDir.x sign)
-              //   - lit area proportion from brightness (falloff)
-              if (prop.type === 'forest' || prop.type === 'grass') {
-                const brightness = Math.max(0, Math.min(1, falloff));
-                const nightShade = computeTreeShadeFromHeadlight(brightness, propShadowDir.x);
-                propCycle = Object.assign({}, cycle, {
-                  shadowAlpha: 0.6 * falloff,
-                  shadowLength: 1.0,
-                  shadeProgression: nightShade
-                });
-              } else {
-                propCycle = Object.assign({}, cycle, {
-                  shadowAlpha: 0.6 * falloff,
-                  shadowLength: 1.0,
-                  shadeProgression: 0.5
-                });
-              }
-            } else {
-              // Unlit at night -> no shadow
-              continue; 
+              currentlyLit = true;
+              litFalloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
+              propShadowDir = { x: dx / Math.max(dist, 1e-6), y: dy / Math.max(dist, 1e-6) };
             }
+          }
+
+          // Update fade: quick fade-in, slightly slower fade-out for smoother exit
+          const fadeInRate = 12.0;  // per second
+          const fadeOutRate = 6.0;  // per second
+          if (currentlyLit) {
+            prop._raftLitFade = Math.min(1, prop._raftLitFade + dt * fadeInRate);
+          } else {
+            prop._raftLitFade = Math.max(0, prop._raftLitFade - dt * fadeOutRate);
+          }
+
+          // If no effective fade, skip drawing lit shadows to avoid sudden pops
+          if (prop._raftLitFade <= 0.001) {
+            // For aquatic props and normal night-case we still want no special raft shadow
+            // so fall back to standard unlit behavior: draw only global shadows (handled elsewhere)
+            continue;
+          }
+
+          // Build propCycle blended by fade
+          if (prop.type === 'forest' || prop.type === 'grass') {
+            const nightShade = computeTreeShadeFromHeadlight(litFalloff, propShadowDir.x);
+            // Blend between current global cycle.shadeProgression and the nightShade by fade
+            const blendedShade = (cycle.shadeProgression * (1 - prop._raftLitFade)) + (nightShade * prop._raftLitFade);
+            propCycle = Object.assign({}, cycle, {
+              shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade,
+              shadowLength: 1.0,
+              shadeProgression: blendedShade
+            });
+          } else {
+            propCycle = Object.assign({}, cycle, {
+              shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade,
+              shadowLength: 1.0,
+              shadeProgression: 0.5
+            });
           }
 
           if (prop.type === 'forest' || prop.type === 'grass') {
@@ -175,6 +204,14 @@ export function createRenderer({ canvas, state, game, noise }) {
         // Then draw geometry
         for (const prop of props) {
           let propCycle = cycle;
+
+          // Ensure fade tracker exists (keeps sync with shadow pass)
+          if (prop._raftLitFade === undefined) prop._raftLitFade = 0;
+
+          // Recompute current lit state to get falloff for blending
+          let currentlyLit = false;
+          let litFalloff = 0;
+          let propShadowDirX = 0;
           if (cycle.raftLightActive && effectiveLightRadius > 0.01) {
             const dx = prop.x - state.player.x;
             const dy = prop.y - state.player.y;
@@ -183,24 +220,26 @@ export function createRenderer({ canvas, state, game, noise }) {
             const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
             if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
-               const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
+              currentlyLit = true;
+              litFalloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
+              propShadowDirX = dx / Math.max(dist, 1e-6);
+            }
+          }
 
-               if (prop.type === 'forest' || prop.type === 'grass') {
-                 // Use the same directional night shading for tree geometry as for their shadows:
-                 // headlight X direction decides lit side, falloff decides how much is lit.
-                 const lightDirX = dx / Math.max(dist, 1e-6);
-                 const brightness = Math.max(0, Math.min(1, falloff));
-                 const nightShade = computeTreeShadeFromHeadlight(brightness, lightDirX);
-                 propCycle = Object.assign({}, cycle, {
-                   shadeProgression: nightShade,
-                   shadowAlpha: 0.6 * falloff
-                 });
-               } else {
-                 propCycle = Object.assign({}, cycle, {
-                   shadeProgression: 0.5,
-                   shadowAlpha: 0.6 * falloff
-                 });
-               }
+          // Build blended cycle only if there is some fade value
+          if (prop._raftLitFade > 0.001) {
+            if (prop.type === 'forest' || prop.type === 'grass') {
+              const nightShade = computeTreeShadeFromHeadlight(litFalloff, propShadowDirX);
+              const blendedShade = (cycle.shadeProgression * (1 - prop._raftLitFade)) + (nightShade * prop._raftLitFade);
+              propCycle = Object.assign({}, cycle, {
+                shadeProgression: blendedShade,
+                shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade
+              });
+            } else {
+              propCycle = Object.assign({}, cycle, {
+                shadeProgression: 0.5,
+                shadowAlpha: (0.6 * litFalloff) * prop._raftLitFade
+              });
             }
           }
 
