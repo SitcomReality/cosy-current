@@ -33,8 +33,18 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     // We assume riverModule is the object { getSmartSteering: ... } or similar
     // We'll call the function we just wrote.
     const steering = riverModule.getSmartSteering(noise, p.x, p.y, p.angle);
-    
-    let targetAngle = steering.angle;
+
+    // Smooth the steering recommendation so we don't snap to each new discrete result.
+    // We keep an internal "steering angle" that eases toward the latest suggestion.
+    if (p._steerAngle === undefined) {
+      p._steerAngle = p.angle;
+    }
+    const rawSteerAngle = steering.angle;
+    const steerDiff = shortestAngleDiff(p._steerAngle, rawSteerAngle);
+    const steerBlend = 0.12; // lower = smoother, higher = more responsive
+    p._steerAngle += steerDiff * steerBlend;
+
+    let targetAngle = p._steerAngle;
     const confidence = steering.confidence;
 
     // Flow lock: once we commit to a good channel, keep that heading for a bit
