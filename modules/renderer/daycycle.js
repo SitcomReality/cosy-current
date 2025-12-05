@@ -67,7 +67,10 @@ export function getCycleProps(state) {
     shadowLengthBase = 1;
   }
 
-  shadowLength = shadowLengthBase;
+  // Keep a non-zero minimum so shadows never fully collapse at midday;
+  // opacity is already handled separately by shadowAlpha.
+  const MIN_SHADOW_LENGTH = 0.25; // 0.0–1.0 mapped to 0.25–1.0
+  shadowLength = MIN_SHADOW_LENGTH + (1 - MIN_SHADOW_LENGTH) * shadowLengthBase;
 
   // Shadow alpha: fade in during dawn, remain constant for the full daytime span,
   // then fade out during dusk; at night it becomes zero.
