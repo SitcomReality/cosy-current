@@ -38,7 +38,9 @@ export function createRenderer({ canvas, state, game, noise }) {
 
     // Raft Light Constants
     const LIGHT_RADIUS = 14; 
-    const LIGHT_ANGLE_WIDTH = 0.9; // Radians half-width (~50 degrees)
+    const LIGHT_ANGLE_WIDTH = 0.9;
+    const lightIntensity = cycle.raftLightIntensity || 0;
+    const effectiveLightRadius = LIGHT_RADIUS * lightIntensity; // Radians half-width (~50 degrees)
 
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
@@ -98,16 +100,16 @@ export function createRenderer({ canvas, state, game, noise }) {
           let propCycle = cycle;
           let propShadowDir = shadowDir;
 
-          if (cycle.raftLightActive) {
+          if (cycle.raftLightActive && effectiveLightRadius > 0.01) {
             const dx = prop.x - state.player.x;
             const dy = prop.y - state.player.y;
             const dist = Math.hypot(dx, dy);
             const angleTo = Math.atan2(dy, dx);
             const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
-            if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
+            if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
               // Lit by raft
-              const falloff = (1.0 - (dist / LIGHT_RADIUS)) * (cycle.raftLightIntensity || 0);
+              const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
               propCycle = Object.assign({}, cycle, {
                  shadowAlpha: 0.6 * falloff,
                  shadowLength: 1.0,
@@ -132,15 +134,15 @@ export function createRenderer({ canvas, state, game, noise }) {
         // Then draw geometry
         for (const prop of props) {
           let propCycle = cycle;
-          if (cycle.raftLightActive) {
+          if (cycle.raftLightActive && effectiveLightRadius > 0.01) {
             const dx = prop.x - state.player.x;
             const dy = prop.y - state.player.y;
             const dist = Math.hypot(dx, dy);
             const angleTo = Math.atan2(dy, dx);
             const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
-            if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
-               const falloff = (1.0 - (dist / LIGHT_RADIUS)) * (cycle.raftLightIntensity || 0);
+            if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
+               const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
                propCycle = Object.assign({}, cycle, {
                  shadeProgression: 0.5,
                  shadowAlpha: 0.6 * falloff
@@ -177,7 +179,7 @@ export function createRenderer({ canvas, state, game, noise }) {
       try {
         // Fill full-screen ambient tint (darkness)
         ctx.fillStyle = cycle.ambientColor;
-        if (!cycle.raftLightActive) {
+        if (!cycle.raftLightActive || effectiveLightRadius <= 0.01) {
           ctx.fillRect(0, 0, state.width, state.height);
         } else {
           // When raft light is active, draw the overlay but punch a sector-shaped hole
@@ -186,7 +188,7 @@ export function createRenderer({ canvas, state, game, noise }) {
           const h = state.height;
           const screenX = (state.player.x - state.camera.x) * tileSize + centerX;
           const screenY = (state.player.y - state.camera.y) * tileSize + centerY;
-          const r = LIGHT_RADIUS * tileSize;
+          const r = effectiveLightRadius * tileSize;
           const a = state.player.angle;
           const halfA = LIGHT_ANGLE_WIDTH;
 
@@ -214,7 +216,7 @@ export function createRenderer({ canvas, state, game, noise }) {
 
           // Use normal composite so we don't affect underlying world pixels
           ctx.globalCompositeOperation = 'source-over';
-          ctx.globalAlpha = 0.6;
+          ctx.globalAlpha = 0.6 * lightIntensity;
           ctx.fillStyle = g;
           ctx.beginPath();
           ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);

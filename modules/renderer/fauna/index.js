@@ -12,6 +12,8 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
   
   const LIGHT_RADIUS = 14; 
   const LIGHT_ANGLE_WIDTH = 0.9;
+  const lightIntensity = cycle.raftLightIntensity || 0;
+  const effectiveLightRadius = LIGHT_RADIUS * lightIntensity;
 
   creatures.forEach(c => {
     // Skip birds in this pass; they'll be rendered in front of the player
@@ -31,7 +33,7 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
     let localShadowDir = shadowDir;
     let shouldDrawShadow = (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001);
 
-    if (raftLightActive) {
+    if (raftLightActive && effectiveLightRadius > 0.01) {
         // Default to no shadow at night unless in light
         shouldDrawShadow = false;
         
@@ -41,12 +43,12 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
         const angleTo = Math.atan2(dy, dx);
         const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
-        if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
+        if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
             shouldDrawShadow = true;
             localShadowDir = { x: dx/dist, y: dy/dist };
-            const falloff = 1.0 - (dist / LIGHT_RADIUS);
+            const falloff = 1.0 - (dist / effectiveLightRadius);
             localCycle = Object.assign({}, cycle, {
-                shadowAlpha: 0.6 * falloff,
+                shadowAlpha: 0.6 * falloff * lightIntensity,
                 shadowLength: 1.0
             });
         }
@@ -71,6 +73,8 @@ export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, n
   
   const LIGHT_RADIUS = 14; 
   const LIGHT_ANGLE_WIDTH = 0.9;
+  const lightIntensity = cycle.raftLightIntensity || 0;
+  const effectiveLightRadius = LIGHT_RADIUS * lightIntensity;
 
   creatures.forEach(c => {
     if (c.type !== 'bird') return;
@@ -87,7 +91,7 @@ export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, n
     let localShadowDir = shadowDir;
     let shouldDrawShadow = (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001);
 
-    if (raftLightActive) {
+    if (raftLightActive && effectiveLightRadius > 0.01) {
         shouldDrawShadow = false;
         const dx = c.x - state.player.x;
         const dy = c.y - state.player.y;
@@ -95,12 +99,12 @@ export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, n
         const angleTo = Math.atan2(dy, dx);
         const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
-        if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
+        if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
             shouldDrawShadow = true;
             localShadowDir = { x: dx/dist, y: dy/dist };
-            const falloff = 1.0 - (dist / LIGHT_RADIUS);
+            const falloff = 1.0 - (dist / effectiveLightRadius);
             localCycle = Object.assign({}, cycle, {
-                shadowAlpha: 0.5 * falloff,
+                shadowAlpha: 0.5 * falloff * lightIntensity,
                 shadowLength: 1.5 // Birds cast longer shadows
             });
         }
