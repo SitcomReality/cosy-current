@@ -45,6 +45,20 @@ export function createRenderer({ canvas, state, game, noise }) {
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
 
+    // Helper: derive a night-time tree shadeProgression from raft headlight
+    // based on distance falloff and the obliqueness of the shadow direction.
+    function computeTreeShadeFromHeadlight(falloff, shadowDirVec) {
+      const sx = Math.abs(shadowDirVec.x);
+      const sy = Math.abs(shadowDirVec.y);
+      const sum = sx + sy || 1;
+      // obliqueness: 0 when shadow is almost axis-aligned (very slivery),
+      // 1 when x/y components are equal (shadow triangle has equal legs).
+      const oblique = 1 - Math.abs(sx - sy) / sum;
+      const brightness = falloff * oblique;
+      // Map to tree shading range: 0.05 ≈ mostly dark, 0.95 ≈ fully lit
+      return 0.05 + brightness * 0.9;
+    }
+
     if (!state.isPlaying) {
       const hue = (timestamp * 0.01) % 360;
       // Use a safe fallback color string
@@ -110,13 +124,25 @@ export function createRenderer({ canvas, state, game, noise }) {
             if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
               // Lit by raft
               const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
-              propCycle = Object.assign({}, cycle, {
-                 shadowAlpha: 0.6 * falloff,
-                 shadowLength: 1.0,
-                 shadeProgression: 0.5
-              });
               // Shadow points away from player
-              propShadowDir = { x: dx/dist, y: dy/dist };
+              propShadowDir = { x: dx / dist, y: dy / dist };
+
+              // For trees, derive a smoother night shading value from the same
+              // falloff and the shadow direction; for aquatic props keep prior behavior.
+              if (prop.type === 'forest' || prop.type === 'grass') {
+                const nightShade = computeTreeShadeFromHeadlight(falloff, propShadowDir);
+                propCycle = Object.assign({}, cycle, {
+                  shadowAlpha: 0.6 * falloff,
+                  shadowLength: 1.0,
+                  shadeProgression: nightShade
+                });
+              } else {
+                propCycle = Object.assign({}, cycle, {
+                  shadowAlpha: 0.6 * falloff,
+                  shadowLength: 1.0,
+                  shadeProgression: 0.5
+                });
+              }
             } else {
               // Unlit at night -> no shadow
               continue; 
@@ -143,10 +169,21 @@ export function createRenderer({ canvas, state, game, noise }) {
 
             if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
                const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
-               propCycle = Object.assign({}, cycle, {
-                 shadeProgression: 0.5,
-                 shadowAlpha: 0.6 * falloff
-               });
+
+               if (prop.type === 'forest' || prop.type === 'grass') {
+                 // Use the same smooth night shading for tree geometry as for their shadows
+                 const lightDir = { x: dx / Math.max(dist, 1e-6), y: dy / Math.max(dist, 1e-6) };
+                 const nightShade = computeTreeShadeFromHeadlight(falloff, lightDir);
+                 propCycle = Object.assign({}, cycle, {
+                   shadeProgression: nightShade,
+                   shadowAlpha: 0.6 * falloff
+                 });
+               } else {
+                 propCycle = Object.assign({}, cycle, {
+                   shadeProgression: 0.5,
+                   shadowAlpha: 0.6 * falloff
+                 });
+               }
             }
           }
 
