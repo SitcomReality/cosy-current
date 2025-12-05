@@ -1,0 +1,207 @@
+// ... existing code ...
+
+function renderFrame(timestamp) {
+  // Advance day cycle
+  advanceDayTime(state);
+  const cycle = getCycleProps(state);
+  const shadowDir = { x: cycle.shadowDirX, y: cycle.shadowDirY };
+
+  // Raft Light Constants
+  const LIGHT_RADIUS = 14; 
+  const LIGHT_ANGLE_WIDTH = 0.9; // Radians half-width (~50 degrees)
+
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, state.width, state.height);
+
+  if (!state.isPlaying) {
+    const hue = (timestamp * 0.01) % 360;
+    // Use a safe fallback color string
+    ctx.fillStyle = `rgba(32,40,55,1)`
+    ctx.fillRect(0, 0, state.width, state.height);
+    return;
+  }
+
+  const tileSize = state.tileSize;
+  const centerX = state.width / 2;
+  const centerY = state.height / 2;
+
+  const viewLeftTile = state.camera.x - (state.width / 2) / tileSize;
+  const viewRightTile = state.camera.x + (state.width / 2) / tileSize;
+  const viewTopTile = state.camera.y - (state.height / 2) / tileSize;
+  const viewBottomTile = state.camera.y + (state.height / 2) / tileSize;
+
+  const startChunkX = Math.floor(viewLeftTile / CHUNK_SIZE);
+  const endChunkX = Math.floor(viewRightTile / CHUNK_SIZE);
+  const startChunkY = Math.floor(viewTopTile / CHUNK_SIZE);
+  const endChunkY = Math.floor(viewBottomTile / CHUNK_SIZE);
+
+  // Terrain
+  for (let cy = startChunkY; cy <= endChunkY; cy++) {
+    for (let cx = startChunkX; cx <= endChunkX; cx++) {
+      const chunkImg = chunkManager.getChunk(cx, cy);
+      const screenX = (cx * CHUNK_SIZE - state.camera.x) * tileSize + centerX;
+      const screenY = (cy * CHUNK_SIZE - state.camera.y) * tileSize + centerY;
+      if (screenX > state.width || screenY > state.height ||
+          screenX + chunkImg.width < 0 || screenY + chunkImg.height < 0) continue;
+      ctx.drawImage(chunkImg, Math.round(screenX), Math.round(screenY));
+    }
+  }
+
+  // Water effects
+  waterEffects.render(ctx, state.camera, tileSize);
+
+  // Fauna behind objects/player (fish, deer, critters, fireflies)
+  if (state.fauna && state.fauna.creatures) {
+    // pass raftLightFactor (0..1) instead of boolean
+    renderFauna(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightFactor);
+  }
+
+  // Objects: draw shadows then geometry for chunks in view
+  for (let cy = startChunkY; cy <= endChunkY; cy++) {
+    for (let cx = startChunkX; cx <= endChunkX; cx++) {
+      const props = chunkManager.getChunkProps(cx, cy);
+      
+      // Prepare per-prop cycle/shadow settings
+      // If raft light is active, check which props are lit
+      
+      // Draw shadows first
+      for (const prop of props) {
+        let propCycle = cycle;
+        let propShadowDir = shadowDir;
+
+        if (cycle.raftLightFactor > 0.01) {
+          const dx = prop.x - state.player.x;
+          const dy = prop.y - state.player.y;
+          const dist = Math.hypot(dx, dy);
+          const angleTo = Math.atan2(dy, dx);
+          const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
+
+          if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
+            // Lit by raft
+            // Create a modified cycle object for this prop
+            const falloff = 1.0 - (dist / LIGHT_RADIUS);
+            propCycle = Object.assign({}, cycle, {
+               shadowAlpha: (cycle.shadowAlpha * 0.6 * falloff) * cycle.raftLightFactor, // scale by factor
+               shadowLength: 1.0,
+               shadeProgression: 0.5 // Force "noon" shading for lit effect
+            });
+            // Shadow points away from player
+            propShadowDir = { x: dx/dist, y: dy/dist };
+          } else {
+            // Unlit at night -> no shadow
+            continue; 
+          }
+        }
+
+        if (prop.type === 'forest' || prop.type === 'grass') {
+           drawTreeShadow(ctx, state, state.camera, tileSize, prop, propCycle, propShadowDir);
+        } else {
+           // Aquatic props
+           drawAquaticShadow(ctx, state, tileSize, prop, propCycle, propShadowDir);
+        }
+      }
+      
+      // Then draw geometry
+      for (const prop of props) {
+        let propCycle = cycle;
+        if (cycle.raftLightFactor > 0.01) {
+          const dx = prop.x - state.player.x;
+          const dy = prop.y - state.player.y;
+          const dist = Math.hypot(dx, dy);
+          const angleTo = Math.atan2(dy, dx);
+          const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
+
+          if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
+             propCycle = Object.assign({}, cycle, {
+               shadeProgression: 0.5 // Force daylight appearance
+             });
+          }
+        }
+
+        if (prop.type === 'forest' || prop.type === 'grass') {
+           drawTree(ctx, state, tileSize, prop, TREES, propCycle);
+        } else {
+           drawAquaticPlant(ctx, state, tileSize, prop, FLORA);
+        }
+      }
+    }
+  }
+
+  chunkManager.pruneCache();
+
+  // Entities
+  drawEntities(ctx, state, tileSize, game, centerX, centerY);
+
+  // Player
+  drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise);
+
+  // Birds in front of the raft
+  if (state.fauna && state.fauna.creatures) {
+    renderBirds(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightFactor);
+  }
+
+  // Atmosphere overlay
+  if (cycle.ambientColor !== 'transparent') {
+    // Draw overlay with safe canvas state handling so composite ops don't leak
+    ctx.save();
+    try {
+      // Fill full-screen ambient tint (darkness)
+      ctx.fillStyle = cycle.ambientColor;
+      if (!cycle.raftLightFactor || cycle.raftLightFactor <= 0.01) {
+        ctx.fillRect(0, 0, state.width, state.height);
+      } else {
+        // When raft light is active, draw the overlay but punch a sector-shaped hole
+        // using the 'evenodd' winding rule. Use save/restore to keep compositing sane.
+        const w = state.width;
+        const h = state.height;
+        const screenX = (state.player.x - state.camera.x) * tileSize + centerX;
+        const screenY = (state.player.y - state.camera.y) * tileSize + centerY;
+        const r = LIGHT_RADIUS * tileSize;
+        const a = state.player.angle;
+        const halfA = LIGHT_ANGLE_WIDTH;
+
+        ctx.beginPath();
+        // Outer rectangle (clockwise)
+        ctx.moveTo(0, 0);
+        ctx.lineTo(w, 0);
+        ctx.lineTo(w, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+
+        // Sector hole (counter direction as subpath)
+        ctx.moveTo(screenX, screenY);
+        ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);
+        ctx.closePath();
+
+        // Fill outer minus sector using evenodd to create the cutout
+        // Multiply overlay alpha subtly by (1 - raftLightFactor) so beam softens gradually
+        ctx.globalAlpha = 1.0 - Math.min(0.9, cycle.raftLightFactor * 0.95);
+        ctx.fill('evenodd');
+        ctx.globalAlpha = 1.0;
+
+        // Draw a gentle radial gradient over the beam to soften the edge
+        const g = ctx.createRadialGradient(screenX, screenY, r * 0.35, screenX, screenY, r);
+        // Inner: transparent, Outer: slight ambient color to blend
+        g.addColorStop(0, 'rgba(255,255,255,0)');
+        g.addColorStop(1, cycle.ambientColor);
+
+        // Use normal composite so we don't affect underlying world pixels
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.6 * cycle.raftLightFactor;
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);
+        ctx.lineTo(screenX, screenY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      }
+    } finally {
+      ctx.restore();
+      // Ensure composite operation reset just in case
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  }
+}
+
+// ... existing code ...
