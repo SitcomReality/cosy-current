@@ -2,12 +2,16 @@
 
 import { drawCreatureShadow } from './shadows.js';
 import { drawCreature } from './drawers.js';
+import { shortestAngleDiff } from '../../fauna/utils.js';
 
-export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, noise) {
+export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, noise, raftLightActive) {
   if (!creatures || creatures.length === 0) return;
 
   const centerX = state.width / 2;
   const centerY = state.height / 2;
+  
+  const LIGHT_RADIUS = 14; 
+  const LIGHT_ANGLE_WIDTH = 0.9;
 
   creatures.forEach(c => {
     // Skip birds in this pass; they'll be rendered in front of the player
@@ -22,9 +26,35 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
 
     const size = c.size * tileSize;
 
+    // Shadow Logic
+    let localCycle = cycle;
+    let localShadowDir = shadowDir;
+    let shouldDrawShadow = (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001);
+
+    if (raftLightActive) {
+        // Default to no shadow at night unless in light
+        shouldDrawShadow = false;
+        
+        const dx = c.x - state.player.x;
+        const dy = c.y - state.player.y;
+        const dist = Math.hypot(dx, dy);
+        const angleTo = Math.atan2(dy, dx);
+        const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
+
+        if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
+            shouldDrawShadow = true;
+            localShadowDir = { x: dx/dist, y: dy/dist };
+            const falloff = 1.0 - (dist / LIGHT_RADIUS);
+            localCycle = Object.assign({}, cycle, {
+                shadowAlpha: 0.6 * falloff,
+                shadowLength: 1.0
+            });
+        }
+    }
+
     // Draw shadow first
-    if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001) {
-      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise);
+    if (shouldDrawShadow) {
+      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, localCycle, localShadowDir, noise);
     }
 
     // Draw creature
@@ -33,11 +63,14 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
 }
 
 // Dedicated bird rendering pass
-export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, noise) {
+export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, noise, raftLightActive) {
   if (!creatures || creatures.length === 0) return;
 
   const centerX = state.width / 2;
   const centerY = state.height / 2;
+  
+  const LIGHT_RADIUS = 14; 
+  const LIGHT_ANGLE_WIDTH = 0.9;
 
   creatures.forEach(c => {
     if (c.type !== 'bird') return;
@@ -50,8 +83,31 @@ export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, n
 
     const size = c.size * tileSize;
 
-    if (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001) {
-      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise);
+    let localCycle = cycle;
+    let localShadowDir = shadowDir;
+    let shouldDrawShadow = (cycle.shadowAlpha > 0.01 && cycle.shadowLength > 0.001);
+
+    if (raftLightActive) {
+        shouldDrawShadow = false;
+        const dx = c.x - state.player.x;
+        const dy = c.y - state.player.y;
+        const dist = Math.hypot(dx, dy);
+        const angleTo = Math.atan2(dy, dx);
+        const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
+
+        if (dist < LIGHT_RADIUS && angleDiff < LIGHT_ANGLE_WIDTH) {
+            shouldDrawShadow = true;
+            localShadowDir = { x: dx/dist, y: dy/dist };
+            const falloff = 1.0 - (dist / LIGHT_RADIUS);
+            localCycle = Object.assign({}, cycle, {
+                shadowAlpha: 0.5 * falloff,
+                shadowLength: 1.5 // Birds cast longer shadows
+            });
+        }
+    }
+
+    if (shouldDrawShadow) {
+      drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, localCycle, localShadowDir, noise);
     }
     drawCreature(ctx, c, screenX, screenY, size, cycle);
   });
