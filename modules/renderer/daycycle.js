@@ -23,16 +23,16 @@ export function getCycleProps(state) {
 
   // Smooth fade-in/out for raft light
   // Light fully on only after duskEnd or before dawnStart
-  // Fade in/out over ~0.02 dayTime (~2 seconds at 100s day)
+  // Fade in/out over ~0.01 dayTime (~1 second at 100s day) — faster transition
   let raftLightIntensity = 0;
   if (t < dawnStart) {
     raftLightIntensity = 1;
-  } else if (t < dawnStart + 0.02) {
-    raftLightIntensity = 1 - smoothstep(dawnStart, dawnStart + 0.02, t);
+  } else if (t < dawnStart + 0.01) {
+    raftLightIntensity = 1 - smoothstep(dawnStart, dawnStart + 0.01, t);
   } else if (t > duskEnd) {
     raftLightIntensity = 1;
-  } else if (t > duskEnd - 0.02) {
-    raftLightIntensity = smoothstep(duskEnd - 0.02, duskEnd, t);
+  } else if (t > duskEnd - 0.01) {
+    raftLightIntensity = smoothstep(duskEnd - 0.01, duskEnd, t);
   }
 
   const raftLightActive = raftLightIntensity > 0.01;
