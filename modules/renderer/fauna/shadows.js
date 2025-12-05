@@ -45,8 +45,15 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
 
       // Create a polygonal, straight-edged shadow (an elongated hex-like polygon)
       // Shift applied along shadowDir in rotated space (approx project that into local coords)
-      const shiftX = shadowDir.x * offset;
-      const shiftY = shadowDir.y * offset;
+      // Convert world-space shadowDir into the creature's local rotated coordinate system
+      // so the sun direction projects correctly relative to the creature orientation.
+      // local = rotate(world, -angle)
+      const cosA = Math.cos(-c.angle);
+      const sinA = Math.sin(-c.angle);
+      const localDirX = shadowDir.x * cosA - shadowDir.y * sinA;
+      const localDirY = shadowDir.x * sinA + shadowDir.y * cosA;
+      const shiftX = localDirX * offset;
+      const shiftY = localDirY * offset;
 
       // Build polygon points in local coordinates (straight edges, no arcs)
       const poly = [
@@ -72,8 +79,15 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
       const halfLen = size * 0.7 * shadowScale;
       const halfWid = size * 0.35 * shadowScale;
 
-      const shiftX = shadowDir.x * offset;
-      const shiftY = shadowDir.y * offset;
+      // Convert world-space shadowDir into the creature's local rotated coordinate system
+      // so the sun direction projects correctly relative to the creature orientation.
+      // local = rotate(world, -angle)
+      const cosA = Math.cos(-c.angle);
+      const sinA = Math.sin(-c.angle);
+      const localDirX = shadowDir.x * cosA - shadowDir.y * sinA;
+      const localDirY = shadowDir.x * sinA + shadowDir.y * cosA;
+      const shiftX = localDirX * offset;
+      const shiftY = localDirY * offset;
 
       // Straight-edged diamond polygon (no curves)
       ctx.beginPath();
