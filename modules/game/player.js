@@ -34,8 +34,28 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     // We'll call the function we just wrote.
     const steering = riverModule.getSmartSteering(noise, p.x, p.y, p.angle);
     
-    const targetAngle = steering.angle;
+    let targetAngle = steering.angle;
     const confidence = steering.confidence;
+
+    // Flow lock: once we commit to a good channel, keep that heading for a bit
+    // so intersections feel decisive and smooth.
+    if (!p.flowLockActive) {
+      // Start a lock when confidence is high and we're roughly aligned already.
+      const diffToSteer = shortestAngleDiff(p.angle, targetAngle);
+      if (confidence > 0.65 && Math.abs(diffToSteer) < Math.PI * 0.4) {
+        p.flowLockActive = true;
+        p.flowLockAngle = targetAngle;
+        p.flowLockTimer = 3.0; // seconds of committed steering
+      }
+    } else {
+      // Maintain lock while timer and confidence stay reasonable.
+      p.flowLockTimer -= dt;
+      if (p.flowLockTimer > 0 && confidence > 0.25) {
+        targetAngle = p.flowLockAngle;
+      } else {
+        p.flowLockActive = false;
+      }
+    }
 
     // Smoothly turn towards target
     // We turn slower if confidence is high (cruising), faster if confidence is low (panic/turn)

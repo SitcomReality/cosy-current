@@ -1,6 +1,14 @@
 import { seedPermutation } from '../noise_algorithms/permutations.js';
 
 // Robust steering logic using sensor array
+// Shortest signed angle difference helper
+function shortestAngleDiff(a, b) {
+  let diff = b - a;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  return diff;
+}
+
 export function getSmartSteering(noise, x, y, currentAngle) {
   const LOOKAHEAD = 6.0; // Look further ahead to smooth out grid transitions
   const SENSOR_COUNT = 7; // Odd number for center symmetry
@@ -66,10 +74,26 @@ export function getSmartSteering(noise, x, y, currentAngle) {
             bestA = a;
         }
     }
+    // Never suggest a full U-turn: clamp fallback angle away from 180° reversals.
+    const MAX_TURN = Math.PI * 0.75; // ≈135°
+    let diff = shortestAngleDiff(currentAngle, bestA);
+    if (Math.abs(diff) > MAX_TURN) {
+      diff = Math.sign(diff) * MAX_TURN;
+      bestA = currentAngle + diff;
+    }
     return { angle: bestA, confidence: 0 };
   }
 
-  const targetAngle = Math.atan2(sumY, sumX);
+  let targetAngle = Math.atan2(sumY, sumX);
+  
+  // Hard safety: avoid auto-steering into a U-turn relative to current heading.
+  // Clamp recommended direction so it never points more than ~135° away.
+  const MAX_TURN = Math.PI * 0.75;
+  diff = shortestAngleDiff(currentAngle, targetAngle);
+  if (Math.abs(diff) > MAX_TURN) {
+    diff = Math.sign(diff) * MAX_TURN;
+    targetAngle = currentAngle + diff;
+  }
   
   // Normalize confidence (0..1)
   // If maxWeight is low, it means even the best path is shallow.
