@@ -70,13 +70,10 @@ export function getCycleProps(state) {
   shadowLength = shadowLengthBase;
 
   // Shadow alpha: fade in/out with dayFactor, and strengthen slightly near morning/evening
-  let edgeFactor = 1;
-  if (t > dawnStart && t < duskEnd) {
-    const span = (dayMid - dawnStart);
-    const dist = Math.abs(t - dayMid);
-    edgeFactor = clamp(dist / span, 0, 1); // 0 at noon, 1 near dawnEnd/duskStart
-  }
-  shadowAlpha = lerp(0.15, 0.45, edgeFactor) * dayFactor;
+  // We want shadows to be STRONGEST at midday and only fade toward dawn/dusk/night.
+  // edgeFactor is 0 at noon and grows toward 1 near the edges; invert it so 1 => noon.
+  const noonFactor = 1 - edgeFactor;
+  shadowAlpha = lerp(0.15, 0.45, noonFactor) * dayFactor;
 
   // Direction: morning vs afternoon consistent with original design
   const COS_30_DEG = 0.866025;
