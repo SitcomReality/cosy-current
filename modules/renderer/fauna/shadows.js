@@ -146,9 +146,15 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
     if (prefersRectShadow) {
       const rectW = halfSize * 2.0;
       const rectH = halfSize * 1.2;
+      // Rotate the rectangular shadow to match creature orientation
+      ctx.save();
+      ctx.translate(shadowX, shadowY);
+      // Align shadow to creature's rotation so it follows the body
+      ctx.rotate(c.angle || 0);
       ctx.beginPath();
-      ctx.rect(shadowX - rectW * 0.5, shadowY - rectH * 0.5, rectW, rectH);
+      ctx.rect(-rectW * 0.5, -rectH * 0.5, rectW, rectH);
       ctx.fill();
+      ctx.restore();
     } else {
       ctx.beginPath();
       // Round shadow for crab
