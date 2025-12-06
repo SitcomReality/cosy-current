@@ -71,11 +71,11 @@ export const CREATURE_DEFS = {
     pool: POOL_LAND,
     habitat: ['grass'],
     size: 0.6, // slightly smaller than deer (0.7)
-    speed: 1.0,
+    speed: 0.5, // reduced from 1.0 to make movement placid
     // Soft off-whites and greys to match palette
     colors: ['#e5e7eb', '#f5f5f4', '#d4d4d8', '#e7e5e4'],
     behavior: 'wander',
-    turnRate: 3.0
+    turnRate: 1.2 // lowered from 3.0 for much gentler turning
   },
   // New slow turtles in the river
   turtle: {
