@@ -48,6 +48,8 @@ export function drawTurtle(ctx, c, size) {
   // Draw head as a simple rectangle extending from the shell front; no eyes/features
   ctx.fillStyle = headColor;
   ctx.beginPath();
-  ctx.rect(halfL, -headWid * 0.5, headLen, headWid);
+  // Move head slightly back so it sits flush with the shell (avoid a visible gap)
+  const headX = halfL - headLen * 0.35;
+  ctx.rect(headX, -headWid * 0.5, headLen, headWid);
   ctx.fill();
 }
