@@ -5,7 +5,8 @@ import { createWaterEffects } from './water/index.js';
 import { resolvePalettes } from './palette.js';
 import { advanceDayTime, getCycleProps } from './daycycle.js';
 import { drawTreeShadow, drawTree, drawAquaticPlant, drawAquaticShadow, drawEntities, drawPlayer } from './objects.js';
-import { renderFauna, renderBirds } from './fauna/index.js';
+import { renderFaunaBehind } from './scene/faunaBehind.js';
+import { renderBirdsAhead } from './scene/faunaAhead.js';
 import { shortestAngleDiff } from '../fauna/utils.js';
 import { getRiverGradient } from '../fauna/behaviors/riverUtils.js'; 
 
@@ -176,10 +177,8 @@ export function createRenderer({ canvas, state, game, noise }) {
     // Water effects
     waterEffects.render(ctx, state.camera, tileSize);
 
-    // Fauna behind objects/player (fish, deer, critters, fireflies)
-    if (state.fauna && state.fauna.creatures) {
-      renderFauna(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightActive);
-    }
+    // Fauna behind objects/player (fish, deer, critters, fireflies, turtles, etc.)
+    renderFaunaBehind(ctx, state, tileSize, cycle, shadowDir, noise);
 
     // Objects: draw shadows then geometry for chunks in view
     for (let cy = startChunkY; cy <= endChunkY; cy++) {
@@ -330,9 +329,7 @@ export function createRenderer({ canvas, state, game, noise }) {
     drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise);
 
     // Birds in front of the raft
-    if (state.fauna && state.fauna.creatures) {
-      renderBirds(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightActive);
-    }
+    renderBirdsAhead(ctx, state, tileSize, cycle, shadowDir, noise);
 
     // Atmosphere overlay
     if (cycle.ambientColor !== 'transparent') {
