@@ -1,10 +1,13 @@
-// Fauna shadow rendering helpers
+ // Fauna shadow rendering helpers
 
 export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, size, cycle, shadowDir, noise) {
   ctx.save();  
 
   // Use definition type for logic
   const isWaterCreature = (c.def && c.def.pool === 'water');
+
+  // Types that should use rectangular shadows regardless of water/land
+  const prefersRectShadow = (c.type === 'turtle' || c.type === 'sheep' || c.type === 'deer');
 
   if (isWaterCreature && noise) {
     const riverInfo = noise.getRiverSystem(c.x, c.y);
@@ -74,6 +77,24 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
       ctx.closePath();
       ctx.fill();
 
+    } else if (prefersRectShadow) {
+      // Turtles (water) prefer a rectangular shadow aligned to their body orientation.
+      // Use the rotated local space already set up above.
+      const totalLen = size * 0.9 * shadowScale;
+      const totalWid = size * 0.5 * shadowScale;
+      // Convert world-space shadowDir into the creature's local rotated coordinate system
+      const cosA = Math.cos(-c.angle);
+      const sinA = Math.sin(-c.angle);
+      const localDirX = shadowDir.x * cosA - shadowDir.y * sinA;
+      const localDirY = shadowDir.x * sinA + shadowDir.y * cosA;
+      const shiftX = localDirX * offset;
+      const shiftY = localDirY * offset;
+
+      // Draw a straight-edged rectangle centered along the creature axis, with the computed shift
+      ctx.beginPath();
+      ctx.rect(-totalLen * 0.5 + shiftX, -totalWid * 0.5 + shiftY, totalLen, totalWid);
+      ctx.fill();
+
     } else {
       // Generic water creature (fish) : rotated diamond-ish shadow elongated along facing axis
       const halfLen = size * 0.7 * shadowScale;
@@ -121,18 +142,27 @@ export function drawCreatureShadow(ctx, state, tileSize, c, screenX, screenY, si
 
     const halfSize = size * 0.5;
 
-    ctx.beginPath();
-    // Round shadow for crab
-    if (c.type === 'crab') {
-       ctx.ellipse(shadowX, shadowY, halfSize, halfSize * 0.7, 0, 0, Math.PI*2);
+    // If creature prefers rectangular shadow (sheep, deer), draw a centered rectangle
+    if (prefersRectShadow) {
+      const rectW = halfSize * 2.0;
+      const rectH = halfSize * 1.2;
+      ctx.beginPath();
+      ctx.rect(shadowX - rectW * 0.5, shadowY - rectH * 0.5, rectW, rectH);
+      ctx.fill();
     } else {
-       ctx.moveTo(shadowX - halfSize, shadowY);       
-       ctx.lineTo(shadowX, shadowY - halfSize * 0.6); 
-       ctx.lineTo(shadowX + halfSize, shadowY);       
-       ctx.lineTo(shadowX, shadowY + halfSize * 0.6); 
+      ctx.beginPath();
+      // Round shadow for crab
+      if (c.type === 'crab') {
+         ctx.ellipse(shadowX, shadowY, halfSize, halfSize * 0.7, 0, 0, Math.PI*2);
+      } else {
+         ctx.moveTo(shadowX - halfSize, shadowY);       
+         ctx.lineTo(shadowX, shadowY - halfSize * 0.6); 
+         ctx.lineTo(shadowX + halfSize, shadowY);       
+         ctx.lineTo(shadowX, shadowY + halfSize * 0.6); 
+      }
+      ctx.closePath();
+      ctx.fill();
     }
-    ctx.closePath();
-    ctx.fill();
   }
 
   ctx.restore();  
