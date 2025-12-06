@@ -34,10 +34,31 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
   // Generate or return existing chunk canvas
   function getChunk(cx, cy, cycle) {
     const key = `${cx},${cy}`;
+    const now = performance.now();
+
     if (chunkCache.has(key)) {
       const data = chunkCache.get(key);
-      data.lastUsed = performance.now();
-      return data.canvas;
+
+      // Decide whether this chunk's baked lighting is "stale" and should be rebuilt.
+      // We compare the stored dayTime to the current one, wrapping across 0..1.
+      let rebuild = false;
+      if (state.isPlaying) {
+        const lastDayTime = (typeof data.lastDayTime === 'number') ? data.lastDayTime : state.dayTime;
+        let diff = Math.abs(state.dayTime - lastDayTime);
+        if (diff > 0.5) diff = 1 - diff; // wrap-around safe
+        // If the sun has moved enough (a few in‑game seconds), refresh this chunk.
+        if (diff > 0.02) { // ~3–4s at default daySpeed
+          rebuild = true;
+        }
+      }
+
+      if (!rebuild) {
+        data.lastUsed = now;
+        return data.canvas;
+      }
+
+      // Drop stale entry so we fall through to regeneration below.
+      chunkCache.delete(key);
     }
 
     const pxSize = CHUNK_SIZE * state.tileSize;
@@ -255,7 +276,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       }
     }
 
-    chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now() });
+    chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now(), lastDayTime: state.dayTime });
     return cCanvas;
   }
 
