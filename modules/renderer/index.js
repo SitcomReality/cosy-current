@@ -129,69 +129,29 @@ export function createRenderer({ canvas, state, game, noise }) {
 
       if (strengthBase <= 0.001) return;
 
-      // Match the quantized depth banding used in chunk generation
-      const WATER_BAND_COUNT = 4;
-      const bandDarkness = new Array(WATER_BAND_COUNT).fill(0);
-      const bandHasTiles = new Array(WATER_BAND_COUNT).fill(false);
+      ctx.save();
 
-      // First pass: determine a single darkness value per depth band
       for (let ty = Math.floor(viewTopTile); ty <= Math.floor(viewBottomTile); ty++) {
         for (let tx = Math.floor(viewLeftTile); tx <= Math.floor(viewRightTile); tx++) {
           const tileType = game.getTile(tx, ty);
           if (tileType !== game.CONSTANTS.TILE_WATER) continue;
 
+          // Sample gradient of river "value" at tile center; gradient points center -> bank (uphill)
           const wx = tx + 0.5;
           const wy = ty + 0.5;
-
-          // Determine depth band (0 = deepest water, WATER_BAND_COUNT-1 = shallowest water)
-          const rInfo = noise.getRiverSystem(wx, wy);
-          const v = Math.max(0, Math.min(1, rInfo.value)); // 0 = deep, 1 = shallow
-          let band = Math.floor(v * WATER_BAND_COUNT);
-          if (band >= WATER_BAND_COUNT) band = WATER_BAND_COUNT - 1;
-          if (band < 0) band = 0;
-
-          // Sample gradient of river "value" at tile center; gradient points center -> bank (uphill)
           const { gx, gy, mag } = getRiverGradient(noise, wx, wy, 2.0);
 
           // Skip areas with essentially no slope (deep center or flat pools)
           if (mag < 0.05) continue;
 
-          // Dot product between slope direction and sun direction:
+          // Dot product between slope direction and sun direction: 
           // positive when bank "faces" the sun, which we darken.
           const dot = gx * sunNX + gy * sunNY;
           const angleFactor = Math.max(0, dot); // 0..1
+
           if (angleFactor <= 0.001) continue;
 
           const darkness = angleFactor * strengthBase;
-          if (darkness <= 0.001) continue;
-
-          bandHasTiles[band] = true;
-          if (darkness > bandDarkness[band]) {
-            bandDarkness[band] = darkness;
-          }
-        }
-      }
-
-      ctx.save();
-
-      // Second pass: apply uniform darkening per band to all water tiles in that band
-      for (let ty = Math.floor(viewTopTile); ty <= Math.floor(viewBottomTile); ty++) {
-        for (let tx = Math.floor(viewLeftTile); tx <= Math.floor(viewRightTile); tx++) {
-          const tileType = game.getTile(tx, ty);
-          if (tileType !== game.CONSTANTS.TILE_WATER) continue;
-
-          const wx = tx + 0.5;
-          const wy = ty + 0.5;
-
-          const rInfo = noise.getRiverSystem(wx, wy);
-          const v = Math.max(0, Math.min(1, rInfo.value));
-          let band = Math.floor(v * WATER_BAND_COUNT);
-          if (band >= WATER_BAND_COUNT) band = WATER_BAND_COUNT - 1;
-          if (band < 0) band = 0;
-
-          if (!bandHasTiles[band]) continue;
-
-          const darkness = bandDarkness[band];
           if (darkness <= 0.001) continue;
 
           const screenX = (tx - state.camera.x) * tileSize + centerX;
