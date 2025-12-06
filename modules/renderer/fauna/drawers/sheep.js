@@ -34,16 +34,5 @@ export function drawSheep(ctx, c, size) {
   ctx.rect(bodyLen * 0.5 + headLen * 0.2, -headWid * 0.8, headLen * 0.25, headWid * 0.4);
   ctx.fill();
 
-  // Legs: four blocks under body corners
-  ctx.fillStyle = faceColor;
-  const legOffsetX = bodyLen * 0.3;
-  const legOffsetY = bodyWid * 0.4;
-  // front-right
-  ctx.fillRect(legOffsetX, -legOffsetY, legWid, legLen);
-  // front-left
-  ctx.fillRect(legOffsetX, legOffsetY - legLen, legWid, legLen);
-  // rear-right
-  ctx.fillRect(-legOffsetX - legWid, -legOffsetY, legWid, legLen);
-  // rear-left
-  ctx.fillRect(-legOffsetX - legWid, legOffsetY - legLen, legWid, legLen);
+  // Legs removed for top-down view (sheep are depicted without visible legs)
 }
