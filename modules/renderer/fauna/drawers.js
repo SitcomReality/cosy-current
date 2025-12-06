@@ -25,6 +25,10 @@ export function drawCreature(ctx, c, screenX, screenY, size, cycle) {
     drawFirefly(ctx, c, size);
   } else if (c.type === 'crab') {
     drawCrab(ctx, c, size);
+  } else if (c.type === 'sheep') {
+    drawSheep(ctx, c, size);
+  } else if (c.type === 'turtle') {
+    drawTurtle(ctx, c, size);
   }
 
   ctx.restore();
@@ -423,4 +427,116 @@ function drawFirefly(ctx, c, size) {
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
   ctx.restore();
+}
+
+function drawSheep(ctx, c, size) {
+  // Chunky blocky sheep: rectangle body, small head, tiny legs, no curves
+  const bodyLen = size * 0.9;
+  const bodyWid = size * 0.6;
+  const headLen = size * 0.32;
+  const headWid = size * 0.28;
+  const legLen = size * 0.18;
+  const legWid = size * 0.08;
+
+  const woolColor = c.color || '#e5e7eb';
+  // Slightly darker for face/legs
+  const faceColor = '#4b5563';
+
+  // Body
+  ctx.fillStyle = woolColor;
+  ctx.beginPath();
+  ctx.rect(-bodyLen * 0.5, -bodyWid * 0.5, bodyLen, bodyWid);
+  ctx.fill();
+
+  // Simple top "ridge" to make the wool look chunky
+  ctx.fillStyle = '#d4d4d8';
+  ctx.beginPath();
+  ctx.rect(-bodyLen * 0.45, -bodyWid * 0.5, bodyLen * 0.9, bodyWid * 0.22);
+  ctx.fill();
+
+  // Head at front-right of body
+  ctx.fillStyle = faceColor;
+  ctx.beginPath();
+  ctx.rect(bodyLen * 0.5, -headWid * 0.5, headLen, headWid);
+  ctx.fill();
+
+  // Simple ear as a small block
+  ctx.beginPath();
+  ctx.rect(bodyLen * 0.5 + headLen * 0.2, -headWid * 0.8, headLen * 0.25, headWid * 0.4);
+  ctx.fill();
+
+  // Legs: four blocks under body corners
+  ctx.fillStyle = faceColor;
+  const legOffsetX = bodyLen * 0.3;
+  const legOffsetY = bodyWid * 0.4;
+  // front-right
+  ctx.fillRect(legOffsetX, -legOffsetY, legWid, legLen);
+  // front-left
+  ctx.fillRect(legOffsetX, legOffsetY - legLen, legWid, legLen);
+  // rear-right
+  ctx.fillRect(-legOffsetX - legWid, -legOffsetY, legWid, legLen);
+  // rear-left
+  ctx.fillRect(-legOffsetX - legWid, legOffsetY - legLen, legWid, legLen);
+}
+
+function drawTurtle(ctx, c, size) {
+  // Rigid top-down turtle: angular shell polygon, blocky head and legs, no curves
+  const shellLen = size * 0.9;
+  const shellWid = size * 0.7;
+  const headLen = size * 0.25;
+  const headWid = size * 0.2;
+  const legLen = size * 0.18;
+  const legWid = size * 0.14;
+
+  const shellColor = c.color || '#166534';
+  const rimColor = '#065f46';
+  const limbColor = '#374151';
+
+  // Shell polygon (octagon-ish but only straight lines)
+  const halfL = shellLen * 0.5;
+  const halfW = shellWid * 0.5;
+
+  ctx.fillStyle = shellColor;
+  ctx.beginPath();
+  ctx.moveTo(-halfL * 0.9, -halfW * 0.5);
+  ctx.lineTo(-halfL * 0.5, -halfW);
+  ctx.lineTo(halfL * 0.5, -halfW);
+  ctx.lineTo(halfL * 0.9, -halfW * 0.5);
+  ctx.lineTo(halfL * 0.9, halfW * 0.5);
+  ctx.lineTo(halfL * 0.5, halfW);
+  ctx.lineTo(-halfL * 0.5, halfW);
+  ctx.lineTo(-halfL * 0.9, halfW * 0.5);
+  ctx.closePath();
+  ctx.fill();
+
+  // Shell "grid" pattern: a couple of straight lines
+  ctx.strokeStyle = rimColor;
+  ctx.lineWidth = Math.max(1, size * 0.06);
+  ctx.beginPath();
+  // Longitudinal
+  ctx.moveTo(0, -halfW);
+  ctx.lineTo(0, halfW);
+  // Cross
+  ctx.moveTo(-halfL * 0.6, 0);
+  ctx.lineTo(halfL * 0.6, 0);
+  ctx.stroke();
+
+  // Head block at front
+  ctx.fillStyle = limbColor;
+  ctx.beginPath();
+  ctx.rect(halfL, -headWid * 0.5, headLen, headWid);
+  ctx.fill();
+
+  // Legs: four rectangular blocks at shell corners
+  const legOffsetX = halfL * 0.7;
+  const legOffsetY = halfW * 0.7;
+
+  // front-right
+  ctx.fillRect(legOffsetX, -legOffsetY - legWid * 0.5, legLen, legWid);
+  // front-left
+  ctx.fillRect(legOffsetX, legOffsetY - legWid * 0.5, legLen, legWid);
+  // rear-right
+  ctx.fillRect(-legOffsetX - legLen, -legOffsetY - legWid * 0.5, legLen, legWid);
+  // rear-left
+  ctx.fillRect(-legOffsetX - legLen, legOffsetY - legWid * 0.5, legLen, legWid);
 }

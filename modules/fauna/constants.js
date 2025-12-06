@@ -64,5 +64,29 @@ export const CREATURE_DEFS = {
     colors: ['#dc2626', '#2563eb', '#fbbf24', '#ffffff'],
     behavior: 'fly_straight',
     turnRate: 0.8
+  },
+  // New chunky sheep on grass
+  sheep: {
+    type: 'sheep',
+    pool: POOL_LAND,
+    habitat: ['grass'],
+    size: 0.6, // slightly smaller than deer (0.7)
+    speed: 1.0,
+    // Soft off-whites and greys to match palette
+    colors: ['#e5e7eb', '#f5f5f4', '#d4d4d8', '#e7e5e4'],
+    behavior: 'wander',
+    turnRate: 3.0
+  },
+  // New slow turtles in the river
+  turtle: {
+    type: 'turtle',
+    pool: POOL_WATER,
+    size: 0.45,
+    speed: 0.7,
+    depth: 0.45,
+    // Greens/browns consistent with existing palette
+    colors: ['#166534', '#15803d', '#4b5563', '#78350f'],
+    behavior: 'turtle',
+    turnRate: 1.0
   }
 };

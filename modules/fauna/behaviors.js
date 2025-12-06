@@ -4,6 +4,7 @@ import { applyFlyStraight } from './behaviors/flyStraight.js';
 import { applyScuttle } from './behaviors/scuttle.js';
 import { applyWander } from './behaviors/wander.js';
 import { enforceBoundaries } from './behaviors/boundaries.js';
+import { applyTurtle } from './behaviors/turtle.js';
 
 // Orchestrator: keeps the public API stable
 export function updateCreatureBehavior(c, dt, noise, game) {
@@ -25,6 +26,8 @@ export function updateCreatureBehavior(c, dt, noise, game) {
     applyFlyStraight(c, dt);
   } else if (behavior === 'scuttle') {
     applyScuttle(c, dt);
+  } else if (behavior === 'turtle') {
+    applyTurtle(c, dt, noise);
   } else {
     // Default wander
     applyWander(c, dt);
@@ -34,8 +37,8 @@ export function updateCreatureBehavior(c, dt, noise, game) {
   enforceBoundaries(c, dt, noise, game);
 
   // 3. Physics (Turn & Move)
-  // Scuttle has special movement handling (stop and go)
-  if (behavior === 'scuttle' && c.isStopped) {
+  // Scuttle and turtle have special movement handling (stop and go)
+  if ((behavior === 'scuttle' || behavior === 'turtle') && c.isStopped) {
     // Don't move
     return;
   }

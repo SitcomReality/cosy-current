@@ -55,6 +55,12 @@ export function createSpawner(game, noise, state) {
       // Make eels a bit more common so they are noticeable
       if (key === 'eel') weight *= 2;
 
+      // Make turtles a bit rarer than generic fish
+      if (key === 'turtle') weight *= 0.8;
+
+      // Sheep slightly more common than small critters on grass
+      if (key === 'sheep') weight *= 1.3;
+
       for (let i = 0; i < weight; i++) candidates.push(key);
     }
     
@@ -196,6 +202,8 @@ export function createSpawner(game, noise, state) {
       if (typeKey === 'bird')    count = Math.floor(randomRange(4, 14)); // 4..13 birds
       if (typeKey === 'fish')    count = randomRange(2, 6);
       if (typeKey === 'eel')     count = randomRange(1, 3);
+      if (typeKey === 'sheep')   count = Math.floor(randomRange(3, 9)); // 3–8 sheep
+      if (typeKey === 'turtle')  count = Math.floor(randomRange(1, 5)); // 1–4 turtles
 
       const groupId = count > 1 ? Math.random().toString(36) : null;
       // If group, create and store a base phase so members of a spawned group share a base but not identical phase
