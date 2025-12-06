@@ -47,7 +47,7 @@ export function createRenderer({ canvas, state, game, noise }) {
     const tileSize = state.tileSize;
 
     // Render passes in order
-    renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE);
+    renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE, cycle);
     renderWaterShadingPass(ctx, state, game, noise, cycle, shadowDir);
     waterEffects.render(ctx, state.camera, tileSize);
 

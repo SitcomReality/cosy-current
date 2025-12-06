@@ -32,7 +32,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
   }
 
   // Generate or return existing chunk canvas
-  function getChunk(cx, cy) {
+  function getChunk(cx, cy, cycle) {
     const key = `${cx},${cy}`;
     if (chunkCache.has(key)) {
       const data = chunkCache.get(key);
@@ -166,7 +166,9 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         WATER_BAND_COUNT,
         game,
         WATER_PALETTE,
-        getPerturbedVertex
+        getPerturbedVertex,
+        noise,
+        cycle
       });
     }
 

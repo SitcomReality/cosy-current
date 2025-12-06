@@ -1,4 +1,4 @@
-export function renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE) {
+export function renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE, cycle) {
   const tileSize = state.tileSize;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
@@ -15,7 +15,7 @@ export function renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE) {
 
   for (let cy = startChunkY; cy <= endChunkY; cy++) {
     for (let cx = startChunkX; cx <= endChunkX; cx++) {
-      const chunkImg = chunkManager.getChunk(cx, cy);
+      const chunkImg = chunkManager.getChunk(cx, cy, cycle);
       const screenX = (cx * CHUNK_SIZE - state.camera.x) * tileSize + centerX;
       const screenY = (cy * CHUNK_SIZE - state.camera.y) * tileSize + centerY;
       if (screenX > state.width || screenY > state.height ||
