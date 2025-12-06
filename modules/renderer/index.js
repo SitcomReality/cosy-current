@@ -8,7 +8,6 @@ import { advanceDayTime, getCycleProps } from './daycycle.js';
 import { drawTreeShadow, drawTree, drawAquaticPlant, drawAquaticShadow, drawEntities, drawPlayer } from './objects.js';
 import { renderFauna, renderBirds } from './fauna/index.js';
 import { shortestAngleDiff } from '../fauna/utils.js';
-import { getRiverGradient } from '../fauna/behaviors/riverUtils.js'; // <-- NEW IMPORT
 
 // This file composes the modular renderer pieces into the original public API
 export function createRenderer({ canvas, state, game, noise }) {
@@ -109,68 +108,6 @@ export function createRenderer({ canvas, state, game, noise }) {
         ctx.drawImage(chunkImg, Math.round(screenX), Math.round(screenY));
       }
     }
-
-    // Underwater slope shading: darken water bands based on river slope vs sun direction
-    // Uses the river gradient (bank-facing direction) and the opposite of shadowDir (sun direction)
-    // so that the bank/slope "nearest the sun" appears darker at morning/evening and fades at noon.
-    (function shadeUnderwater() {
-      // If there is effectively no sun-driven shading (e.g., deep night or very low shadow alpha),
-      // skip this pass.
-      if (cycle.shadowAlpha <= 0.001 || cycle.shadowLength <= 0.0001) return;
-
-      const sunDirX = -shadowDir.x;
-      const sunDirY = -shadowDir.y;
-      const sunDirLen = Math.hypot(sunDirX, sunDirY) || 1;
-      const sunNX = sunDirX / sunDirLen;
-      const sunNY = sunDirY / sunDirLen;
-
-      // Use shadowAlpha as a proxy for "edge of day" intensity (strong at dawn/dusk, weak at noon)
-      const strengthBase = Math.max(0, Math.min(1, cycle.shadowAlpha / 0.45)); // 0..1
-
-      if (strengthBase <= 0.001) return;
-
-      ctx.save();
-
-      for (let ty = Math.floor(viewTopTile); ty <= Math.floor(viewBottomTile); ty++) {
-        for (let tx = Math.floor(viewLeftTile); tx <= Math.floor(viewRightTile); tx++) {
-          const tileType = game.getTile(tx, ty);
-          if (tileType !== game.CONSTANTS.TILE_WATER) continue;
-
-          // Sample gradient of river "value" at tile center; gradient points center -> bank (uphill)
-          const wx = tx + 0.5;
-          const wy = ty + 0.5;
-          const { gx, gy, mag } = getRiverGradient(noise, wx, wy, 2.0);
-
-          // Skip areas with essentially no slope (deep center or flat pools)
-          if (mag < 0.05) continue;
-
-          // Dot product between slope direction and sun direction: 
-          // positive when bank "faces" the sun, which we darken.
-          const dot = gx * sunNX + gy * sunNY;
-          const angleFactor = Math.max(0, dot); // 0..1
-
-          if (angleFactor <= 0.001) continue;
-
-          const darkness = angleFactor * strengthBase;
-          if (darkness <= 0.001) continue;
-
-          const screenX = (tx - state.camera.x) * tileSize + centerX;
-          const screenY = (ty - state.camera.y) * tileSize + centerY;
-
-          // Cull off-screen tiles
-          if (screenX > state.width || screenY > state.height ||
-              screenX + tileSize < 0 || screenY + tileSize < 0) continue;
-
-          const alpha = Math.min(0.5, 0.35 * darkness); // cap to keep subtle but perceptible
-          if (alpha <= 0) continue;
-
-          ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-          ctx.fillRect(Math.floor(screenX), Math.floor(screenY), Math.ceil(tileSize), Math.ceil(tileSize));
-        }
-      }
-
-      ctx.restore();
-    })();
 
     // Water effects
     waterEffects.render(ctx, state.camera, tileSize);
