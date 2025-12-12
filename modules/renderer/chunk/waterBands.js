@@ -55,23 +55,38 @@ export function renderWaterBands({
   const sunDirX = cycle ? -cycle.shadowDirX : 0;
   const sunDirY = cycle ? -cycle.shadowDirY : 0;
 
-  // Strength of band darkening based on time-of-day:
-  // - strongest near dawn/dusk
-  // - smoothly fades to zero around midday with an eased (sharper) curve so midday is flatter/neutral
+  // Strength of band darkening based on time-of-day.
+  // We model an asymmetrical curve: fade quickly in morning (peak at s=0.2), slowly fade to noon (s=0.5),
+  // slowly fade back in afternoon (peak at s=0.8), quickly fade out at dusk (s=1.0).
   let shadowStrength = 0;
   if (cycle) {
+    // Base strength modulation (controlled by overall shadow visibility, ensuring fade out at night)
     const base = Math.max(0, Math.min(1, cycle.shadowAlpha / 0.45));
-
-    // shadeProgression is 0 at dawnStart, 1 at duskEnd; build a triangle-like curve
-    // that is 1 at both ends (morning/evening) and 0 at midday (~0.5).
-    // Apply a power easing to the raw triangle to make the response much flatter near midday
-    // and sharper toward the extremes so updates around noon produce minimal visible change.
     const s = typeof cycle.shadeProgression === 'number' ? cycle.shadeProgression : 0;
-    const triRaw = Math.max(0, 1 - 2 * Math.abs(s - 0.5)); // linear triangle (1 at ends, 0 at mid)
-    // Use a cubic falloff to compress non-zero shading toward the dawn/dusk extremes.
-    const tri = Math.pow(triRaw, 3); // stronger easing: triRaw^3
+    
+    let strengthMod = 0;
 
-    shadowStrength = base * tri;
+    if (s <= 0.2) {
+      // 0 -> 0.2 (Fast Fade In, peaking slightly after dawn)
+      const u = s / 0.2;
+      strengthMod = Math.sqrt(u); // Quicker rise
+    } else if (s <= 0.5) {
+      // 0.2 -> 0.5 (Slow Fade Out towards noon)
+      const u = (s - 0.2) / 0.3;
+      strengthMod = 1.0 - Math.pow(u, 2); // Slow falloff
+    } else if (s <= 0.8) {
+      // 0.5 -> 0.8 (Slow Fade In from noon towards twilight peak)
+      const u = (s - 0.5) / 0.3;
+      strengthMod = Math.pow(u, 2); // Slow rise
+    } else { // s <= 1.0
+      // 0.8 -> 1.0 (Fast Fade Out as full darkness approaches)
+      const u = (s - 0.8) / 0.2;
+      strengthMod = 1.0 - Math.sqrt(u); // Quicker fall
+    }
+    
+    strengthMod = Math.max(0, Math.min(1, strengthMod));
+
+    shadowStrength = base * strengthMod;
   }
 
   for (let y = 0; y < CHUNK_SIZE; y++) {
