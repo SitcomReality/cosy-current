@@ -13,8 +13,6 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
   // Props manager (trees + aquatic flora) now lives in its own module
   const propsManager = createChunkPropsManager({ CHUNK_SIZE, game, noise });
 
-  const CHUNK_REBUILD_FADE_MS = 260; // crossfade duration for chunk lighting updates
-
   function clearCache() {
     chunkCache.clear();
     propsManager.clearPropsCache();
@@ -33,16 +31,13 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
     }
   }
 
-  // Expose entry for renderer so it can perform crossfade drawing
-  function getChunkEntry(cx, cy) {
-    const key = `${cx},${cy}`;
-    return chunkCache.get(key) || null;
-  }
-
   // Generate or return existing chunk canvas
   function getChunk(cx, cy, cycle) {
     const key = `${cx},${cy}`;
     const now = performance.now();
+    const TRANSITION_DURATION = 250; // ms, brief but visible cross-fade
+
+    let previousCanvas = null;
 
     if (chunkCache.has(key)) {
       const data = chunkCache.get(key);
@@ -60,15 +55,17 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         }
       }
 
+      // If no rebuild needed, just return existing data
       if (!rebuild) {
         data.lastUsed = now;
-        return data.canvas;
+        return data;
       }
 
-      // Instead of immediately deleting the old canvas, keep it for a brief crossfade.
-      // Mark previous canvas and allow drawing code to blend between old/new during transition.
-      // We'll fall through to regeneration and replace data.canvas but keep data.prevCanvas, prevStart.
-      // Do not delete yet.
+      // We are going to rebuild: keep the previous canvas for cross-fade
+      previousCanvas = data.canvas;
+
+      // Drop stale entry so we fall through to regeneration below.
+      chunkCache.delete(key);
     }
 
     const pxSize = CHUNK_SIZE * state.tileSize;
@@ -76,11 +73,6 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
     cCanvas.width = pxSize;
     cCanvas.height = pxSize;
     const cCtx = cCanvas.getContext('2d', { alpha: false });
-
-    // Explicitly clear the chunk canvas to prevent dark artifacts during crossfade.
-    // Use the deep water color or a dark neutral color as the base background.
-    cCtx.fillStyle = WATER_PALETTE.deep || '#0f172a';
-    cCtx.fillRect(0, 0, pxSize, pxSize);
 
     const startX = cx * CHUNK_SIZE;
     const startY = cy * CHUNK_SIZE;
@@ -291,25 +283,21 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       }
     }
 
-    // If there was a previous entry, preserve its canvas for a short crossfade
-    if (chunkCache.has(key)) {
-      const old = chunkCache.get(key);
-      // move old.canvas to prevCanvas for blending; keep lastDayTime for continuity
-      const prevCanvas = old.canvas;
-      chunkCache.delete(key);
-      chunkCache.set(key, { canvas: cCanvas, prevCanvas, prevStart: performance.now(), lastUsed: performance.now(), lastDayTime: state.dayTime });
-    } else {
-      chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now(), lastDayTime: state.dayTime });
-    }
-
-    return cCanvas;
+    chunkCache.set(key, {
+      canvas: cCanvas,
+      prevCanvas: previousCanvas,
+      transitionStart: previousCanvas ? performance.now() : 0,
+      transitionDuration: previousCanvas ? TRANSITION_DURATION : 0,
+      lastUsed: performance.now(),
+      lastDayTime: state.dayTime
+    });
+    return chunkCache.get(key);
   }
 
   return { 
     getChunk, 
     getChunkProps: propsManager.getChunkProps, 
     clearCache, 
-    pruneCache,
-    getChunkEntry
+    pruneCache 
   };
 }

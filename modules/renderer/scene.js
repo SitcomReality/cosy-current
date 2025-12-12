@@ -34,6 +34,7 @@ export function createRenderer({ canvas, state, game, noise }) {
     advanceDayTime(state);
     const cycle = getCycleProps(state);
     const shadowDir = { x: cycle.shadowDirX, y: cycle.shadowDirY };
+    const now = performance.now();
 
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
@@ -47,7 +48,7 @@ export function createRenderer({ canvas, state, game, noise }) {
     const tileSize = state.tileSize;
 
     // Render passes in order
-    renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE, cycle);
+    renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE, cycle, now);
     renderWaterShadingPass(ctx, state, game, noise, cycle, shadowDir);
     waterEffects.render(ctx, state.camera, tileSize);
 

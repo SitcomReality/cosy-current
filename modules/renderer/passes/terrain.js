@@ -1,4 +1,4 @@
-export function renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE, cycle) {
+export function renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE, cycle, now) {
   const tileSize = state.tileSize;
   const centerX = state.width / 2;
   const centerY = state.height / 2;
@@ -13,44 +13,52 @@ export function renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE, cy
   const startChunkY = Math.floor(viewTopTile / CHUNK_SIZE);
   const endChunkY = Math.floor(viewBottomTile / CHUNK_SIZE);
 
-  const CROSSFADE_MS = 260;
-
-  const now = performance.now();
-
   for (let cy = startChunkY; cy <= endChunkY; cy++) {
     for (let cx = startChunkX; cx <= endChunkX; cx++) {
-      const chunkImg = chunkManager.getChunk(cx, cy, cycle);
-      const entry = (typeof chunkManager.getChunkEntry === 'function') ? chunkManager.getChunkEntry(cx, cy) : null;
+      const chunkData = chunkManager.getChunk(cx, cy, cycle);
+      if (!chunkData || !chunkData.canvas) continue;
 
+      const chunkImg = chunkData.canvas;
       const screenX = (cx * CHUNK_SIZE - state.camera.x) * tileSize + centerX;
       const screenY = (cy * CHUNK_SIZE - state.camera.y) * tileSize + centerY;
       if (screenX > state.width || screenY > state.height ||
           screenX + chunkImg.width < 0 || screenY + chunkImg.height < 0) continue;
 
-      if (entry && entry.prevCanvas && entry.prevStart) {
-        // Crossfade between prevCanvas -> canvas over CROSSFADE_MS
-        const elapsed = now - entry.prevStart;
-        const t = Math.max(0, Math.min(1, elapsed / CROSSFADE_MS));
-        // draw prev
+      const x = Math.round(screenX);
+      const y = Math.round(screenY);
+
+      // If we have a previous canvas, cross-fade from prev -> current over transitionDuration
+      const hasPrev = !!chunkData.prevCanvas && chunkData.transitionDuration > 0;
+      let t = 1;
+      if (hasPrev) {
+        const elapsed = now - (chunkData.transitionStart || 0);
+        if (elapsed >= chunkData.transitionDuration) {
+          t = 1;
+          // Transition finished; drop prevCanvas to free memory and stop blending
+          chunkData.prevCanvas = null;
+          chunkData.transitionDuration = 0;
+        } else if (elapsed <= 0) {
+          t = 0;
+        } else {
+          t = Math.max(0, Math.min(1, elapsed / chunkData.transitionDuration));
+        }
+      }
+
+      if (hasPrev && t < 1 && chunkData.prevCanvas) {
+        // Draw old chunk faded out
         ctx.save();
         ctx.globalAlpha = 1 - t;
-        ctx.drawImage(entry.prevCanvas, Math.round(screenX), Math.round(screenY));
-        ctx.restore();
-        // draw new
-        ctx.save();
-        ctx.globalAlpha = t;
-        ctx.drawImage(entry.canvas, Math.round(screenX), Math.round(screenY));
+        ctx.drawImage(chunkData.prevCanvas, x, y);
         ctx.restore();
 
-        // Once finished, drop prevCanvas so future draws are normal
-        if (t >= 1.0) {
-          // clear prev to release memory
-          entry.prevCanvas = null;
-          entry.prevStart = null;
-          // update cache lastUsed/dayTime already handled in manager
-        }
+        // Draw new chunk faded in
+        ctx.save();
+        ctx.globalAlpha = t;
+        ctx.drawImage(chunkImg, x, y);
+        ctx.restore();
       } else {
-        ctx.drawImage(chunkImg, Math.round(screenX), Math.round(screenY));
+        // No transition active, draw normally
+        ctx.drawImage(chunkImg, x, y);
       }
     }
   }
