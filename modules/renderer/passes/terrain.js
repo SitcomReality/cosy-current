@@ -45,13 +45,10 @@ export function renderTerrainPass(ctx, state, game, chunkManager, CHUNK_SIZE, cy
       }
 
       if (hasPrev && t < 1 && chunkData.prevCanvas) {
-        // Draw old chunk faded out
-        ctx.save();
-        ctx.globalAlpha = 1 - t;
+        // Draw old chunk fully opaque as the base layer to prevent background bleed-through
         ctx.drawImage(chunkData.prevCanvas, x, y);
-        ctx.restore();
 
-        // Draw new chunk faded in
+        // Draw new chunk faded in on top
         ctx.save();
         ctx.globalAlpha = t;
         ctx.drawImage(chunkImg, x, y);
