@@ -54,8 +54,21 @@ export function renderWaterBands({
 }) {
   const sunDirX = cycle ? -cycle.shadowDirX : 0;
   const sunDirY = cycle ? -cycle.shadowDirY : 0;
-  // Strength of shadow based on day cycle
-  const shadowStrength = cycle ? Math.max(0, Math.min(1, cycle.shadowAlpha / 0.45)) : 0;
+
+  // Strength of band darkening based on time-of-day:
+  // - strongest near dawn/dusk
+  // - smoothly fades to zero around midday
+  let shadowStrength = 0;
+  if (cycle) {
+    const base = Math.max(0, Math.min(1, cycle.shadowAlpha / 0.45));
+
+    // shadeProgression is 0 at dawnStart, 1 at duskEnd; build a triangle curve
+    // that is 1 at both ends (morning/evening) and 0 at midday (~0.5).
+    const s = typeof cycle.shadeProgression === 'number' ? cycle.shadeProgression : 0;
+    const tri = Math.max(0, 1 - 2 * Math.abs(s - 0.5)); // 1 at 0/1, 0 at 0.5
+
+    shadowStrength = base * tri;
+  }
 
   for (let y = 0; y < CHUNK_SIZE; y++) {
     for (let x = 0; x < CHUNK_SIZE; x++) {
