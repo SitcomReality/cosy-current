@@ -77,6 +77,11 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
     cCanvas.height = pxSize;
     const cCtx = cCanvas.getContext('2d', { alpha: false });
 
+    // Explicitly clear the chunk canvas to prevent dark artifacts during crossfade.
+    // Use the deep water color or a dark neutral color as the base background.
+    cCtx.fillStyle = WATER_PALETTE.deep || '#0f172a';
+    cCtx.fillRect(0, 0, pxSize, pxSize);
+
     const startX = cx * CHUNK_SIZE;
     const startY = cy * CHUNK_SIZE;
     const tileSize = state.tileSize;
