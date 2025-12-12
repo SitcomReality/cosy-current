@@ -13,6 +13,8 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
   // Props manager (trees + aquatic flora) now lives in its own module
   const propsManager = createChunkPropsManager({ CHUNK_SIZE, game, noise });
 
+  const CHUNK_REBUILD_FADE_MS = 260; // crossfade duration for chunk lighting updates
+
   function clearCache() {
     chunkCache.clear();
     propsManager.clearPropsCache();
@@ -29,6 +31,12 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       // Also prune props
       propsManager.prunePropsCache();
     }
+  }
+
+  // Expose entry for renderer so it can perform crossfade drawing
+  function getChunkEntry(cx, cy) {
+    const key = `${cx},${cy}`;
+    return chunkCache.get(key) || null;
   }
 
   // Generate or return existing chunk canvas
@@ -57,8 +65,10 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
         return data.canvas;
       }
 
-      // Drop stale entry so we fall through to regeneration below.
-      chunkCache.delete(key);
+      // Instead of immediately deleting the old canvas, keep it for a brief crossfade.
+      // Mark previous canvas and allow drawing code to blend between old/new during transition.
+      // We'll fall through to regeneration and replace data.canvas but keep data.prevCanvas, prevStart.
+      // Do not delete yet.
     }
 
     const pxSize = CHUNK_SIZE * state.tileSize;
@@ -276,7 +286,17 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       }
     }
 
-    chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now(), lastDayTime: state.dayTime });
+    // If there was a previous entry, preserve its canvas for a short crossfade
+    if (chunkCache.has(key)) {
+      const old = chunkCache.get(key);
+      // move old.canvas to prevCanvas for blending; keep lastDayTime for continuity
+      const prevCanvas = old.canvas;
+      chunkCache.delete(key);
+      chunkCache.set(key, { canvas: cCanvas, prevCanvas, prevStart: performance.now(), lastUsed: performance.now(), lastDayTime: state.dayTime });
+    } else {
+      chunkCache.set(key, { canvas: cCanvas, lastUsed: performance.now(), lastDayTime: state.dayTime });
+    }
+
     return cCanvas;
   }
 
@@ -284,6 +304,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
     getChunk, 
     getChunkProps: propsManager.getChunkProps, 
     clearCache, 
-    pruneCache 
+    pruneCache,
+    getChunkEntry
   };
 }
