@@ -57,15 +57,19 @@ export function renderWaterBands({
 
   // Strength of band darkening based on time-of-day:
   // - strongest near dawn/dusk
-  // - smoothly fades to zero around midday
+  // - smoothly fades to zero around midday with an eased (sharper) curve so midday is flatter/neutral
   let shadowStrength = 0;
   if (cycle) {
     const base = Math.max(0, Math.min(1, cycle.shadowAlpha / 0.45));
 
-    // shadeProgression is 0 at dawnStart, 1 at duskEnd; build a triangle curve
+    // shadeProgression is 0 at dawnStart, 1 at duskEnd; build a triangle-like curve
     // that is 1 at both ends (morning/evening) and 0 at midday (~0.5).
+    // Apply a power easing to the raw triangle to make the response much flatter near midday
+    // and sharper toward the extremes so updates around noon produce minimal visible change.
     const s = typeof cycle.shadeProgression === 'number' ? cycle.shadeProgression : 0;
-    const tri = Math.max(0, 1 - 2 * Math.abs(s - 0.5)); // 1 at 0/1, 0 at 0.5
+    const triRaw = Math.max(0, 1 - 2 * Math.abs(s - 0.5)); // linear triangle (1 at ends, 0 at mid)
+    // Use a cubic falloff to compress non-zero shading toward the dawn/dusk extremes.
+    const tri = Math.pow(triRaw, 3); // stronger easing: triRaw^3
 
     shadowStrength = base * tri;
   }
