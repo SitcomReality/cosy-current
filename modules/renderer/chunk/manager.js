@@ -43,9 +43,12 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       const data = chunkCache.get(key);
 
       // Decide whether this chunk's baked lighting is "stale" and should be rebuilt.
-      // We compare the stored dayTime to the current one, wrapping across 0..1.
+      // Only rebuild when:
+      //   - the game is playing,
+      //   - this chunk actually contains water (so water bands exist), and
+      //   - the sun is casting visible shadows (daytime).
       let rebuild = false;
-      if (state.isPlaying) {
+      if (state.isPlaying && data.hasWater && cycle && cycle.shadowAlpha > 0.01) {
         const lastDayTime = (typeof data.lastDayTime === 'number') ? data.lastDayTime : state.dayTime;
         let diff = Math.abs(state.dayTime - lastDayTime);
         if (diff > 0.5) diff = 1 - diff; // wrap-around safe
@@ -87,6 +90,8 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
 
     // Number of quantized depth bands for water
     const WATER_BAND_COUNT = 4;
+    // Track whether this chunk actually contains any water tiles at all
+    let hasWater = false;
 
     for (let y = 0; y < CHUNK_SIZE; y++) {
       for (let x = 0; x < CHUNK_SIZE; x++) {
@@ -99,6 +104,7 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
 
         // Precompute water depth band per cell
         if (tileType === game.CONSTANTS.TILE_WATER) {
+          hasWater = true;
           const riverInfo = noise.getRiverSystem(worldX, worldY);
           const v = Math.max(0, Math.min(1, riverInfo.value)); // 0 = deep, 1 = shallow
           let band = Math.floor(v * WATER_BAND_COUNT);
@@ -289,7 +295,8 @@ export function createChunkManager({ CHUNK_SIZE, COLORS, WATER_PALETTE, state, g
       transitionStart: previousCanvas ? performance.now() : 0,
       transitionDuration: previousCanvas ? TRANSITION_DURATION : 0,
       lastUsed: performance.now(),
-      lastDayTime: state.dayTime
+      lastDayTime: state.dayTime,
+      hasWater
     });
     return chunkCache.get(key);
   }
