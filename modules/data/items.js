@@ -67,3 +67,4 @@ export const ITEM_REGISTRY = {
     spawnRules: { tileType: 'forest' }
   }
 };
+
