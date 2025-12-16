@@ -28,34 +28,38 @@ export function createGame({ state, noise }) {
   }
 
   // Initial spawn: find a river spot
-  let foundSpot = false;
-  let attempts = 0;
-  while (!foundSpot && attempts < 200) {
-    const tx = (Math.random() - 0.5) * 5000;
-    const ty = (Math.random() - 0.5) * 5000;
-    const info = noise.getRiverSystem(tx, ty);
-    
-    // Try to spawn in deep water
-    if (info.isRiver && info.value < 0.5) {
-      state.player.x = tx;
-      state.player.y = ty;
+  // Only run this if the state hasn't been initialized (i.e. not loaded from save)
+  if (!state.hasInitialized) {
+    let foundSpot = false;
+    let attempts = 0;
+    while (!foundSpot && attempts < 200) {
+      const tx = (Math.random() - 0.5) * 5000;
+      const ty = (Math.random() - 0.5) * 5000;
+      const info = noise.getRiverSystem(tx, ty);
       
-      // Determine best initial angle by scanning
-      // Scan 8 directions
-      let bestAngle = 0;
-      let maxConf = -1;
-      for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
-          const res = riverModuleHelpers.getSmartSteering(noise, tx, ty, a);
-          if (res.confidence > maxConf) {
-              maxConf = res.confidence;
-              bestAngle = res.angle;
-          }
+      // Try to spawn in deep water
+      if (info.isRiver && info.value < 0.5) {
+        state.player.x = tx;
+        state.player.y = ty;
+        
+        // Determine best initial angle by scanning
+        // Scan 8 directions
+        let bestAngle = 0;
+        let maxConf = -1;
+        for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
+            const res = riverModuleHelpers.getSmartSteering(noise, tx, ty, a);
+            if (res.confidence > maxConf) {
+                maxConf = res.confidence;
+                bestAngle = res.angle;
+            }
+        }
+        
+        state.player.angle = bestAngle;
+        foundSpot = true;
       }
-      
-      state.player.angle = bestAngle;
-      foundSpot = true;
+      attempts++;
     }
-    attempts++;
+    state.hasInitialized = true;
   }
 
   return {

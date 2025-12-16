@@ -1,5 +1,5 @@
-export function createAppState() {
-  return {
+export function createAppState(savedData = null) {
+  const state = {
     // Rendering state
     width: 0,
     height: 0,
@@ -8,6 +8,7 @@ export function createAppState() {
 
     // App Flow
     isPlaying: false,
+    hasInitialized: false, // Tracks if initial spawn/generation has happened
 
     // Game Settings
     tileSize: 64, // Increased from 12 to 64 for zoom/performance
@@ -41,6 +42,11 @@ export function createAppState() {
       bio: 0
     },
 
+    // Future-proof storage containers
+    inventory: {},
+    collection: {},
+    raft: {},
+
     entities: [],
     
     // Noise Settings
@@ -57,4 +63,27 @@ export function createAppState() {
     // Gameplay modifiers
     speedMultiplier: 1 // Multiplies movement & acceleration when active (e.g. 10 when holding speed-up)
   };
+
+  // Merge saved data if provided
+  if (savedData) {
+    state.seed = savedData.seed;
+    state.hasInitialized = !!savedData.hasInitialized;
+    if (typeof savedData.dayTime === 'number') state.dayTime = savedData.dayTime;
+    
+    if (savedData.player) {
+      state.player.x = savedData.player.x;
+      state.player.y = savedData.player.y;
+      state.player.angle = savedData.player.angle;
+    }
+
+    if (savedData.resources) {
+      Object.assign(state.resources, savedData.resources);
+    }
+
+    if (savedData.inventory) state.inventory = savedData.inventory;
+    if (savedData.collection) state.collection = savedData.collection;
+    if (savedData.raft) state.raft = savedData.raft;
+  }
+
+  return state;
 }

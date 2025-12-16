@@ -1,9 +1,12 @@
+import { hasSave, deleteSave } from './persistence.js';
+
 export function createUI({ container, state, renderer, noise, game }) {
   
   // Cache DOM elements
   const startScreen = document.getElementById('start-screen');
   const gameHud = document.getElementById('game-hud');
   const btnStart = document.getElementById('btn-start');
+  const btnDeleteSave = document.getElementById('btn-delete-save');
   const uiScrap = document.getElementById('ui-scrap');
   const uiFuel = document.getElementById('ui-fuel');
   const uiBio = document.getElementById('ui-bio');
@@ -16,6 +19,27 @@ export function createUI({ container, state, renderer, noise, game }) {
   const settingsContainer = document.getElementById('settings-controls-container');
 
   function bind() {
+    // Check save state to configure menu
+    const saveExists = hasSave();
+    if (saveExists) {
+      btnStart.textContent = "Continue Journey";
+      btnDeleteSave.classList.remove('hidden');
+    } else {
+      btnStart.textContent = "New Journey";
+      btnDeleteSave.classList.add('hidden');
+    }
+
+    // Delete Save Interaction
+    if (btnDeleteSave) {
+      btnDeleteSave.addEventListener('click', () => {
+        if (confirm("Are you sure you want to delete your saved journey? This cannot be undone.")) {
+          deleteSave();
+          // Reload to ensure clean state reset
+          window.location.reload();
+        }
+      });
+    }
+
     // Start Game Interaction
     btnStart.addEventListener('click', () => {
       // Transition UI

@@ -3,11 +3,14 @@ import { createRenderer } from './renderer/index.js';
 import { createUI } from './ui.js';
 import { createNoiseEngine } from './noise.js';
 import { createGame } from './game.js';
-// Change import to the new modular system entry point
 import { createFaunaSystem } from './fauna/index.js';
+import { loadGame, saveGame } from './persistence.js';
 
 export function initApp({ canvas, controls }) {
-  const state = createAppState();
+  // Load saved game if available
+  const savedData = loadGame();
+  
+  const state = createAppState(savedData);
   const noise = createNoiseEngine(state);
   const game = createGame({ state, noise });
   const fauna = createFaunaSystem({ state, game, noise });
@@ -112,6 +115,10 @@ export function initApp({ canvas, controls }) {
   // Also stop on blur (safety)
   window.addEventListener('blur', () => { isPanning = false; });
 
+  // Auto-save Loop (every 30 seconds)
+  const AUTOSAVE_INTERVAL = 30000;
+  let timeSinceSave = 0;
+
   function loop(timestamp) {
     let dt = (timestamp - lastTime) / 1000;
     // Clamp dt to avoid runaway simulation after tab is hidden / system sleep
@@ -173,10 +180,26 @@ export function initApp({ canvas, controls }) {
     // Render
     renderer.renderFrame(timestamp);
 
+    // Auto-save
+    if (state.isPlaying) {
+      timeSinceSave += dt * 1000;
+      if (timeSinceSave >= AUTOSAVE_INTERVAL) {
+        saveGame(state);
+        timeSinceSave = 0;
+      }
+    }
+
     requestAnimationFrame(loop);
   }
 
   requestAnimationFrame(loop);
+  
+  // Save on exit/visibility hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.isPlaying) {
+      saveGame(state);
+    }
+  });
 
   return { state, noise, game, renderer, ui };
 }
