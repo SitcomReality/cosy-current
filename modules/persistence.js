@@ -14,7 +14,14 @@ export function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+
+    // Backfill new containers for older save files
+    if (!data.inventory) data.inventory = {};
+    if (!data.collection) data.collection = {};
+    if (!data.raft) data.raft = {};
+
+    return data;
   } catch (e) {
     console.error("Failed to load save", e);
     return null;
