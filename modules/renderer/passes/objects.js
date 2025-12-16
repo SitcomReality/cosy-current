@@ -1,9 +1,22 @@
 import { drawTreeShadow, drawTree, drawAquaticPlant, drawAquaticShadow } from '../objects.js';
 import { shortestAngleDiff } from '../../fauna/utils.js';
+import { drawCollectable } from '../objects/collectables.js';
 
 export function renderObjectsPass(ctx, state, game, chunkManager, tileSize, cycle, shadowDir, noise, CHUNK_SIZE, TREES, FLORA) {
   const centerX = state.width / 2;
   const centerY = state.height / 2;
+
+  // Render collectables
+  if (state.collectables && state.collectables.length > 0) {
+    state.collectables.forEach(c => {
+      const screenX = (c.x - state.camera.x) * tileSize + centerX;
+      const screenY = (c.y - state.camera.y) * tileSize + centerY;
+      if (screenX > -tileSize && screenX < state.width + tileSize &&
+          screenY > -tileSize && screenY < state.height + tileSize) {
+        drawCollectable(ctx, c, screenX, screenY, tileSize * 0.5);
+      }
+    });
+  }
 
   const viewLeftTile = state.camera.x - (state.width / 2) / tileSize;
   const viewRightTile = state.camera.x + (state.width / 2) / tileSize;

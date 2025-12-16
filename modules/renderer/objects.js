@@ -6,3 +6,4 @@ export { drawTreeShadow, drawTree } from './objects/tree.js';
 export { drawAquaticShadow, drawAquaticPlant } from './objects/aquatic.js';
 export { drawJaggedInfluence, drawEntities } from './objects/entities.js';
 export { drawPlayer } from './objects/player.js';
+export { drawCollectable } from './objects/collectables.js';

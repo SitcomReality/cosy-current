@@ -54,6 +54,33 @@ export function initApp({ canvas, controls }) {
     }
   }, { passive: false });
 
+  // Collectable click/tap interaction
+  canvas.addEventListener('click', (e) => {
+    if (!state.isPlaying || !state.collectables) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clickX = (e.clientX - rect.left) / state.pixelRatio;
+    const clickY = (e.clientY - rect.top) / state.pixelRatio;
+    
+    const centerX = state.width / 2;
+    const centerY = state.height / 2;
+    const tileSize = state.tileSize;
+
+    // Check collectables near click (within ~20px)
+    const hitRadius = 20;
+    for (let i = state.collectables.length - 1; i >= 0; i--) {
+      const c = state.collectables[i];
+      const screenX = (c.x - state.camera.x) * tileSize + centerX;
+      const screenY = (c.y - state.camera.y) * tileSize + centerY;
+      
+      const dist = Math.hypot(clickX - screenX, clickY - screenY);
+      if (dist < hitRadius) {
+        game.collectItem(c.itemId, i);
+        break;
+      }
+    }
+  });
+
   let lastTime = performance.now();
   const MAX_DT = 0.12; // seconds — clamp large dt after tab switches or stalls
   // Keep a visibility handler to reset timing when tab regains focus to avoid huge dt spikes
@@ -139,6 +166,18 @@ export function initApp({ canvas, controls }) {
     }
 
     game.update(dt);
+    
+    // Auto-collect nearby items
+    const AUTO_COLLECT_RADIUS = 2;
+    if (state.collectables && state.player) {
+      for (let i = state.collectables.length - 1; i >= 0; i--) {
+        const c = state.collectables[i];
+        const d = Math.hypot(c.x - state.player.x, c.y - state.player.y);
+        if (d < AUTO_COLLECT_RADIUS) {
+          game.collectItem(c.itemId, i);
+        }
+      }
+    }
     
     // Update fauna
     fauna.update(dt);

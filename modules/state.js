@@ -50,6 +50,7 @@ export function createAppState(savedData = null) {
     raft: Object.assign({}, DEFAULT_RAFT),
 
     entities: [],
+    collectables: [],
     
     // Noise Settings
     // We keep scale/speed configurable but use a single terrain technique internally
