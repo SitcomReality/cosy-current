@@ -29,6 +29,9 @@ export function createUI({ container, state, renderer, noise, game }) {
       btnDeleteSave.classList.add('hidden');
     }
 
+    // Reveal the start button only after we've set the correct label
+    if (btnStart) btnStart.classList.remove('hidden');
+
     // Delete Save Interaction
     if (btnDeleteSave) {
       btnDeleteSave.addEventListener('click', () => {

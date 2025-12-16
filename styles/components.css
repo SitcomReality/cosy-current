@@ -435,3 +435,8 @@ button {
   width: 250px;
   height: 70px;
 }
+
+/* Generic hidden utility (used by buttons and other UI until ready) */
+.hidden {
+  display: none !important;
+}
