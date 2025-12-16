@@ -21,6 +21,10 @@ export function createUI({ container, state, renderer, noise, game }) {
   function bind() {
     // Check save state to configure menu
     const saveExists = hasSave();
+
+    // Ensure loading placeholder exists so we can hide it when ready
+    const startLoading = document.getElementById('start-loading');
+
     if (saveExists) {
       btnStart.textContent = "Continue Journey";
       btnDeleteSave.classList.remove('hidden');
@@ -30,7 +34,11 @@ export function createUI({ container, state, renderer, noise, game }) {
     }
 
     // Reveal the start button only after we've set the correct label
-    if (btnStart) btnStart.classList.remove('hidden');
+    if (btnStart) {
+      btnStart.classList.remove('hidden');
+      // Hide the small loading placeholder if present
+      if (startLoading) startLoading.classList.add('hidden');
+    }
 
     // Delete Save Interaction
     if (btnDeleteSave) {

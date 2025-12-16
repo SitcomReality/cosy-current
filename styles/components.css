@@ -283,6 +283,27 @@ button {
 .btn-text.hidden {
   display: none;
 }
+
+/* Simple inline loading placeholder shown where the start button will appear.
+   Subtle, matches UI sizing and is removed when the real button is revealed. */
+.start-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 180px;
+  height: 48px;
+  padding: 0 1rem;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.03);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.01);
+  border-radius: 0;
+  margin-right: 0.5rem;
+}
+
+/* Hide via .hidden utility when replaced by real button */
+.start-loading.hidden { display: none !important; }
 .btn-text:hover {
   color: #ef4444; /* Danger color */
   opacity: 1;
