@@ -1,3 +1,5 @@
+import { DEFAULT_RAFT } from './game/constants.js';
+
 export function createAppState(savedData = null) {
   const state = {
     // Rendering state
@@ -45,7 +47,7 @@ export function createAppState(savedData = null) {
     // Future-proof storage containers
     inventory: {},
     collection: {},
-    raft: {},
+    raft: Object.assign({}, DEFAULT_RAFT),
 
     entities: [],
     
@@ -82,7 +84,11 @@ export function createAppState(savedData = null) {
 
     if (savedData.inventory) state.inventory = savedData.inventory;
     if (savedData.collection) state.collection = savedData.collection;
-    if (savedData.raft) state.raft = savedData.raft;
+    
+    // Merge saved raft config with defaults to ensure new fields (like lightType) exist
+    if (savedData.raft) {
+      Object.assign(state.raft, savedData.raft);
+    }
   }
 
   return state;
