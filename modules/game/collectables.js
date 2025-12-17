@@ -1,6 +1,11 @@
 import { ITEM_REGISTRY } from '../data/items.js';
 import { MAX_INVENTORY_STACK } from './constants.js';
 
+// Ease helper
+function easeInQuad(t) {
+  return t * t;
+}
+
 export function createCollectablesModule(state) {
   let spawnTimer = 0;
   const SPAWN_INTERVAL = 0.5; // seconds between spawn attempts
@@ -61,8 +66,31 @@ export function createCollectablesModule(state) {
       y,
       itemId,
       lifetime: 120,
-      maxLifetime: 120
+      maxLifetime: 120,
+      // Collect animation fields (unused until startCollect is called)
+      collecting: false,
+      collectProgress: 0,
+      collectStartX: x,
+      collectStartY: y
     });
+  }
+
+  // Start a magnet-style collect animation for the collectable at index collectableIndex
+  function startCollect(collectableIndex, player) {
+    state.collectables = state.collectables || [];
+    const c = state.collectables[collectableIndex];
+    if (!c) return;
+    // If already collecting, ignore
+    if (c.collecting) return;
+    c.collecting = true;
+    c.collectProgress = 0;
+    c.collectStartX = c.x;
+    c.collectStartY = c.y;
+    // We don't set a fixed target position because player may move; we'll lerp toward current player pos each frame.
+    // Store a duration for the animation (seconds)
+    c.collectDuration = 0.6; // fairly quick but with ease-in
+    // Optionally reduce lifetime so it won't be removed by lifetime during animation
+    c.lifetime = Math.max(1, c.lifetime);
   }
 
   function getCollectableSpawnPosition(player, state, isRareSpawn = false) {
@@ -110,13 +138,41 @@ export function createCollectablesModule(state) {
       }
     }
 
-    // Update lifetimes and despawn
+    // Update lifetimes, handle collecting animation, and despawn
     for (let i = state.collectables.length - 1; i >= 0; i--) {
       const c = state.collectables[i];
-      c.lifetime -= dt;
-      const dist = Math.hypot(c.x - player.x, c.y - player.y);
-      if (c.lifetime <= 0 || dist > 150) {
-        state.collectables.splice(i, 1);
+
+      // If this collectable is in "collecting" state, animate it toward the player's current position
+      if (c.collecting) {
+        // Advance progress (clamped)
+        c.collectProgress = Math.min(1, c.collectProgress + dt / (c.collectDuration || 0.6));
+
+        // Ease-in curve: start slow then speed up (easeInQuad)
+        const eased = easeInQuad(c.collectProgress);
+
+        // Lerp from start -> player's current position (so it follows moving raft)
+        const targetX = player.x;
+        const targetY = player.y;
+        c.x = c.collectStartX + (targetX - c.collectStartX) * eased;
+        c.y = c.collectStartY + (targetY - c.collectStartY) * eased;
+
+        // When complete, finalize collection and remove the collectable
+        if (c.collectProgress >= 1) {
+          // Award item and trigger discovery/inventory logic
+          tryCollect(c.itemId);
+          state.collectables.splice(i, 1);
+          continue;
+        } else {
+          // Make sure it is not expired by lifetime during animation
+          c.lifetime = Math.max(1, c.lifetime);
+        }
+      } else {
+        // Normal lifetime decrement for non-collecting items
+        c.lifetime -= dt;
+        const dist = Math.hypot(c.x - player.x, c.y - player.y);
+        if (c.lifetime <= 0 || dist > 150) {
+          state.collectables.splice(i, 1);
+        }
       }
     }
   }
@@ -143,6 +199,6 @@ export function createCollectablesModule(state) {
     return true;
   }
 
-  return { spawnCollectable, maintainCollectables, tryCollect };
+  return { spawnCollectable, maintainCollectables, tryCollect, startCollect };
 }
 

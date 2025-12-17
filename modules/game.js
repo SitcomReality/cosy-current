@@ -67,9 +67,13 @@ export function createGame({ state, noise }) {
   }
 
   function collectItem(itemId, collectableIndex) {
-    collectablesModule.tryCollect(itemId);
+    // Begin the collectable "magnet" animation which moves the item toward the raft
+    // and only finalizes the pickup when the animation completes.
     if (collectableIndex >= 0 && state.collectables) {
-      state.collectables.splice(collectableIndex, 1);
+      collectablesModule.startCollect(collectableIndex, state.player);
+    } else {
+      // Fallback: if index is not provided just immediately try to collect (defensive)
+      collectablesModule.tryCollect(itemId);
     }
   }
 
