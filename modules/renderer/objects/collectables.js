@@ -41,8 +41,8 @@ function getItemColor(item) {
 function drawCollectableIndicator(ctx, size, color, collectable) {
   ctx.save();
 
-  // Reduced indicator size to make the glow more subtle
-  const indicatorSize = size * 1.0;
+  // Increase indicator size to make the glow much more prominent again
+  const indicatorSize = size * 2.0;
   const rotationSpeed = 0.25; // radians per second (gentle)
 
   // Compute age from stored lifetimes; fallback to provided lifetime-like number if shape differs
@@ -57,7 +57,8 @@ function drawCollectableIndicator(ctx, size, color, collectable) {
 
   // Create a radial gradient: opaque center -> transparent edge
   const outer = indicatorSize;
-  const inner = indicatorSize * 0.22;
+  // Slightly larger inner core to match the increased overall indicator
+  const inner = indicatorSize * 0.28;
 
   // Slightly tint center with GOLD_COLOR, mix toward provided color for a subtle hue
   const centerColor = GOLD_COLOR;
@@ -79,8 +80,8 @@ function drawCollectableIndicator(ctx, size, color, collectable) {
   // Add a subtle inner angular core (small diamond) to retain the collectable "badge" silhouette,
   // but keep it semi-transparent so the gradient remains the dominant visual.
   ctx.rotate(Math.PI / 8); // slight offset for visual interest
-  // Increase the inner highlight size (~2x) but make it more transparent so it doesn't overpower the halo.
-  const innerSize = indicatorSize * 0.9;
+  // Increase the inner highlight to better match the enlarged halo while keeping it soft.
+  const innerSize = indicatorSize * 1.1;
   ctx.fillStyle = hexToRgba('#ffffff', 0.035);
   ctx.beginPath();
   ctx.moveTo(0, -innerSize);
