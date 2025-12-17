@@ -13,13 +13,14 @@ export function createNotificationSystem() {
     // Auto-remove after duration
     setTimeout(() => {
       toast.classList.add('fade-out');
+      // Match JS removal delay to the slower CSS exit animation (1s) for a gentler fade
       setTimeout(() => {
         if (toast.parentNode) {
           toast.parentNode.removeChild(toast);
         }
         const idx = activeToasts.indexOf(toast);
         if (idx >= 0) activeToasts.splice(idx, 1);
-      }, 300);
+      }, 1000);
     }, duration);
   }
 

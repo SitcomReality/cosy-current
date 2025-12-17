@@ -641,7 +641,7 @@ button {
   padding: 1rem 1.5rem;
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-  animation: slideIn 0.3s ease-out;
+  animation: slideIn 1s ease-out;
   min-width: 300px;
 }
 
@@ -658,7 +658,7 @@ button {
 }
 
 .notification-toast.fade-out {
-  animation: slideOut 0.3s ease-out;
+  animation: slideOut 1s ease-out;
   opacity: 0;
 }
 
