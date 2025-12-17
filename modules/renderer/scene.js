@@ -9,6 +9,7 @@ import { renderWaterShadingPass } from './passes/waterShading.js';
 import { renderFaunaPass, renderBirdsPass } from './passes/fauna.js';
 import { renderObjectsPass } from './passes/objects.js';
 import { renderAtmospherePass } from './passes/atmosphere.js';
+import { renderWeatherPass } from './passes/weather.js';
 
 export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -65,6 +66,7 @@ export function createRenderer({ canvas, state, game, noise }) {
       renderBirdsPass(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightActive);
     }
 
+    renderWeatherPass(ctx, state, cycle);
     renderAtmospherePass(ctx, state, cycle, 0.9);
   }
 

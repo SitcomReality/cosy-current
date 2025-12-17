@@ -153,6 +153,9 @@ export function initApp({ canvas, controls }) {
     if (dt > MAX_DT) dt = MAX_DT;
     lastTime = timestamp;
 
+    // Accumulate total run time for noise-based systems (weather)
+    state.time = (state.time || 0) + dt;
+
     // 1. Update Game Logic
     // Apply steering input bias to player angle BEFORE update
     // The game logic will try to snap this to the river

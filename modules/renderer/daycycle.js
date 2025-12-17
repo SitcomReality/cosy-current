@@ -145,7 +145,39 @@ export function getCycleProps(state) {
     col = nightColor;
   }
 
-  const ambientColor = `rgba(${col.r},${col.g},${col.b},${col.a})`;
+  // Apply weather darkness
+  // If raining, darken the ambient light significantly to simulate storm clouds.
+  let finalR = col.r;
+  let finalG = col.g;
+  let finalB = col.b;
+  let finalA = col.a;
+
+  if (state.weather && state.weather.precipIntensity > 0) {
+    const intensity = state.weather.precipIntensity;
+    // During day, increase alpha (opacity of darkness layer)
+    // During night, maybe slightly lighten (scattering)? No, simpler is darker.
+    // We mix current ambient towards a dark grey/blue storm color.
+    
+    const stormColor = { r: 15, g: 20, b: 35, a: 0.55 };
+    
+    // Blend factor based on intensity
+    const blend = smoothstep(0, 0.8, intensity); // Max effect at 0.8 intensity
+    
+    // If it's day (alpha near 0), we need to raise alpha to darken the screen.
+    // If it's night (alpha high), we tint towards storm color.
+    
+    // Interpolate alpha
+    // Day (0) -> Storm (0.55)
+    // Night (0.6) -> Storm (0.55) roughly same
+    finalA = lerp(finalA, Math.max(finalA, stormColor.a), blend);
+    
+    // Interpolate color components
+    finalR = lerp(finalR, stormColor.r, blend);
+    finalG = lerp(finalG, stormColor.g, blend);
+    finalB = lerp(finalB, stormColor.b, blend);
+  }
+
+  const ambientColor = `rgba(${Math.round(finalR)},${Math.round(finalG)},${Math.round(finalB)},${finalA})`;
 
   // Calculate shading factor for tree geometry
   let shadeProgression = 0; 

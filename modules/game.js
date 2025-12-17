@@ -5,11 +5,14 @@ import * as riverModuleHelpers from './game/river.js'; // Imports getSmartSteeri
 import { createEntitiesModule } from './game/entities.js';
 import { createPlayerModule } from './game/player.js';
 import { createCollectablesModule } from './game/collectables.js';
+import { createWeatherSystem } from './game/weather.js';
 
 export function createGame({ state, noise }) {
   const heightModule = createHeightModule(noise);
   const entitiesModule = createEntitiesModule(state);
   const collectablesModule = createCollectablesModule(state);
+  const weatherSystem = createWeatherSystem(state, noise);
+
   // Store collectables module in state for access in app loop
   state.collectablesModule = collectablesModule;
   // Pass the entire helper module so player can access getSmartSteering
@@ -28,6 +31,7 @@ export function createGame({ state, noise }) {
   }
 
   function update(dt) {
+    weatherSystem.update(dt);
     playerModule.update(dt);
   }
 

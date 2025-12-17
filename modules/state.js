@@ -64,7 +64,14 @@ export function createAppState(savedData = null) {
     daySpeed: 0.01, // Portion of day per second (100s day)
 
     // Gameplay modifiers
-    speedMultiplier: 1 // Multiplies movement & acceleration when active (e.g. 10 when holding speed-up)
+    speedMultiplier: 1, // Multiplies movement & acceleration when active (e.g. 10 when holding speed-up)
+
+    // Dynamic Weather State
+    weather: {
+      precipIntensity: 0, // 0.0 to 1.0
+      wind: 0,            // -1.0 (Left) to 1.0 (Right)
+      _renderState: null  // Runtime cache for particles
+    }
   };
 
   // Merge saved data if provided
