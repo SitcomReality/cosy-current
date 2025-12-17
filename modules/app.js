@@ -168,7 +168,7 @@ export function initApp({ canvas, controls }) {
     game.update(dt);
     
     // Auto-collect nearby items
-    const AUTO_COLLECT_RADIUS = 2;
+    const AUTO_COLLECT_RADIUS = 2.5;
     if (state.collectables && state.player) {
       for (let i = state.collectables.length - 1; i >= 0; i--) {
         const c = state.collectables[i];
@@ -181,6 +181,11 @@ export function initApp({ canvas, controls }) {
     
     // Update fauna
     fauna.update(dt);
+
+    // Maintain collectables (spawn, despawn, update lifetimes)
+    if (state.fauna && state.fauna.collectablesModule) {
+      state.fauna.collectablesModule.maintainCollectables(dt, state.player, game, noise);
+    }
     
     // Update water effects
     if (renderer.waterEffects) {

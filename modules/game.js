@@ -4,12 +4,14 @@ import { createHeightModule } from './game/height.js';
 import * as riverModuleHelpers from './game/river.js'; // Imports getSmartSteering
 import { createEntitiesModule } from './game/entities.js';
 import { createPlayerModule } from './game/player.js';
-import { createCollectablesModule } from '../collectables.js';
+import { createCollectablesModule } from './collectables.js';
 
 export function createGame({ state, noise }) {
   const heightModule = createHeightModule(noise);
   const entitiesModule = createEntitiesModule(state);
   const collectablesModule = createCollectablesModule(state);
+  // Store collectables module in state for access in app loop
+  state.collectablesModule = collectablesModule;
   // Pass the entire helper module so player can access getSmartSteering
   const playerModule = createPlayerModule(state, noise, heightModule, riverModuleHelpers, entitiesModule);
 
@@ -27,7 +29,6 @@ export function createGame({ state, noise }) {
 
   function update(dt) {
     playerModule.update(dt);
-    collectablesModule.maintainCollectables(state.player);
   }
 
   // Initial spawn: find a river spot
