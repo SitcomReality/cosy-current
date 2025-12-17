@@ -52,9 +52,15 @@ export function drawRaftSprite(ctx, x, y, angle, tileSize, config, cycle) {
     ctx.fillStyle = '#78350f'; // darker deck
     ctx.fillRect(-raftLen/2 + 4, -raftWid/2 + 4, raftLen - 8, raftWid - 8);
   } else if (config.hullShape === 'barge') {
-    // Wide and rounded
-    // Draw simplified rect for now, Phase 5 will implement full geometry
-    ctx.fillRect(-raftLen/2, -raftWid/2, raftLen, raftWid);
+    // Wide barge with subtle curve suggestion
+    ctx.beginPath();
+    ctx.moveTo(-raftLen/2, -raftWid/2);
+    ctx.lineTo(raftLen/2 - raftLen*0.08, -raftWid/2);
+    ctx.lineTo(raftLen/2, 0);
+    ctx.lineTo(raftLen/2 - raftLen*0.08, raftWid/2);
+    ctx.lineTo(-raftLen/2, raftWid/2);
+    ctx.closePath();
+    ctx.fill();
   } else {
     // Classic Box
     ctx.fillRect(-raftLen/2, -raftWid/2, raftLen, raftWid);
@@ -79,49 +85,91 @@ export function drawRaftSprite(ctx, x, y, angle, tileSize, config, cycle) {
   const cabinH = raftWid * 0.6;
   
   if (config.cabinShape === 'dome') {
+    // Dome: full ellipse
     ctx.beginPath();
     ctx.ellipse(0, 0, cabinW/2, cabinH/2, 0, 0, Math.PI*2);
     ctx.fill();
+  } else if (config.cabinShape === 'a-frame') {
+    // A-Frame: triangular roof peak
+    ctx.beginPath();
+    ctx.moveTo(-cabinW/2, cabinH/2);
+    ctx.lineTo(0, -cabinH/2);
+    ctx.lineTo(cabinW/2, cabinH/2);
+    ctx.closePath();
+    ctx.fill();
   } else {
-    // Box / A-Frame base
+    // Box: simple rectangle
     ctx.fillRect(-cabinW/2, -cabinH/2, cabinW, cabinH);
   }
 
-  // Roof / Detail
-  // Simple window/door representation for now
-  ctx.fillStyle = config.roofColor || '#0ea5e9'; // Re-using roofColor logic as accent if not strictly a roof
+  // Roof / Accent Detail
+  ctx.fillStyle = config.roofColor || '#0ea5e9';
   if (config.cabinShape === 'dome') {
+    // Inner circle detail for dome
     ctx.beginPath();
     ctx.ellipse(0, 0, cabinW/3, cabinH/3, 0, 0, Math.PI*2);
     ctx.fill();
+  } else if (config.cabinShape === 'a-frame') {
+    // Ridge line detail for a-frame
+    ctx.strokeStyle = config.roofColor || '#0ea5e9';
+    ctx.lineWidth = Math.max(1, cabinW * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(0, -cabinH/2);
+    ctx.lineTo(0, cabinH/2);
+    ctx.stroke();
   } else {
+    // Window detail for box
     ctx.fillRect(-cabinW/4, -cabinH/4, cabinW/2, cabinH/3);
   }
 
-  // Light Fixture
-  const isActive = cycle && cycle.raftLightActive;
-  const lightColor = isActive ? '#fff' : (config.lightColor || '#f59e0b');
-  const lightGlow = isActive ? (cycle.raftLightIntensity * 15) : 0;
-  // Use config.lightColor for the casing/shadow if inactive?
-  const casingColor = config.lightColor || '#f59e0b';
-
-  ctx.shadowColor = casingColor;
-  ctx.shadowBlur = lightGlow; 
-  ctx.fillStyle = lightColor;
-  
-  ctx.beginPath();
-  const lx = raftLen/2 - 6;
-  const ly = 0;
-  const triH = 6; 
-  const triW = 6; 
-  ctx.moveTo(lx + triH, ly);             
-  ctx.lineTo(lx - triH * 0.3, ly - triW); 
-  ctx.lineTo(lx - triH * 0.3, ly + triW); 
-  ctx.closePath();
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  // Light Fixture (respects light type)
+  drawLightFixture(ctx, raftLen, cycle, config);
 
   ctx.restore();
+}
+
+function drawLightFixture(ctx, raftLen, cycle, config) {
+  const isActive = cycle && cycle.raftLightActive;
+  const lightColor = isActive ? '#fff' : (config.lightColor || '#f59e0b');
+  const casingColor = config.lightColor || '#f59e0b';
+  const lightType = config.lightType || 'cone';
+  
+  const lx = raftLen/2 - 6;
+  const ly = 0;
+
+  if (isActive) {
+    ctx.shadowColor = casingColor;
+    ctx.shadowBlur = cycle.raftLightIntensity * 15;
+  }
+
+  ctx.fillStyle = lightColor;
+
+  if (lightType === 'beam') {
+    // Narrow spotlight: elongated triangle
+    ctx.beginPath();
+    ctx.moveTo(lx + 8, ly);
+    ctx.lineTo(lx - 4, ly - 4);
+    ctx.lineTo(lx - 4, ly + 4);
+    ctx.closePath();
+    ctx.fill();
+  } else if (lightType === 'radial') {
+    // Lantern: small circle with glow
+    ctx.beginPath();
+    ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Cone (default): forward-facing triangle
+    const triH = 6;
+    const triW = 6;
+    ctx.beginPath();
+    ctx.moveTo(lx + triH, ly);
+    ctx.lineTo(lx - triH * 0.3, ly - triW);
+    ctx.lineTo(lx - triH * 0.3, ly + triW);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.shadowBlur = 0;
 }
 
 function drawRaftShadow(ctx, state, tileSize, cycle, shadowDir, noise, px, py) {

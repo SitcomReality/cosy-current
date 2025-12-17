@@ -5,7 +5,6 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
   try {
     const LIGHT_RADIUS = 14;
     const lightIntensity = cycle.raftLightIntensity || 0;
-    const effectiveLightRadius = LIGHT_RADIUS * lightIntensity;
     const w = state.width;
     const h = state.height;
     const tileSize = state.tileSize;
@@ -14,9 +13,23 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
 
     const screenX = (state.player.x - state.camera.x) * tileSize + centerX;
     const screenY = (state.player.y - state.camera.y) * tileSize + centerY;
-    const r = effectiveLightRadius * tileSize;
     const a = state.player.angle;
     const halfA = LIGHT_ANGLE_WIDTH;
+
+    // Determine light shape and radius based on light type
+    const lightType = (state.raft && state.raft.lightType) || 'cone';
+    let effectiveRadius = LIGHT_RADIUS;
+    let isRadial = false;
+
+    if (lightType === 'beam') {
+      effectiveRadius = LIGHT_RADIUS * 1.4; // Longer range
+    } else if (lightType === 'radial') {
+      effectiveRadius = LIGHT_RADIUS * 0.8; // Shorter range but all directions
+      isRadial = true;
+    }
+
+    const effectiveLightRadius = effectiveRadius * lightIntensity;
+    const r = effectiveLightRadius * tileSize;
 
     ctx.fillStyle = cycle.ambientColor;
     if (!cycle.raftLightActive || effectiveLightRadius <= 0.01) {
@@ -29,8 +42,15 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
       ctx.lineTo(0, h);
       ctx.closePath();
 
-      ctx.moveTo(screenX, screenY);
-      ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);
+      if (isRadial) {
+        // Radial light: full 360° circle
+        ctx.moveTo(screenX, screenY);
+        ctx.arc(screenX, screenY, r, 0, Math.PI * 2, false);
+      } else {
+        // Cone/Beam light: directional arc
+        ctx.moveTo(screenX, screenY);
+        ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);
+      }
       ctx.closePath();
 
       ctx.fill('evenodd');
@@ -43,7 +63,11 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
       ctx.globalAlpha = 0.6 * lightIntensity;
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);
+      if (isRadial) {
+        ctx.arc(screenX, screenY, r, 0, Math.PI * 2, false);
+      } else {
+        ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);
+      }
       ctx.lineTo(screenX, screenY);
       ctx.closePath();
       ctx.fill();
