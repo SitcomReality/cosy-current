@@ -1,5 +1,5 @@
-import { ITEM_REGISTRY } from '../data/items.js';
-import { MAX_INVENTORY_STACK } from './constants.js';
+import { ITEM_REGISTRY } from './modules/data/items.js';
+import { MAX_INVENTORY_STACK } from './modules/game/constants.js';
 
 export function createCollectablesModule(state) {
   function spawnCollectable(x, y, itemId) {
