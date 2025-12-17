@@ -132,13 +132,21 @@ export function createCollectablesModule(state) {
     const isNewDiscovery = !state.collection[itemId];
     if (isNewDiscovery) {
       state.collection[itemId] = true;
-      // TODO: Trigger discovery notification UI here
-      console.log(`✨ New Discovery: ${item.name}!`);
+      // Trigger discovery notification if system is available
+      if (state.notifications && typeof state.notifications.discovery === 'function') {
+        state.notifications.discovery(item.name);
+      }
     }
 
     // Add to inventory (clamp to max stack)
     state.inventory[itemId] = (state.inventory[itemId] || 0) + 1;
+    const wasAtMax = state.inventory[itemId] > MAX_INVENTORY_STACK;
     state.inventory[itemId] = Math.min(MAX_INVENTORY_STACK, state.inventory[itemId]);
+    
+    // Warn if inventory is full
+    if (wasAtMax && state.notifications && typeof state.notifications.warning === 'function') {
+      state.notifications.warning(`Inventory full! ${item.name} dropped.`);
+    }
     
     return true;
   }

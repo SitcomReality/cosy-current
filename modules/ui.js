@@ -1,4 +1,8 @@
 import { hasSave, deleteSave } from './persistence.js';
+import { createInventoryUI } from './ui/inventory.js';
+import { createCollectionUI } from './ui/collection.js';
+import { createNotificationSystem } from './ui/notifications.js';
+import { ITEM_REGISTRY } from './data/items.js';
 
 export function createUI({ container, state, renderer, noise, game }) {
   
@@ -153,6 +157,30 @@ export function createUI({ container, state, renderer, noise, game }) {
 
     // Build Settings Controls
     buildSettings();
+
+    // Create sub-UIs
+    const inventoryUI = createInventoryUI({ state, container });
+    const collectionUI = createCollectionUI({ state, container, ITEM_REGISTRY });
+    const notifications = createNotificationSystem();
+    
+    // Attach to state for easy access from game logic
+    state.notifications = notifications;
+
+    // Add inventory button to HUD
+    const btnInventory = document.createElement('button');
+    btnInventory.id = 'btn-inventory';
+    btnInventory.className = 'btn-icon';
+    btnInventory.innerHTML = '<span style="font-weight:700;">BAG</span>';
+    btnInventory.addEventListener('click', () => inventoryUI.open());
+    document.querySelector('.bottom-bar')?.appendChild(btnInventory);
+
+    // Add collection button to HUD
+    const btnCollection = document.createElement('button');
+    btnCollection.id = 'btn-collection';
+    btnCollection.className = 'btn-icon';
+    btnCollection.innerHTML = '<span style="font-weight:700;">📖</span>';
+    btnCollection.addEventListener('click', () => collectionUI.open());
+    document.querySelector('.bottom-bar')?.appendChild(btnCollection);
   }
 
   function buildSettings() {
