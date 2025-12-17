@@ -79,8 +79,8 @@ function drawCollectableIndicator(ctx, size, color, collectable) {
   // Add a subtle inner angular core (small diamond) to retain the collectable "badge" silhouette,
   // but keep it semi-transparent so the gradient remains the dominant visual.
   ctx.rotate(Math.PI / 8); // slight offset for visual interest
-  // Increased innerSize to make the white core slightly larger and more legible.
-  const innerSize = indicatorSize * 0.60;
+  // Increased innerSize further to make the white core more prominent and legible.
+  const innerSize = indicatorSize * 0.80;
   ctx.fillStyle = hexToRgba('#ffffff', 0.06);
   ctx.beginPath();
   ctx.moveTo(0, -innerSize);
