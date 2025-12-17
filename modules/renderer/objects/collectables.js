@@ -1,6 +1,18 @@
 import { ITEM_REGISTRY } from '../../data/items.js';
 import { COLLECTABLE_DRAWERS } from './collectables/drawers.js';
 
+// Small helper to convert hex like "#rrggbb" to rgba(r,g,b,a)
+function hexToRgba(hex, alpha = 1) {
+  if (!hex) return `rgba(0,0,0,${alpha})`;
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const num = parseInt(h, 16);
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 // Define standard colors used for item icons/glows
 const MATERIAL_COLOR = '#9ca3af'; // Grey/Silver for generic material components
 const COLLECTABLE_COLOR = '#a78bfa'; // Purple for rare
