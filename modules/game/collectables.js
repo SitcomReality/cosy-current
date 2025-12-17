@@ -142,6 +142,11 @@ export function createCollectablesModule(state) {
 
     if (wasAtMax && state.notifications && typeof state.notifications.warning === 'function') {
       state.notifications.warning(`Inventory full! ${item.name} dropped.`);
+    } else {
+      // Notify on successful collection (unless the item hit max and triggered the warning)
+      if (state.notifications && typeof state.notifications.info === 'function') {
+        state.notifications.info(`${item.name} collected`);
+      }
     }
 
     return true;
