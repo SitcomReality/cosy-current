@@ -136,18 +136,9 @@ export function createCollectablesModule(state) {
       }
     }
 
+    // Add to inventory but silently clamp to max stack without emitting regular toasts.
     state.inventory[itemId] = (state.inventory[itemId] || 0) + 1;
-    const wasAtMax = state.inventory[itemId] > MAX_INVENTORY_STACK;
     state.inventory[itemId] = Math.min(MAX_INVENTORY_STACK, state.inventory[itemId]);
-
-    if (wasAtMax && state.notifications && typeof state.notifications.warning === 'function') {
-      state.notifications.warning(`Inventory full! ${item.name} dropped.`);
-    } else {
-      // Notify on successful collection (unless the item hit max and triggered the warning)
-      if (state.notifications && typeof state.notifications.info === 'function') {
-        state.notifications.info(`${item.name} collected`);
-      }
-    }
 
     return true;
   }
