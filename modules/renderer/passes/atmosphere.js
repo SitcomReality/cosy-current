@@ -43,7 +43,13 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
     }
 
     const effectiveLightRadius = effectiveRadius * lightIntensity;
-    const r = effectiveLightRadius * tileSize;
+    // Define the target radius for the light effect
+    const rVisual = effectiveLightRadius * tileSize;
+    
+    // Define the hole radius slightly larger than the visual radius to allow
+    // the light gradient to fade into the ambient color smoothly without a hard clip.
+    const SOFT_EDGE_WIDTH = 25; // pixels
+    const rHole = rVisual + SOFT_EDGE_WIDTH; 
 
     ctx.fillStyle = cycle.ambientColor;
     if (!cycle.raftLightActive || effectiveLightRadius <= 0.01) {
@@ -59,32 +65,43 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
       if (isRadial) {
         // Radial light: full 360° circle
         ctx.moveTo(screenX, screenY);
-        ctx.arc(screenX, screenY, r, 0, Math.PI * 2, false);
+        ctx.arc(screenX, screenY, rHole, 0, Math.PI * 2, false);
       } else {
-        // Cone/Beam light: directional arc
+        // Cone/Beam light: directional arc (Use rHole for the arc boundary)
         ctx.moveTo(screenX, screenY);
-        ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);
+        ctx.arc(screenX, screenY, rHole, a - halfA, a + halfA, false);
       }
       ctx.closePath();
 
       ctx.fill('evenodd');
 
       // Headlight glow tinted by raft lightColor, fading smoothly to transparent at the edge.
-      // This gradient overlays the existing ambient darkness, so we only modulate the tint
-      // (no ambient color inside the gradient) to avoid any mid‑distance "gap" in tint.
-      const g = ctx.createRadialGradient(screenX, screenY, r * 0.1, screenX, screenY, r);
-      g.addColorStop(0.0, hexToRgba(lightColor, 0.5 * lightIntensity));   // strongest at raft
-      g.addColorStop(0.7, hexToRgba(lightColor, 0.18 * lightIntensity));  // gentle mid fade
-      g.addColorStop(1.0, hexToRgba(lightColor, 0.0));                    // fully transparent at edge
+      // This gradient must cover the area up to rVisual and fade to 0 tint/alpha 
+      // by the time it reaches the rHole boundary.
+      const rStart = rVisual * 0.1;
+      // Calculate the relative stop position for rVisual (the point where light should end)
+      const stopRVisual = Math.min(0.99, rVisual / rHole); 
+      
+      // Create the gradient extending to the full rHole size
+      const g = ctx.createRadialGradient(screenX, screenY, rStart, screenX, screenY, rHole);
+      
+      // Define stops:
+      g.addColorStop(0.0, hexToRgba(lightColor, 0.5 * lightIntensity)); // strongest at raft
+      g.addColorStop(stopRVisual * 0.7, hexToRgba(lightColor, 0.18 * lightIntensity));  // gentle mid fade
+      g.addColorStop(stopRVisual, hexToRgba(lightColor, 0.0)); // Fade out completely at visual edge
+      g.addColorStop(1.0, hexToRgba(lightColor, 0.0)); // Continue transparency to fill rHole
 
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1.0;
       ctx.fillStyle = g;
+      
       ctx.beginPath();
       if (isRadial) {
-        ctx.arc(screenX, screenY, r, 0, Math.PI * 2, false);
+        // Draw the gradient circle extending to rHole
+        ctx.arc(screenX, screenY, rHole, 0, Math.PI * 2, false);
       } else {
-        ctx.arc(screenX, screenY, r, a - halfA, a + halfA, false);
+        // Draw the gradient cone extending to rHole
+        ctx.arc(screenX, screenY, rHole, a - halfA, a + halfA, false);
       }
       ctx.lineTo(screenX, screenY);
       ctx.closePath();
