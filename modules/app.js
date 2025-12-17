@@ -183,8 +183,8 @@ export function initApp({ canvas, controls }) {
     fauna.update(dt);
 
     // Maintain collectables (spawn, despawn, update lifetimes)
-    if (state.fauna && state.fauna.collectablesModule) {
-      state.fauna.collectablesModule.maintainCollectables(dt, state.player, game, noise);
+    if (state.collectablesModule) {
+      state.collectablesModule.maintainCollectables(dt, state.player, game, noise);
     }
     
     // Update water effects
