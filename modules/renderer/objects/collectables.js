@@ -41,8 +41,10 @@ function getItemColor(item) {
 function drawCollectableIndicator(ctx, size, color, collectable) {
   ctx.save();
 
-  const indicatorSize = size * 1.5;
+  // Reduced indicator size to make the glow more subtle
+  const indicatorSize = size * 1.0;
   const rotationSpeed = 0.25; // radians per second (gentle)
+
   // Compute age from stored lifetimes; fallback to provided lifetime-like number if shape differs
   const age = (collectable && typeof collectable.maxLifetime === 'number' && typeof collectable.lifetime === 'number')
     ? (collectable.maxLifetime - collectable.lifetime)
@@ -55,7 +57,7 @@ function drawCollectableIndicator(ctx, size, color, collectable) {
 
   // Create a radial gradient: opaque center -> transparent edge
   const outer = indicatorSize;
-  const inner = indicatorSize * 0.18;
+  const inner = indicatorSize * 0.22;
 
   // Slightly tint center with GOLD_COLOR, mix toward provided color for a subtle hue
   const centerColor = GOLD_COLOR;
@@ -64,7 +66,7 @@ function drawCollectableIndicator(ctx, size, color, collectable) {
   const grad = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
   grad.addColorStop(0.0, centerColor);
   grad.addColorStop(0.2, midColor);
-  grad.addColorStop(0.65, hexToRgba(midColor, 0.35));
+  grad.addColorStop(0.6, hexToRgba(midColor, 0.28));
   grad.addColorStop(1.0, hexToRgba(midColor, 0.0));
 
   // Draw circular haze using gradient
@@ -78,7 +80,7 @@ function drawCollectableIndicator(ctx, size, color, collectable) {
   // but keep it semi-transparent so the gradient remains the dominant visual.
   ctx.rotate(Math.PI / 8); // slight offset for visual interest
   const innerSize = indicatorSize * 0.45;
-  ctx.fillStyle = hexToRgba('#ffffff', 0.08);
+  ctx.fillStyle = hexToRgba('#ffffff', 0.06);
   ctx.beginPath();
   ctx.moveTo(0, -innerSize);
   ctx.lineTo(innerSize, 0);
@@ -137,7 +139,8 @@ export function drawCollectable(ctx, collectable, screenX, screenY, collectableD
   // Glow (only apply glow/pulse effect to collectables, not generic materials)
   if (item.type === 'collectable') {
     ctx.shadowColor = color;
-    ctx.shadowBlur = collectableDrawSize * 2 * pulse;
+    // Reduced blur to make glow less large and intrusive
+    ctx.shadowBlur = collectableDrawSize * 1.2 * pulse;
   }
   
   // Dispatch drawing using the item's preferred color
@@ -176,7 +179,8 @@ function drawGenericCollectable(ctx, screenX, screenY, collectableDrawSize, colo
 
   // Glow
   ctx.shadowColor = color;
-  ctx.shadowBlur = collectableDrawSize * 2 * pulse;
+  // Reduced blur here as well to match the main collectable glow scaling
+  ctx.shadowBlur = collectableDrawSize * 1.2 * pulse;
   ctx.fillStyle = color;
   
   // Draw as a small star/diamond
