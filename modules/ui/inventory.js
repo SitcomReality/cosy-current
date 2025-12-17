@@ -1,3 +1,5 @@
+import { ITEM_REGISTRY } from '../data/items.js';
+
 export function createInventoryUI({ state, container }) {
   const modal = document.getElementById('inventory-modal');
   const grid = document.getElementById('inventory-grid');
@@ -26,7 +28,7 @@ export function createInventoryUI({ state, container }) {
     for (const [itemId, quantity] of Object.entries(state.inventory)) {
       if (quantity <= 0) continue;
 
-      const item = getItemFromRegistry(itemId);
+      const item = ITEM_REGISTRY[itemId];
       if (!item) continue;
 
       const slot = document.createElement('div');
@@ -57,12 +59,6 @@ export function createInventoryUI({ state, container }) {
   }
 
   return { open, close, render };
-}
-
-function getItemFromRegistry(itemId) {
-  // Dynamic import would be needed, but for now rely on global state/ITEM_REGISTRY
-  // Caller will pass it or we'll fetch from state
-  return null;
 }
 
 function getItemColor(item) {

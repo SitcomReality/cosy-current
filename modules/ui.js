@@ -160,7 +160,7 @@ export function createUI({ container, state, renderer, noise, game }) {
 
     // Create sub-UIs
     const inventoryUI = createInventoryUI({ state, container });
-    const collectionUI = createCollectionUI({ state, container, ITEM_REGISTRY });
+    const collectionUI = createCollectionUI({ state, container });
     const notifications = createNotificationSystem();
     
     // Attach to state for easy access from game logic

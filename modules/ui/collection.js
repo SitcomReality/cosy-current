@@ -1,4 +1,6 @@
-export function createCollectionUI({ state, container, ITEM_REGISTRY }) {
+import { ITEM_REGISTRY } from '../data/items.js';
+
+export function createCollectionUI({ state, container }) {
   const modal = document.getElementById('collection-modal');
   const tabsContainer = document.getElementById('collection-tabs');
   const grid = document.getElementById('collection-grid');
@@ -104,9 +106,13 @@ export function createCollectionUI({ state, container, ITEM_REGISTRY }) {
 }
 
 function getItemsForCategory(category) {
-  // This will be populated dynamically based on ITEM_REGISTRY
-  // For now, return all items (caller will filter)
-  return [];
+  const items = Object.values(ITEM_REGISTRY);
+  if (category === 'flotsam') {
+    return items.filter(item => item.type === 'material');
+  } else if (category === 'collectables') {
+    return items.filter(item => item.type === 'collectable');
+  }
+  return items;
 }
 
 function getItemColor(item) {
