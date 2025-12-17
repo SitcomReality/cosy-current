@@ -71,8 +71,10 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
 
       // Headlight glow now tinted by raft lightColor, fading into ambient darkness
       const g = ctx.createRadialGradient(screenX, screenY, r * 0.25, screenX, screenY, r);
-      g.addColorStop(0, hexToRgba(lightColor, 0.75 * lightIntensity));
-      g.addColorStop(0.5, hexToRgba(lightColor, 0.2 * lightIntensity));
+      // Make tint near the source much more transparent: reduce central alpha and mid fade.
+      // Center is subtle so light appears bright without a heavy colored overlay.
+      g.addColorStop(0, hexToRgba(lightColor, 0.25 * lightIntensity));
+      g.addColorStop(0.5, hexToRgba(lightColor, 0.08 * lightIntensity));
       g.addColorStop(1, cycle.ambientColor);
 
       ctx.globalCompositeOperation = 'source-over';
