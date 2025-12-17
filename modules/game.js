@@ -4,7 +4,7 @@ import { createHeightModule } from './game/height.js';
 import * as riverModuleHelpers from './game/river.js'; // Imports getSmartSteering
 import { createEntitiesModule } from './game/entities.js';
 import { createPlayerModule } from './game/player.js';
-import { createCollectablesModule } from './collectables.js';
+import { createCollectablesModule } from './game/collectables.js';
 
 export function createGame({ state, noise }) {
   const heightModule = createHeightModule(noise);
