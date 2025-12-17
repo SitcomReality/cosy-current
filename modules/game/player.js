@@ -56,13 +56,13 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     
     // If the required adjustment is very small, scale the maxTurn down with a non-linear easing:
     // small diffs -> (diff / THRESH)^expo factor, producing very gentle micro-corrections.
-    const MICRO_TURN_THRESHOLD = 0.20; // radians (~11.5°) below this we ease heavily
+    const MICRO_TURN_THRESHOLD = 0.35; // radians (~20°) below this we ease heavily (Increased for wider effect)
     if (Math.abs(diff) < MICRO_TURN_THRESHOLD) {
       const r = Math.abs(diff) / MICRO_TURN_THRESHOLD; // 0..1
-      const expo = 1.8; // exponent >1 biases towards smaller values for tiny diffs
+      const expo = 2.0; // Increased exponent for stronger damping near zero
       const easeScale = Math.pow(r, expo);
       // Ensure we still allow a tiny minimum so we never completely stall correction
-      const MIN_SCALE = 0.06;
+      const MIN_SCALE = 0.1; // Increased minimum scale to prevent extreme sluggishness
       maxTurn *= Math.max(MIN_SCALE, easeScale);
     }
     
