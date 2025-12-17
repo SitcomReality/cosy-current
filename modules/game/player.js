@@ -44,12 +44,28 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     const diff = shortestAngleDiff(p.angle, targetAngle);
     
     // Turn speed
-    // If diff is large, we need to turn hard.
-    // Adjusted to be smoother on straights (low base) but snappy on hard corners to avoid beaching.
-    const turnRate = 0.7 + Math.abs(diff) * 1.5; 
+    // If diff is large, we need to turn harder.
+    // Keep baseline responsiveness but soften very small micro-adjustments using a smooth non-linear scale,
+    // so the raft makes tiny corrections more gently (reducing visible jitter, esp. near light edges).
+    const baseTurnRate = 0.7;
+    const dynamicFactor = Math.abs(diff) * 1.5;
+    const turnRate = baseTurnRate + dynamicFactor;
     
-    // Apply turn
-    const maxTurn = turnRate * dt;
+    // Compute max turn for this frame
+    let maxTurn = turnRate * dt;
+    
+    // If the required adjustment is very small, scale the maxTurn down with a non-linear easing:
+    // small diffs -> (diff / THRESH)^expo factor, producing very gentle micro-corrections.
+    const MICRO_TURN_THRESHOLD = 0.20; // radians (~11.5°) below this we ease heavily
+    if (Math.abs(diff) < MICRO_TURN_THRESHOLD) {
+      const r = Math.abs(diff) / MICRO_TURN_THRESHOLD; // 0..1
+      const expo = 1.8; // exponent >1 biases towards smaller values for tiny diffs
+      const easeScale = Math.pow(r, expo);
+      // Ensure we still allow a tiny minimum so we never completely stall correction
+      const MIN_SCALE = 0.06;
+      maxTurn *= Math.max(MIN_SCALE, easeScale);
+    }
+    
     const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
     p.angle += turn;
 
