@@ -23,34 +23,50 @@ function getItemColor(item) {
   return GOLD_COLOR;
 }
 
-// Helper function to draw the universal visual indicator for collectables
-function drawCollectableIndicator(ctx, size, color, lifetime) {
+ // Helper function to draw the universal visual indicator for collectables
+ // Now renders a soft radial haze (opaque center → transparent edge) and gently rotates
+ // based on the collectable's age (maxLifetime - lifetime) so the halo animates while bobbing.
+function drawCollectableIndicator(ctx, size, color, collectable) {
   ctx.save();
-  
+
   const indicatorSize = size * 1.5;
-  const rotationSpeed = 0.05;
-  const rotation = lifetime * rotationSpeed;
-  
-  // 1. Draw universal angular background/halo (Bright & Angular)
-  const haloColor = GOLD_COLOR;
-  
+  const rotationSpeed = 0.25; // radians per second (gentle)
+  // Compute age from stored lifetimes; fallback to provided lifetime-like number if shape differs
+  const age = (collectable && typeof collectable.maxLifetime === 'number' && typeof collectable.lifetime === 'number')
+    ? (collectable.maxLifetime - collectable.lifetime)
+    : (typeof collectable === 'number' ? collectable : 0);
+
+  const rotation = age * rotationSpeed;
+
+  // Apply gentle rotation to the whole halo so it slowly turns while bobbing
   ctx.rotate(rotation);
-  
-  // Base polygon: tilted square (diamond shape)
-  ctx.fillStyle = haloColor;
+
+  // Create a radial gradient: opaque center -> transparent edge
+  const outer = indicatorSize;
+  const inner = indicatorSize * 0.18;
+
+  // Slightly tint center with GOLD_COLOR, mix toward provided color for a subtle hue
+  const centerColor = GOLD_COLOR;
+  const midColor = color || centerColor;
+
+  const grad = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
+  grad.addColorStop(0.0, centerColor);
+  grad.addColorStop(0.2, midColor);
+  grad.addColorStop(0.65, hexToRgba(midColor, 0.35));
+  grad.addColorStop(1.0, hexToRgba(midColor, 0.0));
+
+  // Draw circular haze using gradient
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(0, -indicatorSize);
-  ctx.lineTo(indicatorSize, 0);
-  ctx.lineTo(0, indicatorSize);
-  ctx.lineTo(-indicatorSize, 0);
-  ctx.closePath();
+  ctx.arc(0, 0, outer, 0, Math.PI * 2);
   ctx.fill();
-  
-  // Inner diamond, slightly rotated relative to outer one, and darkened
-  ctx.rotate(Math.PI / 4);
-  const innerSize = indicatorSize * 0.6;
-  const darkerGold = '#cc7722'; 
-  ctx.fillStyle = darkerGold; 
+
+  // Add a subtle inner angular core (small diamond) to retain the collectable "badge" silhouette,
+  // but keep it semi-transparent so the gradient remains the dominant visual.
+  ctx.rotate(Math.PI / 8); // slight offset for visual interest
+  const innerSize = indicatorSize * 0.45;
+  ctx.fillStyle = hexToRgba('#ffffff', 0.08);
   ctx.beginPath();
   ctx.moveTo(0, -innerSize);
   ctx.lineTo(innerSize, 0);
@@ -59,6 +75,7 @@ function drawCollectableIndicator(ctx, size, color, lifetime) {
   ctx.closePath();
   ctx.fill();
 
+  ctx.globalCompositeOperation = 'source-over';
   ctx.restore();
 }
 
@@ -95,7 +112,7 @@ export function drawCollectable(ctx, collectable, screenX, screenY, collectableD
   // 1. Draw Universal Indicator (Halo/Base)
   ctx.save();
   ctx.translate(0, bobbingOffset);
-  drawCollectableIndicator(ctx, itemRadius, color, collectable.lifetime);
+  drawCollectableIndicator(ctx, itemRadius, color, collectable);
   ctx.restore();
 
   // 2. Draw Item Sprite
@@ -138,7 +155,7 @@ function drawGenericCollectable(ctx, screenX, screenY, collectableDrawSize, colo
   // 1. Draw Universal Indicator (Halo/Base)
   ctx.save();
   ctx.translate(0, bobbingOffset);
-  drawCollectableIndicator(ctx, itemRadius, color, collectable.lifetime);
+  drawCollectableIndicator(ctx, itemRadius, color, collectable);
   ctx.restore();
 
   // 2. Draw Generic Item Sprite
