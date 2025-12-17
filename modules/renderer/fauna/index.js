@@ -10,10 +10,23 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
   const centerX = state.width / 2;
   const centerY = state.height / 2;
   
-  const LIGHT_RADIUS = 14; 
-  const LIGHT_ANGLE_WIDTH = 0.9;
+  const BASE_LIGHT_RADIUS = 14; 
   const lightIntensity = cycle.raftLightIntensity || 0;
-  const effectiveLightRadius = LIGHT_RADIUS * lightIntensity;
+  const lightType = (state.raft && state.raft.lightType) || 'cone';
+
+  // Adjust radius and angular width based on light type
+  let lightRadius = BASE_LIGHT_RADIUS;
+  let lightAngleWidth = 0.9;
+
+  if (lightType === 'beam') {
+    lightRadius = BASE_LIGHT_RADIUS * 1.4;  // longer reach
+    lightAngleWidth = 0.5;                  // narrower cone
+  } else if (lightType === 'radial') {
+    lightRadius = BASE_LIGHT_RADIUS * 0.8;  // shorter radius
+    lightAngleWidth = Math.PI;              // effectively 360° coverage for shadows
+  }
+
+  const effectiveLightRadius = lightRadius * lightIntensity;
 
   creatures.forEach(c => {
     // Skip birds in this pass; they'll be rendered in front of the player
@@ -43,7 +56,8 @@ export function renderFauna(ctx, state, tileSize, creatures, cycle, shadowDir, n
         const angleTo = Math.atan2(dy, dx);
         const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
-        if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
+        const withinBeam = (lightType === 'radial') ? true : (angleDiff < lightAngleWidth);
+        if (dist < effectiveLightRadius && withinBeam) {
             shouldDrawShadow = true;
             localShadowDir = { x: dx/dist, y: dy/dist };
             const falloff = 1.0 - (dist / effectiveLightRadius);
@@ -71,10 +85,23 @@ export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, n
   const centerX = state.width / 2;
   const centerY = state.height / 2;
   
-  const LIGHT_RADIUS = 14; 
-  const LIGHT_ANGLE_WIDTH = 0.9;
+  const BASE_LIGHT_RADIUS = 14; 
   const lightIntensity = cycle.raftLightIntensity || 0;
-  const effectiveLightRadius = LIGHT_RADIUS * lightIntensity;
+  const lightType = (state.raft && state.raft.lightType) || 'cone';
+
+  // Adjust radius and angular width based on light type
+  let lightRadius = BASE_LIGHT_RADIUS;
+  let lightAngleWidth = 0.9;
+
+  if (lightType === 'beam') {
+    lightRadius = BASE_LIGHT_RADIUS * 1.4;  // longer reach
+    lightAngleWidth = 0.5;                  // narrower cone
+  } else if (lightType === 'radial') {
+    lightRadius = BASE_LIGHT_RADIUS * 0.8;  // shorter radius
+    lightAngleWidth = Math.PI;              // effectively 360° coverage for shadows
+  }
+
+  const effectiveLightRadius = lightRadius * lightIntensity;
 
   creatures.forEach(c => {
     if (c.type !== 'bird') return;
@@ -99,7 +126,8 @@ export function renderBirds(ctx, state, tileSize, creatures, cycle, shadowDir, n
         const angleTo = Math.atan2(dy, dx);
         const angleDiff = Math.abs(shortestAngleDiff(state.player.angle, angleTo));
 
-        if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
+        const withinBeam = (lightType === 'radial') ? true : (angleDiff < lightAngleWidth);
+        if (dist < effectiveLightRadius && withinBeam) {
             shouldDrawShadow = true;
             localShadowDir = { x: dx/dist, y: dy/dist };
             const falloff = 1.0 - (dist / effectiveLightRadius);

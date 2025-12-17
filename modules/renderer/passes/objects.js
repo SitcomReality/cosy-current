@@ -28,10 +28,22 @@ export function renderObjectsPass(ctx, state, game, chunkManager, tileSize, cycl
   const startChunkY = Math.floor(viewTopTile / CHUNK_SIZE);
   const endChunkY = Math.floor(viewBottomTile / CHUNK_SIZE);
 
-  const LIGHT_RADIUS = 14;
-  const LIGHT_ANGLE_WIDTH = 0.9;
+  const BASE_LIGHT_RADIUS = 14;
   const lightIntensity = cycle.raftLightIntensity || 0;
-  const effectiveLightRadius = LIGHT_RADIUS * lightIntensity;
+  const lightType = (state.raft && state.raft.lightType) || 'cone';
+
+  let lightRadius = BASE_LIGHT_RADIUS;
+  let lightAngleWidth = 0.9;
+
+  if (lightType === 'beam') {
+    lightRadius = BASE_LIGHT_RADIUS * 1.4;
+    lightAngleWidth = 0.5;
+  } else if (lightType === 'radial') {
+    lightRadius = BASE_LIGHT_RADIUS * 0.8;
+    lightAngleWidth = Math.PI;
+  }
+
+  const effectiveLightRadius = lightRadius * lightIntensity;
   const TREE_LIGHT_FADE_MS = 300;
   const now = performance.now();
 
@@ -54,7 +66,8 @@ export function renderObjectsPass(ctx, state, game, chunkManager, tileSize, cycl
           let brightness = 0;
           let litNow = false;
 
-          if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
+          const withinBeam = (lightType === 'radial') ? true : (angleDiff < lightAngleWidth);
+          if (dist < effectiveLightRadius && withinBeam) {
             const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
             brightness = Math.max(0, Math.min(1, falloff));
             litNow = true;
@@ -116,7 +129,8 @@ export function renderObjectsPass(ctx, state, game, chunkManager, tileSize, cycl
           let brightness = 0;
           let litNow = false;
 
-          if (dist < effectiveLightRadius && angleDiff < LIGHT_ANGLE_WIDTH) {
+          const withinBeam = (lightType === 'radial') ? true : (angleDiff < lightAngleWidth);
+          if (dist < effectiveLightRadius && withinBeam) {
             const falloff = (1.0 - (dist / effectiveLightRadius)) * (cycle.raftLightIntensity || 0);
             brightness = Math.max(0, Math.min(1, falloff));
             litNow = true;
