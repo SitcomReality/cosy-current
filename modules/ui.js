@@ -1,6 +1,7 @@
 import { hasSave, deleteSave } from './persistence.js';
 import { createInventoryUI } from './ui/inventory.js';
 import { createCollectionUI } from './ui/collection.js';
+import { createCustomizationUI } from './ui/customization.js';
 import { createNotificationSystem } from './ui/notifications.js';
 import { ITEM_REGISTRY } from './data/items.js';
 
@@ -161,6 +162,7 @@ export function createUI({ container, state, renderer, noise, game }) {
     // Create sub-UIs
     const inventoryUI = createInventoryUI({ state, container });
     const collectionUI = createCollectionUI({ state, container });
+    const customizationUI = createCustomizationUI({ state, container });
     const notifications = createNotificationSystem();
     
     // Attach to state for easy access from game logic
@@ -181,6 +183,14 @@ export function createUI({ container, state, renderer, noise, game }) {
     btnCollection.innerHTML = '<span style="font-weight:700;">📖</span>';
     btnCollection.addEventListener('click', () => collectionUI.open());
     document.querySelector('.bottom-bar')?.appendChild(btnCollection);
+
+    // Add dock button to HUD
+    const btnDock = document.createElement('button');
+    btnDock.id = 'btn-dock';
+    btnDock.className = 'btn-icon';
+    btnDock.innerHTML = '<span style="font-weight:700;">⚓</span>';
+    btnDock.addEventListener('click', () => customizationUI.open());
+    document.querySelector('.bottom-bar')?.appendChild(btnDock);
   }
 
   function buildSettings() {
