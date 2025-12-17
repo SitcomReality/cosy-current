@@ -69,13 +69,13 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
 
       ctx.fill('evenodd');
 
-      // Headlight glow now tinted by raft lightColor, fading into ambient darkness
-      // Create radial tint: strongest at the raft and smoothly fading outward to ambient.
-      // Use a tighter bright core and a single smooth fade to avoid any mid-gap re-intensification.
+      // Headlight glow tinted by raft lightColor, fading smoothly to transparent at the edge.
+      // This gradient overlays the existing ambient darkness, so we only modulate the tint
+      // (no ambient color inside the gradient) to avoid any mid‑distance "gap" in tint.
       const g = ctx.createRadialGradient(screenX, screenY, r * 0.1, screenX, screenY, r);
-      g.addColorStop(0, hexToRgba(lightColor, 0.45 * lightIntensity));  // strongest near source
-      g.addColorStop(0.6, hexToRgba(lightColor, 0.12 * lightIntensity)); // gentle mid fade
-      g.addColorStop(1, cycle.ambientColor); // fully ambient at edge
+      g.addColorStop(0.0, hexToRgba(lightColor, 0.5 * lightIntensity));   // strongest at raft
+      g.addColorStop(0.7, hexToRgba(lightColor, 0.18 * lightIntensity));  // gentle mid fade
+      g.addColorStop(1.0, hexToRgba(lightColor, 0.0));                    // fully transparent at edge
 
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1.0;
