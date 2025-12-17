@@ -71,6 +71,39 @@ export function createCollectablesModule(state) {
     });
   }
 
+  function getCollectableSpawnPosition(player, state, isRareSpawn = false) {
+    const tileSize = state.tileSize || 64;
+    const halfW = (state.width / 2) / tileSize;
+    const halfH = (state.height / 2) / tileSize;
+    
+    if (isRareSpawn) {
+      // Rare items spawn far away on unreachable terrain (forest/grass inland)
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 60 + Math.random() * 100;
+      return {
+        x: player.x + Math.cos(angle) * dist,
+        y: player.y + Math.sin(angle) * dist
+      };
+    } else {
+      // Standard items spawn ahead of player in upcoming chunks
+      // Create a forward-facing arc to bias spawning ahead (not behind)
+      const maxArcWidth = Math.PI * 0.8; // ~145 degrees spread centered on facing direction
+      const arcOffset = (Math.random() - 0.5) * maxArcWidth;
+      const spawnAngle = player.angle + arcOffset;
+      
+      // Spawn in upcoming area beyond current viewport
+      const viewportEdgeDist = Math.max(halfW, halfH);
+      const minDist = viewportEdgeDist + 6; // Just past current viewport
+      const maxDist = minDist + 25; // Spread into upcoming chunks
+      const dist = minDist + Math.random() * (maxDist - minDist);
+      
+      return {
+        x: player.x + Math.cos(spawnAngle) * dist,
+        y: player.y + Math.sin(spawnAngle) * dist
+      };
+    }
+  }
+
   function maintainCollectables(dt, player, game, noise) {
     state.collectables = state.collectables || [];
     
@@ -82,20 +115,9 @@ export function createCollectablesModule(state) {
       // Decide if this spawn is a standard nearby one or a rare far one
       const isRareSpawn = Math.random() < 0.08; // 8% chance of rare far spawn
       
-      let x, y;
-      if (isRareSpawn) {
-        // Rare items spawn far away on unreachable terrain (forest/grass inland)
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 60 + Math.random() * 100; // far out
-        x = player.x + Math.cos(angle) * dist;
-        y = player.y + Math.sin(angle) * dist;
-      } else {
-        // Standard items spawn near camera edge (off-screen but visible soon)
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 20 + Math.random() * 15;
-        x = player.x + Math.cos(angle) * dist;
-        y = player.y + Math.sin(angle) * dist;
-      }
+      const pos = getCollectableSpawnPosition(player, state, isRareSpawn);
+      let x = pos.x;
+      let y = pos.y;
       
       const itemId = pickRandomItem();
       if (!itemId) continue;
@@ -107,6 +129,9 @@ export function createCollectablesModule(state) {
         spawnCollectable(x, y, itemId);
       }
     }
+
+  return { spawnCollectable, maintainCollectables, tryCollect };
+}
 
     // Update and despawn
     for (let i = state.collectables.length - 1; i >= 0; i--) {
