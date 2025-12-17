@@ -1,3 +1,16 @@
+function hexToRgba(hex, alpha) {
+  if (!hex) return `rgba(255,255,255,${alpha})`;
+  let h = hex.replace('#', '');
+  if (h.length === 3) {
+    h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  }
+  const num = parseInt(h, 16);
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
   if (cycle.ambientColor === 'transparent') return;
 
@@ -18,6 +31,7 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
 
     // Determine light shape and radius based on light type
     const lightType = (state.raft && state.raft.lightType) || 'cone';
+    const lightColor = (state.raft && state.raft.lightColor) || '#f59e0b';
     let effectiveRadius = LIGHT_RADIUS;
     let isRadial = false;
 
@@ -55,12 +69,14 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
 
       ctx.fill('evenodd');
 
-      const g = ctx.createRadialGradient(screenX, screenY, r * 0.35, screenX, screenY, r);
-      g.addColorStop(0, 'rgba(255,255,255,0)');
+      // Headlight glow now tinted by raft lightColor, fading into ambient darkness
+      const g = ctx.createRadialGradient(screenX, screenY, r * 0.25, screenX, screenY, r);
+      g.addColorStop(0, hexToRgba(lightColor, 0.75 * lightIntensity));
+      g.addColorStop(0.5, hexToRgba(lightColor, 0.2 * lightIntensity));
       g.addColorStop(1, cycle.ambientColor);
 
       ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.6 * lightIntensity;
+      ctx.globalAlpha = 1.0;
       ctx.fillStyle = g;
       ctx.beginPath();
       if (isRadial) {
@@ -71,7 +87,6 @@ export function renderAtmospherePass(ctx, state, cycle, LIGHT_ANGLE_WIDTH) {
       ctx.lineTo(screenX, screenY);
       ctx.closePath();
       ctx.fill();
-      ctx.globalAlpha = 1.0;
     }
   } finally {
     ctx.restore();
