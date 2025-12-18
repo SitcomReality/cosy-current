@@ -12,9 +12,6 @@ export function createUI({ container, state, renderer, noise, game }) {
   const gameHud = document.getElementById('game-hud');
   const btnStart = document.getElementById('btn-start');
   const btnDeleteSave = document.getElementById('btn-delete-save');
-  const uiScrap = document.getElementById('ui-scrap');
-  const uiFuel = document.getElementById('ui-fuel');
-  const uiBio = document.getElementById('ui-bio');
   const uiTime = document.getElementById('ui-time');
   
   // Settings Modal Elements
@@ -222,15 +219,6 @@ export function createUI({ container, state, renderer, noise, game }) {
 
   function update(dt) {
     if (!state.isPlaying) return;
-
-    // Resources
-    uiScrap.textContent = Math.floor(state.resources.scrap);
-    uiFuel.textContent = Math.floor(state.resources.fuel);
-    uiBio.textContent = Math.floor(state.resources.bio);
-    
-    // Optional: Warn low fuel
-    if (state.resources.fuel < 20) uiFuel.style.color = '#ef4444';
-    else uiFuel.style.color = 'inherit';
 
     // Time of day display (24h clock mapped to dayTime 0..1)
     if (uiTime) {

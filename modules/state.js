@@ -38,11 +38,7 @@ export function createAppState(savedData = null) {
       flowLockTimer: 0
     },
     
-    resources: {
-      scrap: 0,
-      fuel: 100,
-      bio: 0
-    },
+
 
     // Future-proof storage containers
     inventory: {},
@@ -86,9 +82,7 @@ export function createAppState(savedData = null) {
       state.player.angle = savedData.player.angle;
     }
 
-    if (savedData.resources) {
-      Object.assign(state.resources, savedData.resources);
-    }
+
 
     if (savedData.inventory) state.inventory = savedData.inventory;
     if (savedData.collection) state.collection = savedData.collection;

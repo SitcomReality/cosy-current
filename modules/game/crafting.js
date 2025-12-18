@@ -11,12 +11,8 @@ export function createCraftingModule(state) {
   function canAfford(cost) {
     if (!cost) return true;
     for (const [res, amount] of Object.entries(cost)) {
-      if (res === 'scrap' || res === 'bio' || res === 'fuel') {
-        if ((state.resources[res] || 0) < amount) return false;
-      } else {
-        // Inventory items
-        if ((state.inventory[res] || 0) < amount) return false;
-      }
+      // Inventory items are the only currencies
+      if ((state.inventory[res] || 0) < amount) return false;
     }
     return true;
   }
@@ -25,11 +21,7 @@ export function createCraftingModule(state) {
     if (!canAfford(cost)) return false;
     
     for (const [res, amount] of Object.entries(cost)) {
-      if (res === 'scrap' || res === 'bio' || res === 'fuel') {
-        state.resources[res] -= amount;
-      } else {
-        state.inventory[res] -= amount;
-      }
+      state.inventory[res] -= amount;
     }
     return true;
   }

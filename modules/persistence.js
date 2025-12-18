@@ -42,7 +42,6 @@ export function saveGame(state) {
       y: state.player.y,
       angle: state.player.angle
     },
-    resources: { ...state.resources },
     // Future-proofing fields
     inventory: state.inventory || {},
     collection: state.collection || {},

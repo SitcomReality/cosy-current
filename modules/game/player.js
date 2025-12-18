@@ -99,17 +99,6 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     p.x += Math.cos(p.angle) * effectiveSpeed * dt;
     p.y += Math.sin(p.angle) * effectiveSpeed * dt;
 
-    // Resources and Entities Logic (unchanged)
-    // Resources
-    const tileType = heightModule.getTile(p.x, p.y);
-    const collectionRate = 1.0 * dt;
-    if (tileType === undefined) {} // defensive
-    if (tileType === TILE_FOREST) state.resources.bio += collectionRate * 2;
-    else if (tileType === TILE_GRASS) state.resources.bio += collectionRate;
-
-    state.resources.fuel -= dt * 0.1;
-    if (state.resources.fuel < 0) state.resources.fuel = 0;
-
     // Entities interactions
     entitiesModule.maintainEntities(heightModule.getTile, heightModule.getHeight, p);
 
@@ -117,13 +106,9 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       if (d < INTERACTION_RADIUS) {
         if (e.type === 'city') {
-          if (state.resources.bio > 5) {
-            state.resources.bio -= dt * 10;
-            state.resources.fuel += dt * 5;
-            state.resources.scrap += dt * 1;
-          }
+          // No resource exchanges, city just acts as scenery now
         } else if (e.type === 'relic') {
-          state.resources.scrap += dt * 5;
+          // Relics are purely decorative now
         }
       }
     });
