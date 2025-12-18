@@ -136,8 +136,10 @@ export function createUI({ container, state, renderer, noise, game }) {
       if (state._daySpeedFast === undefined) state._daySpeedFast = false;
       if (state._origDaySpeed === undefined) state._origDaySpeed = state.daySpeed;
 
+      // Safely update the button label directly on the button element to avoid
+      // querying for a non-existent inner <span>.
       const updateDayLabel = () => {
-        btnDaySpeed.querySelector('span').textContent = state._daySpeedFast ? 'DAY×10' : 'DAY×1';
+        btnDaySpeed.textContent = state._daySpeedFast ? 'DAY×10' : 'DAY×1';
       };
 
       btnDaySpeed.addEventListener('click', () => {
