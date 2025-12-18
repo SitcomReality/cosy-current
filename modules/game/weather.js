@@ -15,23 +15,24 @@ export function createWeatherSystem(state, noise) {
     // We want long periods of dry, transitioning into rain.
     const rawPrecip = noise.sample(t * 0.03, 1234); 
     
-    // Bias the noise so that > 0.3 becomes rain, allowing for ~65% dry time.
-    // Remap: range [-1, 1] -> shifted [-1.3, 0.7] -> clamped [0, 1] scaling
-    // Actually, let's map: values > 0.2 start raining.
-    let precip = 0;
-    if (rawPrecip > 0.2) {
-      precip = (rawPrecip - 0.2) / 0.8; // Normalize 0.2..1.0 to 0..1
+    // If the dev-panel is controlling weather, we might want to override.
+    // However, for this implementation, we'll let the noise drive it unless 
+    // the user has recently adjusted the slider (which would be handled in ui.js).
+    // Actually, let's make the auto-weather logic only run if intensity is low 
+    // or provide a "manual" override flag.
+    // For now, simple implementation: UI overrides the state directly.
+    // To allow the auto-weather to work, we'll only update if not being overridden.
+    if (!state.weather._manualOverride) {
+      let precip = 0;
+      if (rawPrecip > 0.2) {
+        precip = (rawPrecip - 0.2) / 0.8; 
+      }
+      if (precip > 0) {
+        const variation = noise.sample(t * 0.2, 4321);
+        precip = Math.max(0, Math.min(1, precip + variation * 0.2));
+      }
+      state.weather.precipIntensity = precip;
     }
-    
-    // Add a secondary layer for intensity variation within a storm
-    if (precip > 0) {
-      const variation = noise.sample(t * 0.2, 4321); // Faster variation
-      precip = Math.max(0, Math.min(1, precip + variation * 0.2));
-    }
-
-    // Smooth transition in state
-    // We just set it directly as the noise is continuous, but we can lerp if needed.
-    state.weather.precipIntensity = precip;
 
     // 2. Wind Logic
     // "Naturally-seeming", tending to 0, sometimes strong.

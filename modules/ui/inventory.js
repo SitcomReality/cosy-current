@@ -1,64 +1,47 @@
 import { ITEM_REGISTRY } from '../data/items.js';
 
 export function createInventoryUI({ state, container }) {
-  const modal = document.getElementById('inventory-modal');
-  const grid = document.getElementById('inventory-grid');
-  const closeBtn = document.getElementById('btn-close-inventory');
-
-  function open() {
-    modal.classList.remove('hidden');
-    render();
-  }
-
-  function close() {
-    modal.classList.add('hidden');
-  }
-
+  // Refactored to render directly into an on-screen container
   function render() {
-    grid.innerHTML = '';
+    if (!container) return;
+    
+    const items = Object.entries(state.inventory || {}).filter(([_, qty]) => qty > 0);
+    
+    // Check if DOM update is actually needed (simple equality check on content)
+    // To keep it simple, we just regenerate if length changed or check counts
+    const currentItemsStr = items.map(i => i[0] + i[1]).join(',');
+    if (container._lastItemsStr === currentItemsStr) return;
+    container._lastItemsStr = currentItemsStr;
 
-    if (!state.inventory || Object.keys(state.inventory).length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'inventory-empty';
-      empty.textContent = 'No items collected yet';
-      grid.appendChild(empty);
-      return;
-    }
+    container.innerHTML = '';
 
-    for (const [itemId, quantity] of Object.entries(state.inventory)) {
-      if (quantity <= 0) continue;
-
+    for (const [itemId, quantity] of items) {
       const item = ITEM_REGISTRY[itemId];
       if (!item) continue;
 
-      const slot = document.createElement('div');
-      slot.className = 'inventory-slot';
+      const pill = document.createElement('div');
+      pill.className = 'inventory-item-pill';
       
       const icon = document.createElement('div');
-      icon.className = 'inventory-icon';
+      icon.className = 'inventory-pill-icon';
       icon.style.backgroundColor = getItemColor(item);
-      icon.title = item.name;
       
       const label = document.createElement('div');
-      label.className = 'inventory-label';
+      label.className = 'inventory-pill-label';
       label.textContent = item.name;
       
       const qty = document.createElement('div');
-      qty.className = 'inventory-quantity';
-      qty.textContent = `${quantity}`;
+      qty.className = 'inventory-pill-qty';
+      qty.textContent = quantity;
       
-      slot.appendChild(icon);
-      slot.appendChild(label);
-      slot.appendChild(qty);
-      grid.appendChild(slot);
+      pill.appendChild(icon);
+      pill.appendChild(label);
+      pill.appendChild(qty);
+      container.appendChild(pill);
     }
   }
 
-  if (closeBtn) {
-    closeBtn.addEventListener('click', close);
-  }
-
-  return { open, close, render };
+  return { render };
 }
 
 function getItemColor(item) {

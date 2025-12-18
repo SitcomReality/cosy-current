@@ -8,6 +8,7 @@ import { ITEM_REGISTRY } from './data/items.js';
 export function createUI({ container, state, renderer, noise, game }) {
   
   // Cache DOM elements
+  let inventoryUI;
   const startScreen = document.getElementById('start-screen');
   const gameHud = document.getElementById('game-hud');
   const btnStart = document.getElementById('btn-start');
@@ -157,7 +158,7 @@ export function createUI({ container, state, renderer, noise, game }) {
     buildSettings();
 
     // Create sub-UIs
-    const inventoryUI = createInventoryUI({ state, container });
+    inventoryUI = createInventoryUI({ state, container: document.getElementById('inventory-main-display') });
     const collectionUI = createCollectionUI({ state, container });
     const customizationUI = createCustomizationUI({ state, container });
     const notifications = createNotificationSystem();
@@ -165,13 +166,23 @@ export function createUI({ container, state, renderer, noise, game }) {
     // Attach to state for easy access from game logic
     state.notifications = notifications;
 
-    // Add inventory button to HUD
-    const btnInventory = document.createElement('button');
-    btnInventory.id = 'btn-inventory';
-    btnInventory.className = 'btn-icon';
-    btnInventory.innerHTML = '<span style="font-weight:700;">BAG</span>';
-    btnInventory.addEventListener('click', () => inventoryUI.open());
-    document.querySelector('.bottom-bar')?.appendChild(btnInventory);
+    // Dev Panel Toggle
+    const btnDevToggle = document.getElementById('btn-dev-toggle');
+    const devPanel = document.getElementById('dev-panel');
+    if (btnDevToggle && devPanel) {
+      btnDevToggle.addEventListener('click', () => {
+        devPanel.classList.toggle('hidden');
+      });
+    }
+
+    // Weather Control Binding
+    const weatherSlider = document.getElementById('dev-weather-slider');
+    if (weatherSlider) {
+      weatherSlider.addEventListener('input', (e) => {
+        state.weather._manualOverride = true;
+        state.weather.precipIntensity = parseFloat(e.target.value);
+      });
+    }
 
     // Add collection button to HUD
     const btnCollection = document.createElement('button');
@@ -192,33 +203,13 @@ export function createUI({ container, state, renderer, noise, game }) {
 
   function buildSettings() {
     settingsContainer.innerHTML = '';
-
-    // Helper to create control rows
-    const createRow = (label, element) => {
-      const div = document.createElement('div');
-      div.className = 'control-row';
-      const lbl = document.createElement('label');
-      lbl.textContent = label;
-      div.appendChild(lbl);
-      div.appendChild(element);
-      settingsContainer.appendChild(div);
-    };
-
-    // Removed Terrain Scale control (default now set in state)
-
-    // Time / evolution speed
-    const speedInput = document.createElement('input');
-    speedInput.type = 'range';
-    speedInput.min = '0';
-    speedInput.max = '2.0';
-    speedInput.step = '0.1';
-    speedInput.value = state.speed;
-    speedInput.addEventListener('input', () => state.speed = parseFloat(speedInput.value));
-    createRow('Evolution Speed', speedInput);
+    // Evolution speed removed per request.
   }
 
   function update(dt) {
     if (!state.isPlaying) return;
+
+    if (inventoryUI) inventoryUI.render();
 
     // Time of day display (24h clock mapped to dayTime 0..1)
     if (uiTime) {
