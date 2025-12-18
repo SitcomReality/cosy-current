@@ -15,6 +15,12 @@ export function createWeatherSystem(state, noise) {
     // We want long periods of dry, transitioning into rain.
     const rawPrecip = noise.sample(t * 0.03, 1234); 
     
+    // Ensure we always have a local precip variable to reference later.
+    // Start with current state value as a safe baseline.
+    let precip = state.weather && typeof state.weather.precipIntensity === 'number'
+      ? state.weather.precipIntensity
+      : 0;
+
     // If the dev-panel is controlling weather, we might want to override.
     // However, for this implementation, we'll let the noise drive it unless 
     // the user has recently adjusted the slider (which would be handled in ui.js).
@@ -23,7 +29,7 @@ export function createWeatherSystem(state, noise) {
     // For now, simple implementation: UI overrides the state directly.
     // To allow the auto-weather to work, we'll only update if not being overridden.
     if (!state.weather._manualOverride) {
-      let precip = 0;
+      precip = 0;
       if (rawPrecip > 0.2) {
         precip = (rawPrecip - 0.2) / 0.8; 
       }
