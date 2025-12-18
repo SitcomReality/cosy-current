@@ -12,7 +12,9 @@ export function renderWeatherPass(ctx, state, cycle) {
     state.weather._renderState = {
       drops: [],
       splashes: [],
-      lastTime: performance.now()
+      lastTime: performance.now(),
+      lastCamX: state.camera.x,
+      lastCamY: state.camera.y
     };
     
     // Pre-populate drops pool
@@ -23,7 +25,7 @@ export function renderWeatherPass(ctx, state, cycle) {
         y: Math.random() * height,
         speed: 800 + Math.random() * 400,
         len: 25 + Math.random() * 20,
-        z: Math.random() // Depth factor for parallax/opacity
+        z: 0.5 + Math.random() * 0.5 // Depth factor for parallax
       });
     }
   }
@@ -33,37 +35,42 @@ export function renderWeatherPass(ctx, state, cycle) {
   const dt = Math.min((now - rs.lastTime) / 1000, 0.1);
   rs.lastTime = now;
 
+  // Calculate camera movement in pixels to apply relative movement to weather particles
+  const dxCam = (state.camera.x - rs.lastCamX) * state.tileSize;
+  const dyCam = (state.camera.y - rs.lastCamY) * state.tileSize;
+  rs.lastCamX = state.camera.x;
+  rs.lastCamY = state.camera.y;
+
   // 1. Update & Draw Rain Drops (Foreground)
   const activeDrops = Math.floor(rs.drops.length * precipIntensity);
   
-  // Calculate wind offset for the frame
-  // Wind -1..1 maps to -X..+X pixels per second horizontal speed
   const maxWindSpeed = 400;
   const windX = wind * maxWindSpeed;
-  
-  // Slant angle for drawing
-  // If wind is 0, slant is 0. If wind is 1, slant is significant.
   const slantX = wind * 40; 
 
   ctx.lineWidth = 2;
   ctx.beginPath();
   
-  // Use a rain color that fits the low-poly palette (light blue-ish)
-  // Opacity scales with intensity and individual drop depth
   const baseAlpha = 0.3 + precipIntensity * 0.4;
   
   for (let i = 0; i < activeDrops; i++) {
     const d = rs.drops[i];
     
-    // Move
+    // Horizontal wind and vertical fall speed
     d.x += windX * dt;
     d.y += d.speed * dt;
+
+    // Apply camera parallax: closer drops (higher z) "slip" less, 
+    // simulating their presence in world space volume.
+    d.x -= dxCam * (d.z || 0.5);
+    d.y -= dyCam * (d.z || 0.5);
     
-    // Wrap
+    // Wrap particles to maintain coverage
     if (d.y > height) {
       d.y = -d.len;
       d.x = Math.random() * width;
     }
+    if (d.y < -d.len) d.y = height;
     if (d.x > width) d.x -= width;
     if (d.x < 0) d.x += width;
     
@@ -78,16 +85,25 @@ export function renderWeatherPass(ctx, state, cycle) {
   // 2. Update & Draw Splashes (Surface Interaction)
   // Rigid geometric squares/diamonds expanding
   
-  // Spawn new splashes based on intensity
-  // Chance per frame
-  const spawnRate = precipIntensity * 20; // splashes per frame approx
+  const spawnRate = precipIntensity * 20; 
   const spawnCount = Math.floor(spawnRate + Math.random());
   
+  const tileSize = state.tileSize;
+  const centerX = width / 2;
+  const centerY = height / 2;
+
   for (let i = 0; i < spawnCount; i++) {
+    // Generate initial position in screen space for distribution
+    const sx = Math.random() * width;
+    const sy = Math.random() * height;
+    
+    // Convert to world coordinates immediately so splashes stick to the ground
+    const wx = (sx - centerX) / tileSize + state.camera.x;
+    const wy = (sy - centerY) / tileSize + state.camera.y;
+
     rs.splashes.push({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      life: 0.3, // seconds
+      wx, wy,
+      life: 0.3, 
       maxLife: 0.3,
       size: 10 + Math.random() * 15
     });
@@ -103,6 +119,15 @@ export function renderWeatherPass(ctx, state, cycle) {
       rs.splashes.splice(i, 1);
       continue;
     }
+
+    // Convert world position back to current screen position
+    const sx = (s.wx - state.camera.x) * tileSize + centerX;
+    const sy = (s.wy - state.camera.y) * tileSize + centerY;
+
+    // Fast cull if splash moved too far off-screen
+    if (sx < -100 || sx > width + 100 || sy < -100 || sy > height + 100) {
+       continue; 
+    }
     
     // Animate: expand and fade
     const progress = 1 - (s.life / s.maxLife);
@@ -110,7 +135,7 @@ export function renderWeatherPass(ctx, state, cycle) {
     const alpha = s.life / s.maxLife;
     
     ctx.save();
-    ctx.translate(s.x, s.y);
+    ctx.translate(sx, sy);
     ctx.globalAlpha = alpha * baseAlpha;
     // Rotate 45deg for diamond shape - "rigid geometric"
     ctx.rotate(Math.PI / 4);
