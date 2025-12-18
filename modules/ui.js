@@ -109,8 +109,9 @@ export function createUI({ container, state, renderer, noise, game }) {
       if (state._playerPaused === undefined) state._playerPaused = false;
       if (state._savedPlayerSpeed === undefined) state._savedPlayerSpeed = null;
 
+      // Update label directly on the button element (avoid assuming an inner <span> exists)
       const updateStopLabel = () => {
-        btnStopStart.querySelector('span').textContent = state._playerPaused ? 'GO' : 'STOP';
+        btnStopStart.textContent = state._playerPaused ? 'GO' : 'STOP';
       };
 
       btnStopStart.addEventListener('click', () => {
