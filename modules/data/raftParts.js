@@ -31,7 +31,7 @@ export const RAFT_PARTS = {
   cabinShapes: [
     { id: 'box', name: 'Box', description: 'Simple shelter.', cost: {} },
     { id: 'a-frame', name: 'A-Frame', description: 'Classic peaked roof.', cost: { wood: 30, cloth: 10 } },
-    { id: 'dome', name: 'Dome', description: 'Aerodynamic geometry.', cost: { scrap: 40, plastic: 25 } }
+    { id: 'dome', name: 'Dome', description: 'Aerodynamic geometry.', cost: { plastic: 25 } }
   ],
   lightTypes: [
     { id: 'cone', name: 'Flashlight', description: 'Focused forward beam.', cost: {} },
