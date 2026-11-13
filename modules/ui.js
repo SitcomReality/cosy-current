@@ -4,11 +4,19 @@ import { createCollectionUI } from './ui/collection.js';
 import { createCustomizationUI } from './ui/customization.js';
 import { createNotificationSystem } from './ui/notifications.js';
 import { ITEM_REGISTRY } from './data/items.js';
+import { setWindFromPolar } from './game/weather.js';
 
 export function createUI({ container, state, renderer, noise, game }) {
   
   // Cache DOM elements
   let inventoryUI;
+  let devWeatherAuto = null;
+  let devWeatherSlider = null;
+  let devWindStrength = null;
+  let devWindDirection = null;
+  let devWeatherReadout = null;
+  let devLightningButton = null;
+  let devWeatherUiTimer = 0;
   const titleScreen = document.getElementById('title-screen');
   const startScreen = document.getElementById('start-screen');
   const gameHud = document.getElementById('game-hud');
@@ -51,6 +59,34 @@ export function createUI({ container, state, renderer, noise, game }) {
   
   // Check if dev mode is enabled via URL parameter
   const isDevMode = new URLSearchParams(window.location.search).has('dev');
+
+  // Keep the dev weather controls in sync with the simulation. In automatic
+  // mode the sliders follow the live values (read-only feedback); touching a
+  // slider switches to manual control until Auto is re-enabled.
+  function syncDevWeatherControls() {
+    const weather = state.weather;
+    if (!weather) return;
+    const wind = weather.wind || { strength: 0, angle: 0 };
+    const degrees = ((wind.angle * 180 / Math.PI) % 360 + 360) % 360;
+
+    if (devWeatherAuto) devWeatherAuto.checked = Boolean(weather.auto);
+
+    // Update the sliders when the simulation or a test/debug setter owns the
+    // value. While the player is dragging a slider, leave it alone: that input
+    // is the source of truth for manual mode.
+    const canWriteSlider = (el) => el && document.activeElement !== el;
+    if (canWriteSlider(devWeatherSlider)) {
+      devWeatherSlider.value = String(weather.precipIntensity || 0);
+    }
+    if (canWriteSlider(devWindStrength)) devWindStrength.value = String(wind.strength || 0);
+    if (canWriteSlider(devWindDirection)) devWindDirection.value = String(Math.round(degrees));
+    if (devWeatherReadout) {
+      const rain = Math.round((weather.precipIntensity || 0) * 100);
+      const strength = Math.round((wind.strength || 0) * 100);
+      devWeatherReadout.textContent =
+        `${weather.auto ? 'AUTO' : 'MANUAL'} · rain ${rain}% · wind ${strength}% @ ${Math.round(degrees)}°`;
+    }
+  }
 
   function bind() {
     // Check save state to configure title screen
@@ -284,14 +320,66 @@ export function createUI({ container, state, renderer, noise, game }) {
       }
     }
 
-    // Weather Control Binding
-    const weatherSlider = document.getElementById('dev-weather-slider');
-    if (weatherSlider) {
-      weatherSlider.addEventListener('input', (e) => {
-        state.weather._manualOverride = true;
-        state.weather.precipIntensity = parseFloat(e.target.value);
+    // Weather Controls. Touching any slider takes manual control; the Auto
+    // checkbox hands the weather back to the simulation.
+    devWeatherAuto = document.getElementById('dev-weather-auto');
+    devWeatherSlider = document.getElementById('dev-weather-slider');
+    devWindStrength = document.getElementById('dev-wind-strength');
+    devWindDirection = document.getElementById('dev-wind-direction');
+    devWeatherReadout = document.getElementById('dev-weather-readout');
+    devLightningButton = document.getElementById('btn-dev-lightning');
+
+    function takeManualWeather() {
+      if (!state.weather) return;
+      state.weather.auto = false;
+      if (devWeatherAuto) devWeatherAuto.checked = false;
+    }
+
+    function updateWindFromSliders() {
+      if (!state.weather) return;
+      const strength = devWindStrength ? parseFloat(devWindStrength.value) || 0 : 0;
+      const angle = devWindDirection
+        ? ((parseFloat(devWindDirection.value) || 0) * Math.PI) / 180
+        : 0;
+      setWindFromPolar(state.weather, strength, angle);
+      syncDevWeatherControls();
+    }
+
+    if (devWeatherAuto) {
+      devWeatherAuto.addEventListener('change', () => {
+        if (!state.weather) return;
+        state.weather.auto = devWeatherAuto.checked;
+        syncDevWeatherControls();
       });
     }
+    if (devWeatherSlider) {
+      devWeatherSlider.addEventListener('input', (e) => {
+        if (!state.weather) return;
+        takeManualWeather();
+        state.weather.precipIntensity = parseFloat(e.target.value) || 0;
+        syncDevWeatherControls();
+      });
+    }
+    if (devWindStrength) {
+      devWindStrength.addEventListener('input', () => {
+        takeManualWeather();
+        updateWindFromSliders();
+      });
+    }
+    if (devWindDirection) {
+      devWindDirection.addEventListener('input', () => {
+        takeManualWeather();
+        updateWindFromSliders();
+      });
+    }
+    if (devLightningButton) {
+      devLightningButton.addEventListener('click', () => {
+        if (state.weather && state.weather.lightning) {
+          state.weather.lightning.force = true;
+        }
+      });
+    }
+    syncDevWeatherControls();
 
     // Experimental renderer switches. Both rebuild chunk bitmaps so the new
     // mode is visible immediately. They are also seedable from the URL:
@@ -568,6 +656,13 @@ export function createUI({ container, state, renderer, noise, game }) {
 
     if (inventoryUI) inventoryUI.render();
     updateRelicCounter();
+
+    // Keep the dev weather readout alive without rewriting the DOM every frame.
+    devWeatherUiTimer += dt;
+    if (devWeatherUiTimer >= 0.15) {
+      devWeatherUiTimer = 0;
+      syncDevWeatherControls();
+    }
 
     // Time of day display (24h clock mapped to dayTime 0..1)
     if (uiTime) {

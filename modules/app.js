@@ -29,6 +29,41 @@ function applyDevQueryOptions(state) {
   if (shading === 'world' || shading === 'flat' || shading === 'baked') {
     state.devOptions.shadingMode = shading;
   }
+
+  // Weather shortcuts for reproducible screenshots/scenarios:
+  // ?dev&rain=1&wind=0.8&winddir=90&time=0.95&lightning=1
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const rainParam = params.get('rain');
+  const windParam = params.get('wind');
+  const windDirParam = params.get('winddir');
+  const lightningParam = params.get('lightning');
+  const timeParam = params.get('time');
+
+  if (rainParam !== null && Number.isFinite(Number(rainParam))) {
+    state.weather.auto = false;
+    state.weather.precipIntensity = clamp01(Number(rainParam));
+  }
+  if (windParam !== null || windDirParam !== null) {
+    state.weather.auto = false;
+    const strength = windParam !== null && Number.isFinite(Number(windParam))
+      ? clamp01(Number(windParam))
+      : (windDirParam !== null ? 0.7 : state.weather.wind.strength);
+    const degrees = windDirParam !== null && Number.isFinite(Number(windDirParam))
+      ? Number(windDirParam)
+      : (state.weather.wind.angle * 180) / Math.PI;
+    const angle = (degrees * Math.PI) / 180;
+    state.weather.wind.strength = strength;
+    state.weather.wind.angle = angle;
+    state.weather.wind.x = Math.cos(angle) * strength;
+    state.weather.wind.y = Math.sin(angle) * strength;
+  }
+  if (timeParam !== null && Number.isFinite(Number(timeParam))) {
+    const t = Number(timeParam);
+    state.dayTime = ((t % 1) + 1) % 1;
+  }
+  if (lightningParam === '1' && state.weather.lightning) {
+    state.weather.lightning.force = true;
+  }
 }
 
 export function initApp({ canvas, controls }) {

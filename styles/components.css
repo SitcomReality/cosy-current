@@ -957,6 +957,14 @@ button {
   width: 100%;
 }
 
+.dev-weather-readout {
+  font-size: 0.62rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  padding: 2px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Generic hidden utility */
 .hidden {
   display: none !important;

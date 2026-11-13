@@ -1,5 +1,6 @@
 export function renderWeatherPass(ctx, state, cycle) {
-  const { precipIntensity, wind } = state.weather;
+  const { precipIntensity } = state.weather;
+  const wind = state.weather.wind || { x: 0, y: 0, strength: 0, angle: 0 };
   
   // If mostly dry, skip drawing
   if (precipIntensity <= 0.05) return;
@@ -45,8 +46,10 @@ export function renderWeatherPass(ctx, state, cycle) {
   const activeDrops = Math.floor(rs.drops.length * precipIntensity);
   
   const maxWindSpeed = 400;
-  const windX = wind * maxWindSpeed;
-  const slantX = wind * 40; 
+  const windX = wind.x * maxWindSpeed;
+  const windY = wind.y * maxWindSpeed * 0.35;
+  const slantX = wind.x * 40;
+  const slantY = wind.y * 12;
 
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -56,9 +59,11 @@ export function renderWeatherPass(ctx, state, cycle) {
   for (let i = 0; i < activeDrops; i++) {
     const d = rs.drops[i];
     
-    // Horizontal wind and vertical fall speed
+    // Horizontal wind and vertical fall speed. The y component of the wind
+    // changes the apparent fall speed (toward/away from the camera) rather than
+    // tilting the streak sideways.
     d.x += windX * dt;
-    d.y += d.speed * dt;
+    d.y += (d.speed + windY) * dt;
 
     // Apply camera parallax: closer drops (higher z) "slip" less, 
     // simulating their presence in world space volume.
@@ -76,7 +81,7 @@ export function renderWeatherPass(ctx, state, cycle) {
     
     // Draw rigid straight line
     ctx.moveTo(d.x, d.y);
-    ctx.lineTo(d.x - slantX, d.y - d.len);
+    ctx.lineTo(d.x - slantX, d.y - d.len - slantY);
   }
   
   ctx.strokeStyle = `rgba(200, 230, 255, ${baseAlpha})`;

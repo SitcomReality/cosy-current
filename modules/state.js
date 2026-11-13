@@ -64,7 +64,22 @@ export function createAppState(savedData = null) {
     // Dynamic Weather State
     weather: {
       precipIntensity: 0, // 0.0 to 1.0
-      wind: 0,            // -1.0 (Left) to 1.0 (Right)
+      // Global wind vector. x/y are the unit-ish screen/world direction times
+      // strength; angle is radians (0 = east, PI/2 = south).
+      wind: { x: 0, y: 0, strength: 0, angle: 0 },
+      stormBearing: 0,    // radians: where the storm/lightning is coming from
+      lightning: {
+        flash: 0,         // 0..1 current flash brightness
+        dirX: 0,          // unit vector toward the strike
+        dirY: 1,
+        timer: 3,         // seconds until the next possible strike
+        pulses: [],       // queued secondary flashes { delay, strength }
+        boltSeed: 0,
+        lastStrike: 0,
+        force: false      // dev/scenario one-shot trigger
+      },
+      auto: true,         // automatic fronts; false = dev sliders control it
+      _weatherTime: 0,    // internal clock for fronts (not persisted)
       _renderState: null  // Runtime cache for particles
     },
 

@@ -120,7 +120,10 @@ export function createCollectablesModule(state) {
     const candidates = [];
 
     const dayTime = state.dayTime || 0.25;
-    const weather = state.weather || { precipIntensity: 0, wind: 0 };
+    const weather = state.weather || {
+      precipIntensity: 0,
+      wind: { x: 0, y: 0, strength: 0, angle: 0 }
+    };
 
     for (const key in ITEM_REGISTRY) {
       const item = ITEM_REGISTRY[key];

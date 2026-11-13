@@ -103,8 +103,20 @@
                 </div>
               </div>
               <div class="dev-control full-width">
-                <label>Weather Intensity</label>
+                <label class="dev-check" for="dev-weather-auto">
+                  <input type="checkbox" id="dev-weather-auto" checked>
+                  <span>Auto weather</span>
+                </label>
+                <label for="dev-weather-slider">Rain</label>
                 <input type="range" id="dev-weather-slider" min="0" max="1" step="0.01" value="0">
+                <label for="dev-wind-strength">Wind strength</label>
+                <input type="range" id="dev-wind-strength" min="0" max="1" step="0.01" value="0">
+                <label for="dev-wind-direction">Wind direction</label>
+                <input type="range" id="dev-wind-direction" min="0" max="359" step="1" value="0">
+                <div class="dev-weather-readout" id="dev-weather-readout">AUTO</div>
+                <div class="btn-row">
+                  <button id="btn-dev-lightning" class="btn-small">Strike lightning</button>
+                </div>
               </div>
               <div class="dev-control full-width">
                 <label>Renderer experiments</label>

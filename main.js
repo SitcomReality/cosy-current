@@ -14,16 +14,86 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  initApp({ canvas, controls });
+  const app = initApp({ canvas, controls });
 
   // Readiness hook for the local browser smoke tests (webgame_smoke).
   // Queued after the game's first rAF callback so screenshots never race the
   // initial render.
   requestAnimationFrame(() => {
     window.__APP_READY__ = true;
+
+    const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
     window.__webgame = {
       get ready() { return Boolean(window.__APP_READY__); },
       get canvas() { return canvas; },
+
+      snapshot() {
+        const state = app.state;
+        const w = state.weather;
+        return {
+          ready: Boolean(window.__APP_READY__),
+          isPlaying: Boolean(state.isPlaying),
+          dayTime: state.dayTime,
+          weather: {
+            auto: Boolean(w.auto),
+            precipIntensity: w.precipIntensity,
+            wind: {
+              x: w.wind.x,
+              y: w.wind.y,
+              strength: w.wind.strength,
+              angle: w.wind.angle
+            },
+            stormBearing: w.stormBearing,
+            lightning: {
+              flash: w.lightning.flash,
+              dirX: w.lightning.dirX,
+              dirY: w.lightning.dirY
+            }
+          }
+        };
+      },
+
+      // Deterministic weather setup for manual testing and screenshots.
+      // Any weather field switches the simulation to manual unless auto is set.
+      setWeather(options = {}) {
+        const w = app.state.weather;
+        const touchesWeather = ['rain', 'windStrength', 'windAngle']
+          .some((key) => typeof options[key] === 'number');
+        if (typeof options.auto === 'boolean') w.auto = options.auto;
+        else if (touchesWeather) w.auto = false;
+
+        if (typeof options.rain === 'number') {
+          w.precipIntensity = clamp01(options.rain);
+        }
+        if (typeof options.windStrength === 'number' || typeof options.windAngle === 'number') {
+          const strength = typeof options.windStrength === 'number'
+            ? clamp01(options.windStrength)
+            : w.wind.strength;
+          const angle = typeof options.windAngle === 'number'
+            ? options.windAngle
+            : w.wind.angle;
+          w.wind.strength = strength;
+          w.wind.angle = angle;
+          w.wind.x = Math.cos(angle) * strength;
+          w.wind.y = Math.sin(angle) * strength;
+        }
+        if (typeof options.time === 'number') {
+          app.state.dayTime = ((options.time % 1) + 1) % 1;
+        }
+        if (options.lightning) {
+          w.lightning.force = true;
+        }
+        return this.snapshot();
+      },
+
+      setDayTime(value) {
+        app.state.dayTime = ((Number(value) % 1) + 1) % 1;
+        return app.state.dayTime;
+      },
+
+      strikeLightning() {
+        if (app.state.weather.lightning) app.state.weather.lightning.force = true;
+      }
     };
   });
 });
