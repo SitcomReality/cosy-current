@@ -2,13 +2,13 @@ import { normalizeAngle } from '../utils.js';
 import { applyFlowFollow } from './flowFollow.js';
 
 // Slow aquatic turtles that sometimes stop and linger, then slowly accelerate
-export function applyTurtle(c, dt, noise) {
+export function applyTurtle(c, dt, noise, neighbors) {
   // Ensure timers/state
   if (c.turtleTimer === undefined) c.turtleTimer = 0;
   if (c.isStopped === undefined) c.isStopped = false;
 
   // Always use flow-follow steering so turtles follow the river shape
-  applyFlowFollow(c, dt, noise);
+  applyFlowFollow(c, dt, noise, neighbors);
 
   // Linger logic
   c.turtleTimer -= dt;

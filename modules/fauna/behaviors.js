@@ -7,7 +7,7 @@ import { enforceBoundaries } from './behaviors/boundaries.js';
 import { applyTurtle } from './behaviors/turtle.js';
 
 // Orchestrator: keeps the public API stable
-export function updateCreatureBehavior(c, dt, noise, game) {
+export function updateCreatureBehavior(c, dt, noise, game, neighbors) {
   // Update timers
   c.life += dt;
   c.wanderTimer -= dt;
@@ -21,13 +21,13 @@ export function updateCreatureBehavior(c, dt, noise, game) {
   const behavior = c.def.behavior || 'wander';
 
   if (behavior === 'flow_follow') {
-    applyFlowFollow(c, dt, noise);
+    applyFlowFollow(c, dt, noise, neighbors);
   } else if (behavior === 'fly_straight') {
     applyFlyStraight(c, dt);
   } else if (behavior === 'scuttle') {
     applyScuttle(c, dt);
   } else if (behavior === 'turtle') {
-    applyTurtle(c, dt, noise);
+    applyTurtle(c, dt, noise, neighbors);
   } else {
     // Default wander
     applyWander(c, dt);

@@ -1,5 +1,10 @@
 import { normalizeAngle } from '../utils.js';
-import { getRiverInfo, getCenterAngleAt, getLandwardAngleAt } from './riverUtils.js';
+import {
+  getRiverInfo,
+  getCenterAngleAt,
+  getLandwardAngleAt,
+  getWaterClearance
+} from './riverUtils.js';
 
 // Helper: sample around a point to find nearest land direction (returns angle or null)
 function findNearbyLandDirection(x, y, noise, maxRadius) {
@@ -55,9 +60,16 @@ export function enforceBoundaries(c, dt, noise, game) {
   const pool = c.def.pool;
 
   if (pool === 'water') {
-    // Threshold for "hard boundary"
-    // value 1.0 is bank. We want to stop them before 1.0.
-    if (river.value > 0.9) {
+    // Work in absolute clearance (tiles from the bank) rather than the
+    // width-normalized value. On a thin tributary `value > 0.9` can still be
+    // most of a tile from land, while on a wide stretch it is much closer;
+    // using clearance keeps the safety margin consistent for both.
+    const currentInfo = getRiverInfo(noise, c.x, c.y);
+    const currentClearance = getWaterClearance(currentInfo);
+    const lookAheadClearance = getWaterClearance(river);
+    const minClearance = 0.8;
+
+    if (currentClearance < minClearance || lookAheadClearance < minClearance) {
       // PANIC AVOIDANCE
 
       // 1. Find safe water direction via gradient descent back into deeper water
@@ -67,15 +79,15 @@ export function enforceBoundaries(c, dt, noise, game) {
       c.targetAngle = escapeAngle;
 
       // 3. Boost turn rate significantly to allow tight smooth turn instead of snap
-      c.turnBoost = 5.0;
+      c.turnBoost = 4.0;
 
       // 4. Slow down while avoiding
-      c.speedMult = 0.5;
+      c.speedMult = Math.min(c.speedMult, 0.55);
 
-      // 5. Only nudge position if we are REALLY stuck (value >= 1.0)
-      // This prevents jitter unless they actually crossed the line
-      if (river.value >= 1.0) {
-        const push = Math.min(0.2, (river.value - 0.95));
+      // 5. Nudge away from land if we are genuinely too close. The push scales
+      // with how far past the margin we are, which avoids jitter.
+      if (currentClearance < minClearance) {
+        const push = Math.min(0.22, (minClearance - currentClearance) * 1.4 + 0.02);
         c.x += Math.cos(escapeAngle) * push;
         c.y += Math.sin(escapeAngle) * push;
       }

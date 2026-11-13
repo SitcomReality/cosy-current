@@ -9,7 +9,14 @@ export const CREATURE_DEFS = {
     size: 0.4, speed: 2.2, depth: 0.3,
     colors: ['#f59e0b', '#ef4444', '#06b6d4'],
     behavior: 'flow_follow',
-    turnRate: 2.0
+    turnRate: 2.0,
+    // Cross-river lane character, in tiles of clearance from the bank.
+    lane: { minClearance: 1.6, maxClearance: 5.2, meanderAmp: 1.0, meanderSpeed: 0.15, waveAmp: 0.35 },
+    loiterChance: 0.008,
+    personalSpace: 1.4,
+    schoolRadius: 7,
+    schoolCohesion: 0.32,
+    schoolAlign: 0.22
   },
   eel: {
     type: 'eel',
@@ -17,7 +24,14 @@ export const CREATURE_DEFS = {
     size: 0.6, speed: 1.8, depth: 0.5,
     colors: ['#475569', '#64748b'],
     behavior: 'flow_follow',
-    turnRate: 1.5
+    turnRate: 1.5,
+    // Eels favour the shaded, vegetated margins and a longer serpentine line.
+    lane: { minClearance: 1.1, maxClearance: 3.4, meanderAmp: 1.3, meanderSpeed: 0.09, waveAmp: 0.55 },
+    loiterChance: 0.018,
+    personalSpace: 1.8,
+    schoolRadius: 4.5,
+    schoolCohesion: 0.15,
+    schoolAlign: 0.08
   },
   crab: {
     type: 'crab',
@@ -87,6 +101,9 @@ export const CREATURE_DEFS = {
     // Greens/browns consistent with existing palette
     colors: ['#166534', '#15803d', '#4b5563', '#78350f'],
     behavior: 'turtle',
-    turnRate: 1.0
+    turnRate: 1.0,
+    lane: { minClearance: 1.2, maxClearance: 3.8, meanderAmp: 0.6, meanderSpeed: 0.07, waveAmp: 0.25 },
+    loiterChance: 0.004,
+    personalSpace: 1.7
   }
 };

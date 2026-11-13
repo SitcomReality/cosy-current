@@ -24,7 +24,7 @@
   "steps": [
     { "name": "title", "assertTitle": "Cosy Current" },
     { "name": "start-screen", "screenshot": "start-screen.png" },
-    { "name": "start", "eval": "document.querySelector('#btn-start')?.click()" },
+    { "name": "start", "click": "#btn-new-journey" },
     { "name": "settle", "sleep": 2000 },
     {
       "name": "gameplay",

@@ -1,4 +1,9 @@
 import { getWeightedRandomType, getOffscreenSpawnPosition } from './utils.js';
+import { getFlowAngleAt, getBankInfo, getWaterClearance } from '../behaviors/riverUtils.js';
+
+function clamp(value, min, max) {
+  return value < min ? min : value > max ? max : value;
+}
 
 // Single-responsibility spawn implementation. Accepts a params object to avoid tight coupling.
 export function attemptSpawn({
@@ -17,15 +22,13 @@ export function attemptSpawn({
   let valid = false;
 
   if (poolName === 'water') {
-    const EEL_INSET_THRESHOLD = 0.4;
-    const DEFAULT_INSET_THRESHOLD = 0.5;
-    const neighMaxValueDefault = 0.85;
-    const neighMaxValueForEel = 0.75;
+    // Spawn by absolute clearance rather than a fixed normalized band, so
+    // species can start in their own preferred lane even on wide water.
+    const laneMin = def.lane ? def.lane.minClearance : 1.5;
+    const minSpawnClearance = Math.max(1.0, laneMin - 0.15);
+    const clearance = getWaterClearance(r);
 
-    const insetThreshold = (typeKey === 'eel') ? EEL_INSET_THRESHOLD : DEFAULT_INSET_THRESHOLD;
-    const neighMaxValue = (typeKey === 'eel') ? neighMaxValueForEel : neighMaxValueDefault;
-
-    if (r.value < insetThreshold) {
+    if (clearance >= minSpawnClearance) {
       let neighClear = true;
       for (let oy = -1; oy <= 1; oy++) {
         for (let ox = -1; ox <= 1; ox++) {
@@ -33,7 +36,7 @@ export function attemptSpawn({
           const ty = Math.floor(sy) + oy;
           const infoN = noise.getRiverSystem(tx + 0.5, ty + 0.5);
           const t = game.getTile(tx, ty);
-          if (infoN.value >= neighMaxValue || t === game.CONSTANTS.TILE_BANK) {
+          if (getWaterClearance(infoN) < 0.6 || t === game.CONSTANTS.TILE_BANK) {
             neighClear = false;
             break;
           }
@@ -41,15 +44,7 @@ export function attemptSpawn({
         if (!neighClear) break;
       }
 
-      if (neighClear) {
-        if (def.depth && r.value > (1.0 - def.depth - 0.05)) {
-          valid = false;
-        } else {
-          valid = true;
-        }
-      } else {
-        valid = false;
-      }
+      valid = neighClear;
     }
   } else if (poolName === 'land') {
     if (r.value >= 1.0) {
@@ -91,10 +86,10 @@ export function attemptSpawn({
   if (!valid) return;
 
   let count = 1;
-  if (typeKey === 'firefly') count = randomRange(4, 9);
+  if (typeKey === 'firefly') count = Math.floor(randomRange(4, 10));
   if (typeKey === 'bird')    count = Math.floor(randomRange(4, 14));
-  if (typeKey === 'fish')    count = randomRange(2, 6);
-  if (typeKey === 'eel')     count = randomRange(1, 3);
+  if (typeKey === 'fish')    count = Math.floor(randomRange(2, 7));
+  if (typeKey === 'eel')     count = Math.floor(randomRange(1, 4));
   if (typeKey === 'sheep')   count = Math.floor(randomRange(3, 9));
   if (typeKey === 'turtle')  count = Math.floor(randomRange(1, 5));
 
@@ -110,6 +105,21 @@ export function attemptSpawn({
     groupHeading = Math.atan2(cy - sy, cx - sx);
     groupHeading += (Math.random() - 0.5) * 0.8;
   }
+
+  const isWaterSpawn = def.pool === 'water';
+  let waterFlowAngle = 0;
+  let waterBankAngle = 0;
+  if (isWaterSpawn) {
+    waterFlowAngle = getFlowAngleAt(noise, sx, sy);
+    const bankInfo = getBankInfo(noise, sx, sy);
+    // On an exact centre line the gradient is ambiguous; any perpendicular is
+    // fine for spreading the group across the channel.
+    waterBankAngle = bankInfo.mag > 0.01 ? bankInfo.angle : waterFlowAngle + Math.PI / 2;
+  }
+
+  // Choose one travel direction per shoal so a group enters the river
+  // together; across spawns both directions are represented.
+  const waterDirectionFlip = isWaterSpawn && Math.random() < 0.5 ? Math.PI : 0;
 
   const baseColor = def.colors[Math.floor(Math.random() * def.colors.length)];
   const groupCanFlock = (typeKey === 'fish' || typeKey === 'eel' || typeKey === 'bird');
@@ -135,6 +145,22 @@ export function attemptSpawn({
 
       spawnX += (Math.random() - 0.5) * 1.5;
       spawnY += (Math.random() - 0.5) * 1.5;
+    } else if (isWaterSpawn) {
+      // Water groups enter already spread along and across the channel rather
+      // than as a single point that has to untangle itself.
+      const along = (i - (count - 1) / 2) * (1.9 + Math.random() * 0.9);
+      const lateral = (Math.random() - 0.5) * 3.2;
+      spawnX += Math.cos(waterFlowAngle) * along + Math.cos(waterBankAngle) * lateral;
+      spawnY += Math.sin(waterFlowAngle) * along + Math.sin(waterBankAngle) * lateral;
+      spawnX += (Math.random() - 0.5) * 0.8;
+      spawnY += (Math.random() - 0.5) * 0.8;
+
+      // Never start a creature on the sand if the spread pushed it shoreward.
+      const spreadInfo = noise.getRiverSystem(spawnX, spawnY);
+      if (getWaterClearance(spreadInfo) < 0.85) {
+        spawnX = sx + (Math.random() - 0.5) * 1.6;
+        spawnY = sy + (Math.random() - 0.5) * 1.6;
+      }
     } else {
       spawnX += (Math.random() - 0.5) * 3;
       spawnY += (Math.random() - 0.5) * 3;
@@ -155,7 +181,13 @@ export function attemptSpawn({
     if (typeKey === 'eel') segmentCount = Math.floor(randomRange(3, 6));
 
     let initialAngle = Math.random() * Math.PI * 2;
-    if (isDirectedFlock) initialAngle = groupHeading + (Math.random() - 0.5) * 0.2;
+    if (isDirectedFlock) {
+      initialAngle = groupHeading + (Math.random() - 0.5) * 0.2;
+    } else if (isWaterSpawn) {
+      // Enter the river already aligned with it, with both directions of
+      // travel represented across spawns.
+      initialAngle = waterFlowAngle + waterDirectionFlip + (Math.random() - 0.5) * 0.35;
+    }
 
     let wavePhase;
     if (groupId) {
@@ -175,6 +207,29 @@ export function attemptSpawn({
     }
 
     const spawnSpeedMult = 0.92 + Math.random() * 0.16;
+
+    // Start each individual in its own lane, based on where it actually
+    // spawned. This is the main source of cross-river variety: two fish from
+    // the same shoal no longer share one centre-line target.
+    let laneClearance = 0;
+    let lanePhase = 0;
+    let laneSpeedMult = 1;
+    let laneAmpMult = 1;
+    if (isWaterSpawn) {
+      const memberRiver = noise.getRiverSystem(spawnX, spawnY);
+      const memberHalfWidth = memberRiver.localHalfWidth || 7.5;
+      const memberClearance = getWaterClearance(memberRiver);
+      const lane = def.lane || {};
+      const laneMin = lane.minClearance ?? 1.5;
+      const laneMax = Math.max(
+        laneMin,
+        Math.min(lane.maxClearance ?? 5.0, memberHalfWidth - 1.0)
+      );
+      laneClearance = clamp(memberClearance + (Math.random() - 0.5) * 1.4, laneMin, laneMax);
+      lanePhase = Math.random() * Math.PI * 2;
+      laneSpeedMult = 0.75 + Math.random() * 0.5;
+      laneAmpMult = 0.7 + Math.random() * 0.6;
+    }
 
     addCreature(poolName, {
       x: spawnX,
@@ -203,7 +258,15 @@ export function attemptSpawn({
       waveAmpMult,
       waveFreqMult,
       spawnSpeedMult,
-      sideBias: def.pool === 'water' ? (Math.random() - 0.5) * 0.7 : 0
+      sideBias: def.pool === 'water' ? (Math.random() - 0.5) * 0.7 : 0,
+      laneClearance: isWaterSpawn ? laneClearance : undefined,
+      lanePhase: isWaterSpawn ? lanePhase : undefined,
+      laneSpeedMult: isWaterSpawn ? laneSpeedMult : undefined,
+      laneAmpMult: isWaterSpawn ? laneAmpMult : undefined,
+      orbitDir: Math.random() < 0.5 ? -1 : 1,
+      junctionBias: (Math.random() - 0.5) * 0.25,
+      loiterCenter: null,
+      loiterTimer: 0
     });
   }
 }
