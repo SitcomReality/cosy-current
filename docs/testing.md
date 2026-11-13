@@ -70,6 +70,9 @@ After a change, load the game (see [development.md](development.md)) and check:
 - [ ] During a flash, lightning is the scene's light source: tree faces, creature and
       raft shadows all switch to the strike direction, with shadows pointing away from
       it. A lit raft headlamp is overwhelmed; its cone disappears for the flash.
+- [ ] Shadow direction and headlamp state do **not** tween as the flash fades. They stay
+      latched to the lightning state through the after-pulses, then switch back at once;
+      only the flash brightness itself fades.
 - [ ] Night + maximum storm is visibly darker than clear night. Compare
       `/?dev&time=0.95&rain=0` with `/?dev&time=0.95&rain=1&wind=0.7`.
 - [ ] Water splashes are small flattened ripples, land splashes are tiny ticks, and

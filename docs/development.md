@@ -86,6 +86,12 @@ storm-bearing side, and overwhelms the raft headlamp (its cone disappears until 
 flash decays). Cast shadows therefore point away from the strike; this applies to
 trees, aquatic plants, fauna, birds and the raft.
 
+The lightning light source is a hard, latched state rather than a blend. Shadow
+direction/side lighting and the headlamp switch once when the strike begins and once
+when its last after-pulse has faded; only the flash brightness fades continuously. This
+prevents shadows from sliding between the lightning and sun directions and prevents the
+headlamp cone from expanding/contracting on every strike.
+
 The same state can be forced from the URL:
 
 ```text
@@ -146,8 +152,9 @@ webgame_smoke --scenario scripts/weather-smoke.mjs
 
 `scripts/lightning-sun-smoke.mjs` freezes a night strike from the upper-left and checks
 that the flash lights the scene, the cast-shadow vector points away from the strike, and
-the headlamp is suppressed. It writes `lightning-sun-before.png` and
-`lightning-sun-during.png` for side-by-side review:
+the headlamp is suppressed. It also samples the decay to prove the shadow vector and
+headlamp state stay latched instead of tweening. It writes
+`lightning-sun-before.png` and `lightning-sun-during.png` for side-by-side review:
 
 ```bash
 webgame_smoke --scenario scripts/lightning-sun-smoke.mjs

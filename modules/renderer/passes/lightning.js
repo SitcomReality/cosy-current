@@ -13,6 +13,9 @@
 
 const SHADOW_LENGTH = 1.25;
 const SHADOW_MAX_ALPHA = 0.56;
+// Keep in sync with the latch in game/weather.js. The renderer fallback is only
+// for debug/manual flash states where sunActive has not been set yet.
+const SUN_MIN_FLASH = 0.04;
 
 function makeRng(seed) {
   let s = Math.floor(seed * 1e9) || 1;
@@ -50,17 +53,20 @@ function scaleAmbientAlpha(ambientColor, scale) {
 // cast away from it, so the same vector drives both the flash gradient and the
 // shadow direction with opposite signs.
 export function getLightningLight(state) {
-  const L = getLightning(state);
-  if (!L) return null;
+  const w = state.weather;
+  if (!w || !w.lightning) return null;
+  const L = w.lightning;
+
+  const flash = clamp01(L.flash);
+  const sunActive = L.sunActive === true || flash > SUN_MIN_FLASH;
+  if (!sunActive) return null;
 
   const dirLen = Math.hypot(L.dirX, L.dirY) || 1;
   const sourceDirX = L.dirX / dirLen;
   const sourceDirY = L.dirY / dirLen;
 
   const reducedMotion = Boolean(state.settings && state.settings.reducedMotion);
-  const flash = clamp01(L.flash);
   const intensity = flash * (reducedMotion ? 0.55 : 1);
-  if (intensity <= 0.005) return null;
 
   // Face lighting only has a left/right vocabulary, so project the source's
   // horizontal component onto it. A strike from directly above/front is treated
@@ -69,6 +75,7 @@ export function getLightningLight(state) {
   const shadeProgression = 0.5 - Math.sign(sourceDirX) * 0.34 * side;
 
   return {
+    sunActive: true,
     flash,
     intensity,
     sourceDirX,
@@ -85,43 +92,24 @@ export function getLightningLight(state) {
 }
 
 // Produce the per-frame cycle used by all object/creature/raft shadow passes.
-// During a flash, lightning is the only light source: its shadow direction wins,
-// the headlamp is overwhelmed, and the ambient darkness is lifted. The
-// direction blends back toward the time-of-day sun over the last part of the
-// decay so a daytime flash does not pop the shadows back at the very end.
+// This is deliberately a hard switch, not a blend: while the lightning sun is
+// active it owns every shadow and the raft lamp is fully off. When the strike
+// ends, the day/night cycle takes over at once. The flash itself still fades via
+// its own intensity, but shadow direction/side lighting and lamp state never
+// tween from one light source to another.
 export function applyLightningCycle(cycle, light) {
   if (!light) return cycle;
 
-  const u = clamp01((light.intensity - 0.05) / 0.45);
-  const influence = u * u * (3 - 2 * u);
-
-  const baseX = cycle.shadowDirX || 0;
-  const baseY = cycle.shadowDirY || 0;
-  let shadowDirX = baseX + (light.shadowDirX - baseX) * influence;
-  let shadowDirY = baseY + (light.shadowDirY - baseY) * influence;
-  const dirLen = Math.hypot(shadowDirX, shadowDirY);
-  if (dirLen < 1e-5) {
-    shadowDirX = light.shadowDirX;
-    shadowDirY = light.shadowDirY;
-  } else {
-    shadowDirX /= dirLen;
-    shadowDirY /= dirLen;
-  }
-
-  const baseShade = typeof cycle.shadeProgression === 'number' ? cycle.shadeProgression : 0.5;
-  const baseLength = cycle.shadowLength || 0;
-  const headlamp = (cycle.raftLightIntensity || 0) * (1 - Math.min(1, light.intensity * 2.4));
-
   return {
     ...cycle,
-    shadowDirX,
-    shadowDirY,
-    shadowLength: baseLength + (light.shadowLength - baseLength) * influence,
+    shadowDirX: light.shadowDirX,
+    shadowDirY: light.shadowDirY,
+    shadowLength: light.shadowLength,
     shadowAlpha: Math.max(cycle.shadowAlpha || 0, light.shadowAlpha),
-    shadeProgression: baseShade + (light.shadeProgression - baseShade) * influence,
+    shadeProgression: light.shadeProgression,
     ambientColor: scaleAmbientAlpha(cycle.ambientColor, light.ambientScale),
-    raftLightIntensity: headlamp,
-    raftLightActive: headlamp > 0.01
+    raftLightIntensity: 0,
+    raftLightActive: false
   };
 }
 

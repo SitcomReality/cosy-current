@@ -1,10 +1,13 @@
 // Deterministic lightning-as-sun QA scenario.
 //
-// Forces a night storm, freezes the strike direction, and captures the frame
+// Forces a night storm, fixes the strike direction, and captures the frame
 // while the flash is still near its peak. This makes it easy to inspect that:
 //   * the flash lights the scene from the strike side,
 //   * cast shadows point away from that side,
 //   * the raft headlamp cone is gone while the flash is active.
+//
+// It then samples the decay to prove the shadow direction and headlamp state
+// are latched (hard switch), not tweened between the lightning and sun states.
 //
 // Run with:
 //   webgame_smoke --scenario scripts/lightning-sun-smoke.mjs
@@ -41,6 +44,7 @@ export default async function ({ page, assert, screenshot, log }) {
   const flash = light.flash;
 
   assert.ok(flash > 0.75, `flash should still be near peak (${flash.toFixed(2)})`);
+  assert.ok(light.sunActive === true, 'the temporary sun should be latched on');
   assert.ok(light.dirX < 0 && light.dirY < 0, 'the strike should come from the upper-left');
   assert.ok(light.shadowDirX > 0 && light.shadowDirY > 0, 'shadows should point away from the strike');
   assert.ok(during.lighting, 'the renderer should have published its lightning frame state');
@@ -53,6 +57,29 @@ export default async function ({ page, assert, screenshot, log }) {
   log(`storm=${storm.toFixed(1)} lightning=${lit.toFixed(1)} flash=${flash.toFixed(2)}`);
   log(`shadow dir=(${light.shadowDirX.toFixed(2)}, ${light.shadowDirY.toFixed(2)})`);
   await screenshot('lightning-sun-during.png');
+
+  // Let the flash end, then verify the temporary sun actually releases.
+  await page.pause(900);
+  const after = await page.evaluate('window.__webgame.snapshot()');
+  assert.ok(after.weather.lightning.sunActive === false, 'the lightning sun should switch off');
+  assert.ok(after.lighting === null, 'the base day/night lighting should take over');
+
+  // Strike again and sample the decay. A tween would make the shadow vector
+  // drift toward the night-sun vector; a hard switch keeps it fixed until the
+  // lighting override disappears.
+  await page.evaluate('window.__webgame.setLightning({flash: 1, dirX: -0.7, dirY: -0.7, boltSeed: 0.9})');
+  await page.pause(20);
+  for (let i = 0; i < 6; i++) {
+    const sample = await page.evaluate('window.__webgame.snapshot()');
+    const rendered = sample.lighting;
+    assert.ok(rendered, `lightning lighting should still be latched (sample ${i})`);
+    assert.ok(rendered.headlampActive === false, `headlamp must stay hard-off (sample ${i})`);
+    assert.ok(Math.abs(rendered.shadowDirX - 0.7071) < 0.01 &&
+      Math.abs(rendered.shadowDirY - 0.7071) < 0.01,
+      `shadow direction must not tween (sample ${i}: ${rendered.shadowDirX.toFixed(3)}, ${rendered.shadowDirY.toFixed(3)})`);
+    await page.pause(30);
+  }
+  log('shadow direction and headlamp state stayed latched through the decay');
 
   assert.ok(before.weather.auto === false, 'weather should stay in manual mode for the test');
 }

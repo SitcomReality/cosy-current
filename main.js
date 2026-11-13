@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
               dirY: w.lightning.dirY,
               shadowDirX: -w.lightning.dirX,
               shadowDirY: -w.lightning.dirY,
+              sunActive: Boolean(w.lightning.sunActive),
               boltSeed: w.lightning.boltSeed
             },
             particles: w._renderState ? {
@@ -129,7 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
       setLightning(options = {}) {
         const L = app.state.weather.lightning;
         if (!L) return null;
-        if (typeof options.flash === 'number') L.flash = clamp01(options.flash);
+        if (typeof options.flash === 'number') {
+          L.flash = clamp01(options.flash);
+          L.sunActive = L.flash > 0.04;
+        }
         if (typeof options.dirX === 'number' && typeof options.dirY === 'number') {
           const len = Math.hypot(options.dirX, options.dirY) || 1;
           L.dirX = options.dirX / len;

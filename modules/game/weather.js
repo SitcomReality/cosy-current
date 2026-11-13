@@ -45,7 +45,7 @@ export function createWeatherSystem(state, noise) {
   if (typeof w.wind.angle !== 'number') w.wind.angle = 0;
   if (!w.lightning) {
     w.lightning = {
-      flash: 0, dirX: 0, dirY: 1, timer: 3, pulses: [], boltSeed: 0, lastStrike: 0, force: false
+      flash: 0, dirX: 0, dirY: 1, sunActive: false, timer: 3, pulses: [], boltSeed: 0, lastStrike: 0, force: false
     };
   }
   if (!Array.isArray(w.lightning.pulses)) w.lightning.pulses = [];
@@ -53,6 +53,7 @@ export function createWeatherSystem(state, noise) {
   if (typeof w.lightning.flash !== 'number') w.lightning.flash = 0;
   if (typeof w.lightning.dirX !== 'number') w.lightning.dirX = 0;
   if (typeof w.lightning.dirY !== 'number') w.lightning.dirY = 1;
+  if (typeof w.lightning.sunActive !== 'boolean') w.lightning.sunActive = false;
   if (typeof w.lightning.boltSeed !== 'number') w.lightning.boltSeed = 0;
   if (typeof w.lightning.lastStrike !== 'number') w.lightning.lastStrike = 0;
   if (typeof w.lightning.force !== 'boolean') w.lightning.force = false;
@@ -92,6 +93,7 @@ export function createWeatherSystem(state, noise) {
     L.flash = 1;
     L.boltSeed = Math.random();
     L.lastStrike = w._weatherTime;
+    L.sunActive = true;
     L.pulses = [
       { delay: 0.05 + Math.random() * 0.09, strength: 0.55 + Math.random() * 0.35 },
       { delay: 0.16 + Math.random() * 0.18, strength: 0.22 + Math.random() * 0.30 }
@@ -113,6 +115,12 @@ export function createWeatherSystem(state, noise) {
         L.pulses.splice(i, 1);
       }
     }
+
+    // The temporary sun stays latched for the whole strike, including gaps
+    // between after-pulses. Keeping this binary (and holding it until the flash
+    // is effectively invisible) is what prevents shadows and the raft lamp from
+    // visibly sliding from one light source to the other.
+    L.sunActive = L.flash > 0.04 || L.pulses.length > 0;
 
     // Manual trigger from the dev panel or a test scenario.
     if (L.force) {

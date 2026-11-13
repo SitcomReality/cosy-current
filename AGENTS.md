@@ -246,7 +246,9 @@ Persistence is manual: `persistence.js` serializes `seed`, `dayTime`, `player` p
   downpour can stay relatively calm. Lightning is scheduled only above ~50% rain and
   prefers the storm bearing. A strike briefly acts as a temporary sun: it overrides cast
   shadow directions (trees, flora, fauna, birds, raft) and tree-face shading, lifts the
-  ambient tint, and disables the raft headlamp until the flash decays. Rain/wind
+  ambient tint, and disables the raft headlamp until the flash decays. That light-source
+  state is latched: shadow direction, face shading and headlamp switch once per strike,
+  while only the flash brightness fades, so no shadow/lamp tween is visible. Rain/wind
   auto-run by default; the dev panel switches to manual control when a slider is touched.
 
 ### Fauna System
@@ -331,8 +333,9 @@ There is **no unit-test framework or test runner**. The automated checks are:
   rain shot, and checks the debug weather API. Run with
   `webgame_smoke --scenario scripts/weather-smoke.mjs`.
 - `scripts/lightning-sun-smoke.mjs` — forces a night strike from a fixed direction and
-  checks flash luminance, away-from-strike shadow direction, and the headlamp-suppressed
-  flash frame. Run with `webgame_smoke --scenario scripts/lightning-sun-smoke.mjs`.
+  checks flash luminance, away-from-strike shadow direction, headlamp suppression, and
+  that the shadow/lamp state stays latched through the flash decay. Run with
+  `webgame_smoke --scenario scripts/lightning-sun-smoke.mjs`.
 
 Manual verification is still loading the game in a browser and playing it. For bugs:
 - Check the browser's developer console for errors.

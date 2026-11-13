@@ -72,6 +72,10 @@ export function createAppState(savedData = null) {
         flash: 0,         // 0..1 current flash brightness
         dirX: 0,          // unit vector toward the strike
         dirY: 1,
+        // True from the strike until the last after-pulse has faded. This is a
+        // binary light-source state, deliberately not a continuous blend, so
+        // shadows and the headlamp never tween between two light sources.
+        sunActive: false,
         timer: 3,         // seconds until the next possible strike
         pulses: [],       // queued secondary flashes { delay, strength }
         boltSeed: 0,
