@@ -10,6 +10,7 @@ import { renderFaunaPass, renderBirdsPass } from './passes/fauna.js';
 import { renderObjectsPass } from './passes/objects.js';
 import { renderAtmospherePass } from './passes/atmosphere.js';
 import { renderWeatherPass } from './passes/weather.js';
+import { renderLightningBoltPass, renderLightningFlashPass } from './passes/lightning.js';
 
 export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -71,6 +72,12 @@ export function createRenderer({ canvas, state, game, noise }) {
 
     renderWeatherPass(ctx, state, cycle);
     renderAtmospherePass(ctx, state, cycle, 0.9);
+
+    // Lightning is drawn after the atmosphere: the bolt should not be dimmed by
+    // the storm tint, and the additive flash must lift the entire frame
+    // (including the night/storm darkness).
+    renderLightningBoltPass(ctx, state);
+    renderLightningFlashPass(ctx, state);
   }
 
   function start() {

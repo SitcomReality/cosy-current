@@ -47,7 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
             lightning: {
               flash: w.lightning.flash,
               dirX: w.lightning.dirX,
-              dirY: w.lightning.dirY
+              dirY: w.lightning.dirY,
+              boltSeed: w.lightning.boltSeed
             }
           }
         };
