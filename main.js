@@ -56,6 +56,12 @@ document.addEventListener('DOMContentLoaded', () => {
               angle: w.wind.angle
             },
             stormBearing: w.stormBearing,
+            rainCell: w._rainCell ? {
+              phase: w._rainCell.phase,
+              remaining: Math.max(0, w._rainCell.timer),
+              duration: w._rainCell.duration,
+              peak: w._rainCell.peak
+            } : null,
             lightning: {
               flash: w.lightning.flash,
               dirX: w.lightning.dirX,

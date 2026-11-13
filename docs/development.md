@@ -69,16 +69,20 @@ contains live weather controls plus the experimental renderer switches.
 
 | Control | Values | What it does |
 |---|---|---|
-| **Auto weather** | on / off | On by default. Rain fronts and wind evolve on their own, and the sliders follow the live values as read-only feedback. Touching any weather slider switches to manual; tick Auto to hand control back. |
-| **Rain** | 0–100% | Rain intensity. Also controls splash density and lightning frequency. |
-| **Wind strength** | 0–100% | Global wind vector magnitude. Trees lean/sway, shadows follow, and rain slants. |
+| **Auto weather** | on / off | On by default. Rain fronts and wind evolve on their own, and the sliders follow the live values as read-only feedback. The readout names the current rain phase (`clear`, `build`, `rain`, `clearing`). Touching any weather slider switches to manual; tick Auto to hand control back. |
+| **Rain** | 0–100% | Rain intensity. Also controls splash density and lightning frequency. Automatic fronts build, hold for at least a minute, and clear rather than flickering on and off. |
+| **Wind strength** | 0–100% | Global wind vector magnitude. Trees lean/sway, shadows follow, and rain slants. Rain streak angle and drop motion share one vector, so at full wind the rain visibly travels along its ~45° lean. |
 | **Wind direction** | 0–359° | 0° = east, 90° = south, 180° = west, 270° = north (screen/world axes). |
 | **Strike lightning** | button | Fires a manual strike immediately, even when it is not raining, for visual testing. |
 
 Rain and wind are coupled in automatic mode (storms tend to be windier, but a heavy
-downpour can stay relatively calm). Lightning is only scheduled automatically when rain
-is above ~50%, and strikes prefer the slowly-drifting storm bearing rather than a random
-screen direction.
+downpour can stay relatively calm). Automatic rain runs as a four-phase cell —
+`clear` → `build` → `rain` → `clearing` — with long dry spells, a smooth arrival,
+at least 70 seconds of sustained rain, and a smooth departure. The rain intensity is
+smoothed toward the phase target, but the phase durations (not noise thresholds) own the
+timing, so a front cannot flicker on and off in a couple of seconds. Lightning is only
+scheduled automatically when rain is above ~50%, and strikes prefer the
+slowly-drifting storm bearing rather than a random screen direction.
 
 A strike briefly acts as a second sun. While the flash is active it overrides the
 time-of-day shadow direction and tree-face lighting, lights the whole scene from the

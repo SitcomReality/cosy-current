@@ -18,6 +18,61 @@ function smoothstep(edge0, edge1, x) {
   return u * u * (3 - 2 * u);
 }
 
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+// Rain is organised into whole weather cells rather than thresholded noise.
+// The previous front noise moved at ~10 s periods (with a ~2.7 s texture on
+// top), so a drop could cross the rain threshold and vanish again in under a
+// second. These phase lengths give a front time to arrive, settle and leave.
+const RAIN_CELL = {
+  firstClear: [28, 62],   // seconds before the first rain of a session
+  clear: [180, 340],      // long dry spells between fronts
+  build: [9, 16],         // rain easing in
+  rain: [75, 160],        // sustained rain
+  clearing: [16, 26],     // rain easing out
+  peak: [0.38, 1.0]       // light showers through heavy storms
+};
+
+function setRainPhase(cell, phase, duration, peak) {
+  cell.phase = phase;
+  cell.duration = duration;
+  cell.timer = duration;
+  if (typeof peak === 'number') cell.peak = peak;
+}
+
+function beginClear(cell, first) {
+  const range = first ? RAIN_CELL.firstClear : RAIN_CELL.clear;
+  setRainPhase(cell, 'clear', randomBetween(range[0], range[1]), 0);
+}
+
+function beginBuild(cell) {
+  const peak = randomBetween(RAIN_CELL.peak[0], RAIN_CELL.peak[1]);
+  setRainPhase(cell, 'build', randomBetween(RAIN_CELL.build[0], RAIN_CELL.build[1]), peak);
+}
+
+function beginRain(cell) {
+  setRainPhase(cell, 'rain', randomBetween(RAIN_CELL.rain[0], RAIN_CELL.rain[1]));
+}
+
+function beginClearing(cell, fromIntensity) {
+  cell.clearingFrom = Math.max(0.0001, fromIntensity || 0);
+  setRainPhase(cell, 'clearing', randomBetween(RAIN_CELL.clearing[0], RAIN_CELL.clearing[1]));
+}
+
+function createRainCell(first) {
+  const cell = {
+    phase: 'clear',
+    timer: 0,
+    duration: 0,
+    peak: 0,
+    clearingFrom: 0
+  };
+  beginClear(cell, first);
+  return cell;
+}
+
 // Frame-rate independent exponential approach.
 function approach(current, target, rate, dt) {
   const k = 1 - Math.exp(-rate * dt);
@@ -61,9 +116,16 @@ export function createWeatherSystem(state, noise) {
   if (typeof w.stormBearing !== 'number') w.stormBearing = 0;
   if (typeof w.precipIntensity !== 'number') w.precipIntensity = 0;
   if (typeof w._weatherTime !== 'number') w._weatherTime = 0;
+  if (!w._rainCell || typeof w._rainCell !== 'object') {
+    w._rainCell = createRainCell(true);
+  }
+  if (typeof w._rainCell.timer !== 'number') w._rainCell.timer = 0;
+  if (typeof w._rainCell.duration !== 'number') w._rainCell.duration = 0;
+  if (typeof w._rainCell.peak !== 'number') w._rainCell.peak = 0;
+  let wasAuto = Boolean(w.auto);
 
   // The noise engine multiplies coordinates by state.scale (terrain tuning).
-  // Divide that back out so weather fronts keep a ~2-4 minute rhythm no matter
+  // Divide that back out so wind/bearing drift keeps a stable rhythm no matter
   // how the terrain scale is configured.
   function weatherNoise(seconds, freq, offset) {
     const scale = state.scale > 0 ? state.scale : 0.05;
@@ -98,6 +160,56 @@ export function createWeatherSystem(state, noise) {
       { delay: 0.05 + Math.random() * 0.09, strength: 0.55 + Math.random() * 0.35 },
       { delay: 0.16 + Math.random() * 0.18, strength: 0.22 + Math.random() * 0.30 }
     ];
+  }
+
+  // Advance the rain cell and return its current target intensity. The phase
+  // transitions are one-way and duration-based, so a brief noise wobble cannot
+  // flip the weather between raining and clear in the space of a second.
+  function updateRainCell(dt, t) {
+    const cell = w._rainCell;
+    cell.timer -= dt;
+
+    let target = 0;
+    if (cell.phase === 'build') {
+      const progress = 1 - Math.max(0, cell.timer) / Math.max(0.001, cell.duration);
+      target = cell.peak * smoothstep(0, 1, progress);
+    } else if (cell.phase === 'rain') {
+      // A slow, shallow breath so a sustained front still feels alive without
+      // repeatedly crossing back into "dry".
+      const texture = weatherNoise(t, 0.035, 8700);
+      const breath = 0.92 + 0.08 * clamp01(texture * 0.5 + 0.5);
+      target = cell.peak * breath;
+    } else if (cell.phase === 'clearing') {
+      const progress = 1 - Math.max(0, cell.timer) / Math.max(0.001, cell.duration);
+      target = cell.clearingFrom * (1 - smoothstep(0, 1, progress));
+    }
+
+    if (cell.timer <= 0) {
+      if (cell.phase === 'clear') {
+        beginBuild(cell);
+      } else if (cell.phase === 'build') {
+        beginRain(cell);
+      } else if (cell.phase === 'rain') {
+        beginClearing(cell, w.precipIntensity);
+      } else {
+        beginClear(cell, false);
+      }
+    }
+
+    return clamp01(target);
+  }
+
+  // Coming back from manual weather should not teleport the simulation. If the
+  // sliders were left raining, resume a front at that level; otherwise begin a
+  // normal dry spell.
+  function resumeAutoRain() {
+    const cell = w._rainCell;
+    if (w.precipIntensity > 0.05) {
+      const peak = Math.max(w.precipIntensity, 0.5);
+      setRainPhase(cell, 'rain', randomBetween(55, 110), peak);
+    } else {
+      beginClear(cell, false);
+    }
   }
 
   function updateLightning(dt) {
@@ -147,17 +259,8 @@ export function createWeatherSystem(state, noise) {
     w._weatherTime += dt;
     const t = w._weatherTime + clockOffset;
 
-    // 1. Slow rain front. Thresholds are tuned for the actual amplitude of the
-    //    noise engine (~-0.4..0.4 at a fixed coordinate), not the theoretical
-    //    -1..1 range. The old code asked for >0.2 and then divided by 0.8, which
-    //    capped real rain at ~0.12 intensity.
-    const front = weatherNoise(t, 0.10, 3100);
-    const texture = weatherNoise(t, 0.37, 8700);
-    const storminess = smoothstep(0.09, 0.29, front);
-    const rainTarget = clamp01(storminess * (0.80 + 0.35 * clamp01(texture * 0.5 + 0.5)));
-
-    // 2. Storm bearing. Slowly wanders; lightning uses it as its preferred
-    //    direction. Keeping it independent from the rain front means the storm
+    // 1. Storm bearing. Slowly wanders; lightning uses it as its preferred
+    //    direction. Keeping it independent from the rain cell means the storm
     //    still has a consistent "eye" direction while it builds.
     const bearingX = weatherNoise(t, 0.012, 4100);
     const bearingY = weatherNoise(t, 0.012, 4200);
@@ -165,14 +268,19 @@ export function createWeatherSystem(state, noise) {
       w.stormBearing = Math.atan2(bearingY, bearingX);
     }
 
-    // 3. Rain intensity (automatic mode only; the dev panel owns it manually).
+    // 2. Rain intensity (automatic mode only; the dev panel owns it manually).
+    //    The cell keeps a front alive for minutes instead of letting a short
+    //    noise gust turn rain on and off. The exponential approach only smooths
+    //    the phase ramps; it is not the source of the front's timing.
     if (w.auto) {
+      if (!wasAuto) resumeAutoRain();
+      const rainTarget = updateRainCell(dt, t);
       const rate = rainTarget > w.precipIntensity ? 0.70 : 0.30;
       w.precipIntensity = approach(w.precipIntensity, rainTarget, rate, dt);
       if (w.precipIntensity < 0.004) w.precipIntensity = 0;
     }
 
-    // 4. Wind. A slow, calm-biased baseline field, plus a storm component that
+    // 3. Wind. A slow, calm-biased baseline field, plus a storm component that
     //    grows with rain and pulls the direction toward the storm bearing. The
     //    separate "windiness" noise is important: heavy rain can be relatively
     //    still (a convective downpour), while frontal storms are usually windy.
@@ -203,8 +311,11 @@ export function createWeatherSystem(state, noise) {
       syncWindPolar();
     }
 
-    // 5. Lightning scheduling.
+    // 4. Lightning scheduling.
     updateLightning(dt);
+
+    // Remember the mode so re-enabling Auto can resume gracefully.
+    wasAuto = Boolean(w.auto);
   }
 
   return { update };

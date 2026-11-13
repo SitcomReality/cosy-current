@@ -19,6 +19,25 @@ const GROUND_SPLASH_RATE = 100;  // spawn attempts per second at max rain
 const CANOPY_IMPACT_RATE = 80;   // impacts per second at max rain
 const DRAW_THRESHOLD = 0.05;
 
+// Rain is simulated in screen space. The streak must point along the same
+// velocity that moves the drop, otherwise high wind draws a diagonal streak
+// while the droplet itself keeps falling almost straight down.
+const RAIN_FALL_SPEED = 1000;      // px/s, nominal fall speed
+const RAIN_WIND_SPEED_X = 1050;    // px/s at full wind along screen x
+const RAIN_WIND_SPEED_Y = 300;     // px/s at full wind along screen y
+
+// Shared by the renderer and QA. The angle is measured from straight down:
+// 0 = vertical rain, positive = rain travelling right.
+export function getRainFallVector(wind, fallSpeed = RAIN_FALL_SPEED) {
+  const vx = (wind && wind.x ? wind.x : 0) * RAIN_WIND_SPEED_X;
+  const vy = fallSpeed + (wind && wind.y ? wind.y : 0) * RAIN_WIND_SPEED_Y;
+  return {
+    x: vx,
+    y: vy,
+    angle: Math.atan2(vx, vy)
+  };
+}
+
 function ensureRenderState(state) {
   if (!state.weather._renderState) {
     state.weather._renderState = {
@@ -349,11 +368,9 @@ export function renderWeatherPass(ctx, state, chunkManager, tileSize, CHUNK_SIZE
   // 2. Rain streaks.
   ensureDropPool(state, rs);
   const activeDrops = Math.floor(rs.drops.length * precip);
-  const maxWindSpeed = 400;
-  const windX = wind.x * maxWindSpeed;
-  const windY = wind.y * maxWindSpeed * 0.35;
-  const slantX = wind.x * 40;
-  const slantY = wind.y * 12;
+  const windStrength = Math.max(0, Math.min(1, wind.strength || 0));
+  const windX = (wind.x || 0) * RAIN_WIND_SPEED_X;
+  const windY = (wind.y || 0) * RAIN_WIND_SPEED_Y;
   const baseAlpha = 0.3 + precip * 0.4;
 
   ctx.lineWidth = 2;
@@ -361,8 +378,13 @@ export function renderWeatherPass(ctx, state, chunkManager, tileSize, CHUNK_SIZE
   for (let i = 0; i < activeDrops; i++) {
     const d = rs.drops[i];
 
-    d.x += windX * dt;
-    d.y += (d.speed + windY) * dt;
+    // One velocity drives both the drop and the streak. At full wind the
+    // horizontal component is comparable to the fall speed, so the rain leans
+    // hard into the wind and travels along exactly that line.
+    const vx = windX;
+    const vy = d.speed + windY;
+    d.x += vx * dt;
+    d.y += vy * dt;
 
     // Camera parallax: closer drops (higher z) slip less, simulating their
     // presence in a world-space volume.
@@ -377,8 +399,16 @@ export function renderWeatherPass(ctx, state, chunkManager, tileSize, CHUNK_SIZE
     if (d.x > width) d.x -= width;
     if (d.x < 0) d.x += width;
 
+    // Trail directly opposite the velocity. The old code used separate slant
+    // offsets that were not tied to the motion, which is why the streaks and
+    // the falling drops disagreed at high wind.
+    const speed = Math.hypot(vx, vy) || 1;
+    const streakLength = d.len * (0.88 + 0.35 * windStrength);
+    const tailX = (vx / speed) * streakLength;
+    const tailY = (vy / speed) * streakLength;
+
     ctx.moveTo(d.x, d.y);
-    ctx.lineTo(d.x - slantX, d.y - d.len - slantY);
+    ctx.lineTo(d.x - tailX, d.y - tailY);
   }
 
   ctx.strokeStyle = `rgba(200, 230, 255, ${baseAlpha})`;

@@ -90,8 +90,11 @@ export function createUI({ container, state, renderer, noise, game }) {
     if (devWeatherReadout) {
       const rain = Math.round((weather.precipIntensity || 0) * 100);
       const strength = Math.round((wind.strength || 0) * 100);
+      const phase = weather.auto && weather._rainCell
+        ? ` · ${weather._rainCell.phase}`
+        : '';
       devWeatherReadout.textContent =
-        `${weather.auto ? 'AUTO' : 'MANUAL'} · rain ${rain}% · wind ${strength}% @ ${Math.round(degrees)}°`;
+        `${weather.auto ? 'AUTO' : 'MANUAL'} · rain ${rain}%${phase} · wind ${strength}% @ ${Math.round(degrees)}°`;
     }
   }
 

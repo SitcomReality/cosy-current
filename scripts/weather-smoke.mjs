@@ -60,6 +60,26 @@ export default async function ({ page, assert, screenshot, log }) {
   assert.ok(wind.weather.wind.strength > 0.99, 'manual wind should hold at full strength');
   assert.ok(wind.weather.particles, 'rain particle pools should be initialized');
   log(`particles: ${JSON.stringify(wind.weather.particles)}`);
+
+  // The streak angle and the drop's screen velocity must come from the same
+  // vector. At full east wind the rain should lean hard (well past vertical).
+  const rainVector = await page.evaluate(`(async () => {
+    const { getRainFallVector } = await import('/modules/renderer/passes/weather.js');
+    const wind = window.__webgame.snapshot().weather.wind;
+    return {
+      windy: getRainFallVector(wind),
+      calm: getRainFallVector({ x: 0, y: 0, strength: 0, angle: 0 })
+    };
+  })()`);
+  const windyDegrees = rainVector.windy.angle * 180 / Math.PI;
+  assert.ok(windyDegrees > 35,
+    `full wind should slant rain well past vertical (got ${windyDegrees.toFixed(1)}°)`);
+  assert.ok(Math.abs(rainVector.calm.angle) < 0.001,
+    'calm rain should fall straight down');
+  assert.ok(Math.abs(rainVector.windy.x) > Math.abs(rainVector.windy.y) * 0.8,
+    'full-wind rain should have a large horizontal velocity');
+  log(`rain vector at full wind: ${windyDegrees.toFixed(1)}° from vertical`);
+
   await screenshot('weather-wind-rain.png');
 
   // 4. Hand control back to the automatic simulation.

@@ -84,6 +84,10 @@ export function createAppState(savedData = null) {
       },
       auto: true,         // automatic fronts; false = dev sliders control it
       _weatherTime: 0,    // internal clock for fronts (not persisted)
+      // Runtime rain-front state machine: clear -> building -> raining ->
+      // clearing. Keeping this out of the save means weather always starts
+      // fresh, and no phase state can leak between sessions.
+      _rainCell: null,
       _renderState: null  // Runtime cache for particles
     },
 

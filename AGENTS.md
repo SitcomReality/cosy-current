@@ -89,7 +89,8 @@ cosy-current/
 
   docs/                   — Local setup, testing, known issues, provenance, and the
                             v1.0 completion goal (completion-goal.md)
-  scripts/                — QA scenarios (weather-smoke.mjs, lightning-sun-smoke.mjs)
+  scripts/                — QA scenarios (weather-smoke.mjs, lightning-sun-smoke.mjs,
+                            weather-auto-check.mjs)
   webgame.config.json     — Headless smoke-test config (webgame_check / webgame_smoke)
 
   modules/
@@ -240,10 +241,14 @@ Persistence is manual: `persistence.js` serializes `seed`, `dayTime`, `player` p
   Rays cast along the river detect land and steer the raft via winner-take-all scoring.
 - **Day/Night:** `state.dayTime` (0–1) drives smoothsteps for dawn/dusk transitions,
   shadow length/alpha/direction, ambient color tint, and raft light activation.
-- **Weather:** Low-frequency noise drives rain fronts, a global `wind` vector
-  (`x`, `y`, `strength`, `angle`), and a slowly-drifting `stormBearing`. Rain and wind
-  are coupled but not identical: storms tend to be windier, while a heavy convective
-  downpour can stay relatively calm. Lightning is scheduled only above ~50% rain and
+- **Weather:** Automatic rain runs as a duration-based cell
+  (`clear` → `build` → `rain` → `clearing`) so fronts build once, hold for at least a
+  minute, and clear instead of flickering with fast noise. A global `wind` vector
+  (`x`, `y`, `strength`, `angle`) and a slowly-drifting `stormBearing` evolve from
+  low-frequency noise. Rain and wind are coupled but not identical: storms tend to be
+  windier, while a heavy convective downpour can stay relatively calm. Rain streak
+  orientation and particle movement share one wind/fall vector, so the drops travel
+  along the line they are drawn with. Lightning is scheduled only above ~50% rain and
   prefers the storm bearing. A strike briefly acts as a temporary sun: it overrides cast
   shadow directions (trees, flora, fauna, birds, raft) and tree-face shading, lifts the
   ambient tint, and disables the raft headlamp until the flash decays. That light-source
@@ -336,6 +341,10 @@ There is **no unit-test framework or test runner**. The automated checks are:
   checks flash luminance, away-from-strike shadow direction, headlamp suppression, and
   that the shadow/lamp state stays latched through the flash decay. Run with
   `webgame_smoke --scenario scripts/lightning-sun-smoke.mjs`.
+- `scripts/weather-auto-check.mjs` — deterministic one-hour rain simulations across five
+  seeds. Asserts every front lasts at least 60 s, is followed by a 90 s dry spell, peaks
+  usefully, and that Auto resumes a front after manual rain. Run with
+  `node scripts/weather-auto-check.mjs`.
 
 Manual verification is still loading the game in a browser and playing it. For bugs:
 - Check the browser's developer console for errors.

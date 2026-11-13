@@ -60,8 +60,10 @@ After a change, load the game (see [development.md](development.md)) and check:
 - [ ] The raft drifts; `A`/`D` or arrow keys steer; mouse wheel zooms; middle-drag pans.
 - [ ] Rain/weather, day–night tint, fauna, trees, and collectables animate without
       console errors.
-- [ ] **Auto weather** produces a rain front on its own within a couple of minutes, then
-      clears; the Rain/Wind sliders follow the live values while Auto is on.
+- [ ] **Auto weather** produces a rain front on its own within a couple of minutes. The
+      front builds once, stays raining for at least a minute, then clears without briefly
+      dropping back to zero and restarting; the Rain/Wind sliders follow the live values
+      while Auto is on. The readout shows `clear`, `build`, `rain`, or `clearing`.
 - [ ] Touching Rain, Wind strength, or Wind direction switches the panel to **MANUAL**;
       ticking **Auto weather** hands control back to the simulation.
 - [ ] **Strike lightning** flashes the scene; lightning only appears automatically in
@@ -80,10 +82,16 @@ After a change, load the game (see [development.md](development.md)) and check:
       follow the tree lean.
 - [ ] At high wind, trees lean downwind and sway; their shadows lean with them. At wind 0
       the trees are still. **Reduced motion** disables the sway (it keeps the static lean) and softens/disables the lightning bolt.
+- [ ] With rain at 100% and wind at 100%, rain streaks lean hard into the wind and the
+      falling drops travel along that same slanted line. Lowering wind to 0 makes both
+      the streaks and the drop motion vertical again.
 - [ ] **DEV** panel opens; speed, stop/start, cycle speed, weather controls, and the
       renderer experiment controls respond.
 - [ ] The weather QA scenario passes:
       `webgame_smoke --scenario scripts/weather-smoke.mjs`.
+- [ ] The automatic-rain simulation check passes:
+      `node scripts/weather-auto-check.mjs` (five simulated hours; each front lasts at
+      least a minute, followed by a long dry spell).
 - [ ] The lightning-as-sun scenario passes:
       `webgame_smoke --scenario scripts/lightning-sun-smoke.mjs`.
 - [ ] At fractional wheel-zoom levels there are no 1px black grid lines between chunks.
