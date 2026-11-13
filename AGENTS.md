@@ -89,7 +89,7 @@ cosy-current/
 
   docs/                   — Local setup, testing, known issues, provenance, and the
                             v1.0 completion goal (completion-goal.md)
-  scripts/                — QA scenarios (weather-smoke.mjs, run via webgame_smoke)
+  scripts/                — QA scenarios (weather-smoke.mjs, lightning-sun-smoke.mjs)
   webgame.config.json     — Headless smoke-test config (webgame_check / webgame_smoke)
 
   modules/
@@ -151,7 +151,7 @@ cosy-current/
         objects.js        — Tree/aquatic/collectable rendering with per-prop lighting
         atmosphere.js     — Ambient overlay + raft headlight cone/radial gradient
         weather.js        — Ground + foreground rain: surface-aware splashes, canopy hits, parallax
-        lightning.js      — Directional lightning flash wash and occasional jagged bolt
+        lightning.js      — Lightning-as-sun shadow/lighting override, directional flash, jagged bolt
       fauna/              — Fauna rendering
         index.js          — renderFauna() + renderBirds() with night-light shadow
         shadows.js        — Creature shadow drawing
@@ -221,7 +221,7 @@ cosy-current/
 8. `renderBirdsPass` — Birds rendered on top of player.
 9. `renderWeatherPass` — Foreground rain streaks + tiny canopy impact glints/drips (screen-space with camera parallax).
 10. `renderAtmospherePass` — Ambient overlay (night/day tint with storm composited on top) + raft headlight cone/radial gradient.
-11. `renderLightningBoltPass` / `renderLightningFlashPass` — Occasional jagged bolt, then an additive directional flash that lifts the whole frame.
+11. `renderLightningBoltPass` / `renderLightningFlashPass` — Occasional jagged bolt, then an additive directional flash that lifts the whole frame. The same strike temporarily drives all cast shadows and suppresses the raft headlamp.
 
 ### State Management
 
@@ -244,8 +244,10 @@ Persistence is manual: `persistence.js` serializes `seed`, `dayTime`, `player` p
   (`x`, `y`, `strength`, `angle`), and a slowly-drifting `stormBearing`. Rain and wind
   are coupled but not identical: storms tend to be windier, while a heavy convective
   downpour can stay relatively calm. Lightning is scheduled only above ~50% rain and
-  prefers the storm bearing. Rain/wind auto-run by default; the dev panel switches to
-  manual control when a slider is touched.
+  prefers the storm bearing. A strike briefly acts as a temporary sun: it overrides cast
+  shadow directions (trees, flora, fauna, birds, raft) and tree-face shading, lifts the
+  ambient tint, and disables the raft headlamp until the flash decays. Rain/wind
+  auto-run by default; the dev panel switches to manual control when a slider is touched.
 
 ### Fauna System
 
@@ -328,6 +330,9 @@ There is **no unit-test framework or test runner**. The automated checks are:
   vs. stormy night (asserts the storm is darker), triggers lightning, frames a windy
   rain shot, and checks the debug weather API. Run with
   `webgame_smoke --scenario scripts/weather-smoke.mjs`.
+- `scripts/lightning-sun-smoke.mjs` — forces a night strike from a fixed direction and
+  checks flash luminance, away-from-strike shadow direction, and the headlamp-suppressed
+  flash frame. Run with `webgame_smoke --scenario scripts/lightning-sun-smoke.mjs`.
 
 Manual verification is still loading the game in a browser and playing it. For bugs:
 - Check the browser's developer console for errors.

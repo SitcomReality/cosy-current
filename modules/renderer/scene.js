@@ -10,7 +10,7 @@ import { renderFaunaPass, renderBirdsPass } from './passes/fauna.js';
 import { renderObjectsPass } from './passes/objects.js';
 import { renderAtmospherePass } from './passes/atmosphere.js';
 import { renderWeatherGroundPass, renderWeatherPass } from './passes/weather.js';
-import { renderLightningBoltPass, renderLightningFlashPass } from './passes/lightning.js';
+import { applyLightningCycle, getLightningLight, renderLightningBoltPass, renderLightningFlashPass } from './passes/lightning.js';
 
 export function createRenderer({ canvas, state, game, noise }) {
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -38,8 +38,27 @@ export function createRenderer({ canvas, state, game, noise }) {
   function renderFrame(timestamp) {
     advanceDayTime(state);
     const cycle = getCycleProps(state);
-    const shadowDir = { x: cycle.shadowDirX, y: cycle.shadowDirY };
+
+    // A lightning flash is a temporary sun: while it lasts, every cast shadow
+    // (trees, flora, fauna, birds, raft) and the tree-face lighting come from
+    // the strike direction, and the raft headlamp is overwhelmed. Terrain chunks
+    // keep the base time-of-day cycle because their water shading is baked and
+    // must not rebuild every frame during a flash.
+    const lightningLight = getLightningLight(state);
+    const sceneCycle = lightningLight ? applyLightningCycle(cycle, lightningLight) : cycle;
+    const shadowDir = { x: sceneCycle.shadowDirX, y: sceneCycle.shadowDirY };
     const now = performance.now();
+
+    // Small debug/QA cache: lets the harness confirm the frame's actual light
+    // source rather than inferring it from the raw weather values.
+    state._lastLighting = lightningLight ? {
+      intensity: lightningLight.intensity,
+      sourceDirX: lightningLight.sourceDirX,
+      sourceDirY: lightningLight.sourceDirY,
+      shadowDirX: sceneCycle.shadowDirX,
+      shadowDirY: sceneCycle.shadowDirY,
+      headlampActive: Boolean(sceneCycle.raftLightActive)
+    } : null;
 
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, state.width, state.height);
@@ -62,20 +81,20 @@ export function createRenderer({ canvas, state, game, noise }) {
     renderWeatherGroundPass(ctx, state, game, tileSize);
 
     if (state.fauna && state.fauna.creatures) {
-      renderFaunaPass(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightActive);
+      renderFaunaPass(ctx, state, tileSize, state.fauna.creatures, sceneCycle, shadowDir, noise, sceneCycle.raftLightActive);
     }
 
-    renderObjectsPass(ctx, state, game, chunkManager, tileSize, cycle, shadowDir, noise, CHUNK_SIZE, TREES, FLORA);
+    renderObjectsPass(ctx, state, game, chunkManager, tileSize, sceneCycle, shadowDir, noise, CHUNK_SIZE, TREES, FLORA);
     chunkManager.pruneCache();
 
-    drawPlayer(ctx, state, tileSize, cycle, shadowDir, noise);
+    drawPlayer(ctx, state, tileSize, sceneCycle, shadowDir, noise);
 
     if (state.fauna && state.fauna.creatures) {
-      renderBirdsPass(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightActive);
+      renderBirdsPass(ctx, state, tileSize, state.fauna.creatures, sceneCycle, shadowDir, noise, sceneCycle.raftLightActive);
     }
 
     renderWeatherPass(ctx, state, chunkManager, tileSize, CHUNK_SIZE);
-    renderAtmospherePass(ctx, state, cycle, 0.9);
+    renderAtmospherePass(ctx, state, sceneCycle, 0.9);
 
     // Lightning is drawn after the atmosphere: the bolt should not be dimmed by
     // the storm tint, and the additive flash must lift the entire frame

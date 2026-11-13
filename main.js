@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
           isPlaying: Boolean(state.isPlaying),
           dayTime: state.dayTime,
           tileSize: state.tileSize,
+          lighting: state._lastLighting || null,
           player: {
             x: state.player.x,
             y: state.player.y,
@@ -59,6 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
               flash: w.lightning.flash,
               dirX: w.lightning.dirX,
               dirY: w.lightning.dirY,
+              shadowDirX: -w.lightning.dirX,
+              shadowDirY: -w.lightning.dirY,
               boltSeed: w.lightning.boltSeed
             },
             particles: w._renderState ? {
@@ -119,6 +122,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
       strikeLightning() {
         if (app.state.weather.lightning) app.state.weather.lightning.force = true;
+      },
+
+      // Set a flash state for deterministic screenshots/QA. The game loop will
+      // resume decaying it on the next frame after this call.
+      setLightning(options = {}) {
+        const L = app.state.weather.lightning;
+        if (!L) return null;
+        if (typeof options.flash === 'number') L.flash = clamp01(options.flash);
+        if (typeof options.dirX === 'number' && typeof options.dirY === 'number') {
+          const len = Math.hypot(options.dirX, options.dirY) || 1;
+          L.dirX = options.dirX / len;
+          L.dirY = options.dirY / len;
+        }
+        if (typeof options.boltSeed === 'number') L.boltSeed = clamp01(options.boltSeed);
+        return this.snapshot();
       }
     };
   });

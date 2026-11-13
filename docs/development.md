@@ -80,6 +80,12 @@ downpour can stay relatively calm). Lightning is only scheduled automatically wh
 is above ~50%, and strikes prefer the slowly-drifting storm bearing rather than a random
 screen direction.
 
+A strike briefly acts as a second sun. While the flash is active it overrides the
+time-of-day shadow direction and tree-face lighting, lights the whole scene from the
+storm-bearing side, and overwhelms the raft headlamp (its cone disappears until the
+flash decays). Cast shadows therefore point away from the strike; this applies to
+trees, aquatic plants, fauna, birds and the raft.
+
 The same state can be forced from the URL:
 
 ```text
@@ -96,7 +102,11 @@ window.__webgame.setWeather({ rain: 1, windStrength: 1, windAngle: 0, auto: fals
 window.__webgame.setDayTime(0.95)
 window.__webgame.setCamera(x, y)             // unlocks the camera for framing
 window.__webgame.strikeLightning()
+window.__webgame.setLightning({ flash: 1, dirX: -0.7, dirY: -0.7, boltSeed: 0.9 })
 ```
+
+`setLightning()` is for deterministic QA only; the game loop resumes decaying the flash
+on the next frame.
 
 ### Renderer experiments
 
@@ -124,14 +134,23 @@ The same options can be opened directly:
 
 These flags are not persisted and are not part of the save file.
 
-### Weather smoke scenario
+## Weather and lightning QA scenarios
 
 `scripts/weather-smoke.mjs` forces clear night, stormy night, lightning, and a windy rain
-frame, and asserts that the stormy night is measurably darker than the clear
-night. Run it with:
+frame, and asserts that the stormy night is measurably darker than the clear night.
+Run it with:
 
 ```bash
 webgame_smoke --scenario scripts/weather-smoke.mjs
+```
+
+`scripts/lightning-sun-smoke.mjs` freezes a night strike from the upper-left and checks
+that the flash lights the scene, the cast-shadow vector points away from the strike, and
+the headlamp is suppressed. It writes `lightning-sun-before.png` and
+`lightning-sun-during.png` for side-by-side review:
+
+```bash
+webgame_smoke --scenario scripts/lightning-sun-smoke.mjs
 ```
 
 ## Where things are

@@ -47,7 +47,7 @@ npx serve . -p 8080
 
 - Procedural infinite river world (simplex + Perlin noise, domain-warped)
 - Day/night cycle (~5 min per day) with dynamic shadows and lighting
-- Dynamic weather (rain, wind, lightning) driven by noise, with wind-reactive trees and surface-aware splashes
+- Dynamic weather (rain, wind, lightning) driven by noise, with wind-reactive trees, surface-aware splashes, and lightning that briefly acts as the scene's sun
 - Living ecosystem: fish, birds, deer, crabs, fireflies, sheep, turtles, eels
 - Natural landmarks: fallen trees, rock arches, hot springs, river confluences
 - 8 collectable materials + 4 relics

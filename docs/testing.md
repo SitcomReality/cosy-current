@@ -67,6 +67,9 @@ After a change, load the game (see [development.md](development.md)) and check:
 - [ ] **Strike lightning** flashes the scene; lightning only appears automatically in
       heavy rain, and the flash is brighter on the storm-bearing side. A jagged bolt
       appears on some strikes.
+- [ ] During a flash, lightning is the scene's light source: tree faces, creature and
+      raft shadows all switch to the strike direction, with shadows pointing away from
+      it. A lit raft headlamp is overwhelmed; its cone disappears for the flash.
 - [ ] Night + maximum storm is visibly darker than clear night. Compare
       `/?dev&time=0.95&rain=0` with `/?dev&time=0.95&rain=1&wind=0.7`.
 - [ ] Water splashes are small flattened ripples, land splashes are tiny ticks, and
@@ -78,6 +81,8 @@ After a change, load the game (see [development.md](development.md)) and check:
       renderer experiment controls respond.
 - [ ] The weather QA scenario passes:
       `webgame_smoke --scenario scripts/weather-smoke.mjs`.
+- [ ] The lightning-as-sun scenario passes:
+      `webgame_smoke --scenario scripts/lightning-sun-smoke.mjs`.
 - [ ] At fractional wheel-zoom levels there are no 1px black grid lines between chunks.
 - [ ] In the dev panel, **Terrain** switches between Hull, Boundary polygons, and Hybrid border; **Hybrid ring** 1–3 changes the exact-tile band; **Water shading** switches between Baked / World-sampled / Flat. None of them throws or leaves chunk-edge background gaps.
 - [ ] Settings modal opens/closes. Collection and Dock buttons open their modals.
