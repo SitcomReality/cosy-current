@@ -52,7 +52,8 @@ export function createChunkPropsManager({ CHUNK_SIZE, game, noise }) {
                x: worldX + jx * 0.8, 
                y: worldY + jy * 0.8, 
                h: 2.0 + rand * 1.6, // doubled size range (was 1.0 + rand * 0.8)
-               type: 'forest' 
+               type: 'forest',
+               phase: rand * Math.PI * 2
              });
           }
         } else if (tile === game.CONSTANTS.TILE_GRASS) {
@@ -63,7 +64,8 @@ export function createChunkPropsManager({ CHUNK_SIZE, game, noise }) {
                x: worldX + jx * 0.8, 
                y: worldY + jy * 0.8, 
                h: 2.0 + rand * 1.6, // now matches forest size range and doubled from previous grass sizes
-               type: 'grass' 
+               type: 'grass',
+               phase: rand * Math.PI * 2
              });
           }
         } else if (tile === game.CONSTANTS.TILE_WATER) {

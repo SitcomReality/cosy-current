@@ -1,10 +1,11 @@
-import { drawTreeShadow, drawTree, drawAquaticPlant, drawAquaticShadow } from '../objects.js';
+import { drawTreeShadow, drawTree, drawAquaticPlant, drawAquaticShadow, getTreeLean } from '../objects.js';
 import { shortestAngleDiff } from '../../fauna/utils.js';
 import { drawCollectable } from '../objects/collectables.js';
 
 export function renderObjectsPass(ctx, state, game, chunkManager, tileSize, cycle, shadowDir, noise, CHUNK_SIZE, TREES, FLORA) {
   const centerX = state.width / 2;
   const centerY = state.height / 2;
+  const treeLean = { x: 0, y: 0 };
 
   // Render collectables
   if (state.collectables && state.collectables.length > 0) {
@@ -110,7 +111,8 @@ export function renderObjectsPass(ctx, state, game, chunkManager, tileSize, cycl
         }
 
         if (prop.type === 'forest' || prop.type === 'grass') {
-          drawTreeShadow(ctx, state, state.camera, tileSize, prop, propCycle, propShadowDir);
+          getTreeLean(prop, state, tileSize, treeLean);
+          drawTreeShadow(ctx, state, state.camera, tileSize, prop, propCycle, propShadowDir, treeLean);
         } else {
           drawAquaticShadow(ctx, state, tileSize, prop, propCycle, propShadowDir);
         }
@@ -167,7 +169,8 @@ export function renderObjectsPass(ctx, state, game, chunkManager, tileSize, cycl
         }
 
         if (prop.type === 'forest' || prop.type === 'grass') {
-          drawTree(ctx, state, tileSize, prop, TREES, propCycle);
+          getTreeLean(prop, state, tileSize, treeLean);
+          drawTree(ctx, state, tileSize, prop, TREES, propCycle, treeLean);
         } else {
           drawAquaticPlant(ctx, state, tileSize, prop, FLORA);
         }

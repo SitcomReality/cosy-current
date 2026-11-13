@@ -2,7 +2,7 @@
 // entities, and the player raft. This keeps the original import path stable while
 // allowing each concern to live in its own module.
 
-export { drawTreeShadow, drawTree } from './objects/tree.js';
+export { drawTreeShadow, drawTree, getTreeLean } from './objects/tree.js';
 export { drawAquaticShadow, drawAquaticPlant } from './objects/aquatic.js';
 export { drawJaggedInfluence, drawEntities } from './objects/entities.js';
 export { drawPlayer } from './objects/player.js';

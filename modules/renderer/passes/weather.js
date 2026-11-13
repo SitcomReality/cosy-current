@@ -10,6 +10,8 @@
 //   * bank/grass: tiny ground ticks,
 //   * forest: no ground splash; canopy impacts are attached to the trees.
 
+import { getTreeLean } from '../objects/tree.js';
+
 const MAX_DROPS = 400;
 const MAX_GROUND_SPLASHES = 400;
 const MAX_CANOPY_IMPACTS = 220;
@@ -249,6 +251,8 @@ function spawnCanopyImpacts(state, chunkManager, tileSize, CHUNK_SIZE, rs, dt) {
     rs.canopy.push({
       wx: prop.x,
       wy: prop.y,
+      tree: prop,
+      treeH,
       offX: (Math.random() - 0.5) * baseW * 0.60,
       offY: -treeH * (0.52 + Math.random() * 0.36),
       size: tileSize * (0.040 + Math.random() * 0.030) * (0.85 + prop.h * 0.10),
@@ -271,6 +275,7 @@ function updateAndDrawCanopy(ctx, state, tileSize, rs, dt) {
 
   ctx.lineWidth = 1;
   ctx.strokeStyle = 'rgba(225, 242, 255, 1)';
+  const canopyLean = { x: 0, y: 0 };
 
   for (let i = rs.canopy.length - 1; i >= 0; i--) {
     const c = rs.canopy[i];
@@ -281,8 +286,17 @@ function updateAndDrawCanopy(ctx, state, tileSize, rs, dt) {
     }
 
     const progress = 1 - (c.life / c.maxLife);
-    const sx = (c.wx - state.camera.x) * tileSize + centerX + c.offX;
-    const sy = (c.wy - state.camera.y) * tileSize + centerY + c.offY +
+    if (c.tree) {
+      getTreeLean(c.tree, state, tileSize, canopyLean);
+    } else {
+      canopyLean.x = 0;
+      canopyLean.y = 0;
+    }
+    const heightFactor = c.treeH > 0 ? (-c.offY / c.treeH) : 0.7;
+    const leanX = canopyLean.x * heightFactor;
+    const leanY = canopyLean.y * heightFactor;
+    const sx = (c.wx - state.camera.x) * tileSize + centerX + c.offX + leanX;
+    const sy = (c.wy - state.camera.y) * tileSize + centerY + c.offY + leanY +
       (c.drip ? progress * c.fall : 0);
     if (sx < -30 || sx > state.width + 30 || sy < -30 || sy > state.height + 30) {
       continue;
