@@ -36,6 +36,29 @@ export function createNotificationSystem() {
     show(message, 'info', 2500);
   }
 
-  return { show, discovery, warning, info };
+  // Onboarding hints - non-blocking, dismiss on tap
+  let hintQueue = [
+    { message: 'Tap items to collect them', delay: 3000 },
+    { message: 'Follow the relic counter (✦) to find 4 treasures', delay: 10000 },
+    { message: 'Hold SPACE to gather nearby items', delay: 20000 },
+    { message: 'Tap ⚓ to customize your raft at The Dock', delay: 35000 }
+  ];
+  let hintIndex = 0;
+  let hintTimer = 0;
+
+  function updateHints(dt, onboardingSeen) {
+    if (onboardingSeen) return;
+    hintTimer += dt;
+    if (hintIndex < hintQueue.length && hintTimer >= hintQueue[hintIndex].delay / 1000) {
+      show(hintQueue[hintIndex].message, 'info', 5000);
+      hintIndex++;
+    }
+  }
+
+  function markOnboardingSeen() {
+    hintQueue = []; // Clear queue
+  }
+
+  return { show, discovery, warning, info, updateHints, markOnboardingSeen };
 }
 

@@ -55,20 +55,24 @@ function drawCollectableIndicator(ctx, size, color, collectable) {
   // Apply gentle rotation to the whole halo so it slowly turns while bobbing
   ctx.rotate(rotation);
 
+  // Check if this is a guaranteed relic - use distinct gold color
+  const isGuaranteed = collectable && collectable.isGuaranteedRelic;
+  
   // Create a radial gradient: opaque center -> transparent edge
   const outer = indicatorSize;
   // Slightly larger inner core to match the increased overall indicator
   const inner = indicatorSize * 0.28;
 
-  // Slightly tint center with GOLD_COLOR, mix toward provided color for a subtle hue
-  const centerColor = GOLD_COLOR;
-  const midColor = color || centerColor;
+  // Guaranteed relics get a distinctive gold/white glow
+  const centerColor = isGuaranteed ? '#fffbeb' : GOLD_COLOR;
+  const midColor = isGuaranteed ? '#fde68a' : (color || centerColor);
+  const edgeColor = isGuaranteed ? '#fcd34d' : (midColor || color);
 
   const grad = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
   grad.addColorStop(0.0, centerColor);
   grad.addColorStop(0.2, midColor);
-  grad.addColorStop(0.6, hexToRgba(midColor, 0.28));
-  grad.addColorStop(1.0, hexToRgba(midColor, 0.0));
+  grad.addColorStop(0.6, hexToRgba(edgeColor, isGuaranteed ? 0.4 : 0.28));
+  grad.addColorStop(1.0, hexToRgba(edgeColor, 0.0));
 
   // Draw circular haze using gradient
   ctx.globalCompositeOperation = 'lighter';
@@ -77,12 +81,26 @@ function drawCollectableIndicator(ctx, size, color, collectable) {
   ctx.arc(0, 0, outer, 0, Math.PI * 2);
   ctx.fill();
 
+  // For guaranteed relics, add a second outer ring pulse
+  if (isGuaranteed) {
+    const pulse = 0.8 + 0.3 * Math.sin(age * 3);
+    const ringOuter = indicatorSize * 1.3 * pulse;
+    const ringGrad = ctx.createRadialGradient(0, 0, indicatorSize * 1.1, 0, 0, ringOuter);
+    ringGrad.addColorStop(0.0, hexToRgba('#fde68a', 0.0));
+    ringGrad.addColorStop(0.5, hexToRgba('#fbbf24', 0.15));
+    ringGrad.addColorStop(1.0, hexToRgba('#f59e0b', 0.0));
+    ctx.fillStyle = ringGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, ringOuter, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // Add a subtle inner angular core (small diamond) to retain the collectable "badge" silhouette,
   // but keep it semi-transparent so the gradient remains the dominant visual.
   ctx.rotate(Math.PI / 8); // slight offset for visual interest
   // Increase the inner highlight to better match the enlarged halo while keeping it soft.
   const innerSize = indicatorSize * 1.1;
-  ctx.fillStyle = hexToRgba('#ffffff', 0.035);
+  ctx.fillStyle = hexToRgba('#ffffff', isGuaranteed ? 0.08 : 0.035);
   ctx.beginPath();
   ctx.moveTo(0, -innerSize);
   ctx.lineTo(innerSize, 0);
@@ -204,4 +222,3 @@ function drawGenericCollectable(ctx, screenX, screenY, collectableDrawSize, colo
   ctx.shadowBlur = 0;
   ctx.restore(); // Restore screen X/Y offset
 }
-

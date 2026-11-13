@@ -1,5 +1,5 @@
-import { ENTITY_CITY, ENTITY_RELIC } from './constants.js';
-import { INTERACTION_RADIUS, TILE_GRASS } from './constants.js';
+import { ENTITY_LANDMARK, ENTITY_RELIC, TILE_GRASS, LANDMARK_TYPES } from './constants.js';
+import { INTERACTION_RADIUS } from './constants.js';
 
 export function createEntitiesModule(state) {
   function spawnEntity(x, y, type) {
@@ -8,16 +8,23 @@ export function createEntitiesModule(state) {
       x,
       y,
       type,
-      timer: 0
+      timer: 0,
+      // Landmarks get a subtype
+      landmarkType: type === ENTITY_LANDMARK ? pickRandomLandmarkType() : null
     });
+  }
+
+  function pickRandomLandmarkType() {
+    const types = Object.values(LANDMARK_TYPES);
+    return types[Math.floor(Math.random() * types.length)];
   }
 
   // Manage spawning and cleanup used by game.update
   // Now accepts getTile and getHeight for placement checks
   function maintainEntities(getTile, getHeight, player) {
-    if (state.entities.length < 10) {
+    if (state.entities.length < 8) { // reduced from 10
       const angle = Math.random() * Math.PI * 2;
-      const dist = 30 + Math.random() * 50;
+      const dist = 25 + Math.random() * 40; // slightly closer
       const ex = player.x + Math.cos(angle) * dist;
       const ey = player.y + Math.sin(angle) * dist;
 
@@ -56,7 +63,8 @@ export function createEntitiesModule(state) {
         }
 
         if (!tooClose) {
-          spawnEntity(ex, ey, Math.random() > 0.5 ? ENTITY_CITY : ENTITY_RELIC);
+          // Only spawn landmarks now (no decorative relic markers)
+          spawnEntity(ex, ey, ENTITY_LANDMARK);
         }
       }
     }

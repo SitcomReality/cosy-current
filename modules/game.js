@@ -81,12 +81,22 @@ export function createGame({ state, noise }) {
     }
   }
 
+  function getRelicCount() {
+    return collectablesModule.getRelicCount();
+  }
+
+  function getTotalRelics() {
+    return collectablesModule.getTotalRelics();
+  }
+
   return {
     getTile,
     getHeight,
     spawnEntity,
     collectItem,
     update,
+    getRelicCount,
+    getTotalRelics,
     CONSTANTS: {
       TILE_WATER: C.TILE_WATER, TILE_BANK: C.TILE_BANK, TILE_GRASS: C.TILE_GRASS,
       TILE_FOREST: C.TILE_FOREST,

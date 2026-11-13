@@ -10,6 +10,7 @@
   /* Use ChineseRocks for general UI and AldotheApache for headings */
   --font-main: "ChineseRocksRg", "AldotheApache", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-heading: "AldotheApache", "ChineseRocksRg", "Oswald", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --text-scale: 1;
 }
 
 /* Load bundled fonts (paths are relative to this stylesheet so the game can be
@@ -52,6 +53,7 @@ html, body {
   color: var(--text-primary);
   font-family: var(--font-main);
   -webkit-font-smoothing: antialiased;
+  font-size: calc(16px * var(--text-scale));
 }
 
 #app {
@@ -87,4 +89,101 @@ button {
 button:hover {
   background-color: #b0d0cc;
   border-color: #934;
+}
+
+/* Reduced motion support */
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Screen utility */
+.screen {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.screen.active-flex {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Modal base */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+}
+.modal.hidden {
+  display: none !important;
+}
+.modal:not(.hidden) {
+  display: flex;
+}
+.modal-content {
+  background: #161b22;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.modal-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Fade transitions */
+.fade-out {
+  animation: fadeOut 0.5s ease-out forwards;
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Title menu */
+.title-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 2rem;
+}
+.title-menu .btn-large {
+  width: 100%;
+}
+.title-menu .btn-text {
+  width: 100%;
+  text-align: center;
 }

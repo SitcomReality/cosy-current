@@ -51,6 +51,158 @@ export function drawJaggedInfluence(ctx, centerX, centerY, radius, seedStr, fill
   ctx.restore();
 }
 
+// Draw natural landmark types with straight-line aesthetic
+function drawFallenTree(ctx, x, y, size) {
+  // Trunk - long horizontal log
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#5c4033';
+  ctx.beginPath();
+  // Long horizontal trunk
+  ctx.moveTo(-size * 1.5, -size * 0.2);
+  ctx.lineTo(size * 1.5, -size * 0.2);
+  ctx.lineTo(size * 1.5, size * 0.2);
+  ctx.lineTo(-size * 1.5, size * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Branches - short angular protrusions
+  ctx.fillStyle = '#4a3728';
+  for (let i = -1; i <= 1; i++) {
+    const bx = i * size * 0.7;
+    const branchH = size * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(bx, -size * 0.2);
+    ctx.lineTo(bx - size * 0.15, -size * 0.2 - branchH);
+    ctx.lineTo(bx + size * 0.15, -size * 0.2 - branchH);
+    ctx.lineTo(bx + size * 0.3, -size * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.moveTo(bx, size * 0.2);
+    ctx.lineTo(bx - size * 0.15, size * 0.2 + branchH);
+    ctx.lineTo(bx + size * 0.15, size * 0.2 + branchH);
+    ctx.lineTo(bx + size * 0.3, size * 0.2);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawRockArch(ctx, x, y, size) {
+  // Stone arch - two pillars with a lintel
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#6b7280';
+  
+  // Left pillar
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.6, size * 0.8);
+  ctx.lineTo(-size * 0.6, -size * 0.2);
+  ctx.lineTo(-size * 0.3, -size * 0.2);
+  ctx.lineTo(-size * 0.3, size * 0.8);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Right pillar
+  ctx.beginPath();
+  ctx.moveTo(size * 0.3, size * 0.8);
+  ctx.lineTo(size * 0.3, -size * 0.2);
+  ctx.lineTo(size * 0.6, -size * 0.2);
+  ctx.lineTo(size * 0.6, size * 0.8);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Lintel (top beam)
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.7, -size * 0.2);
+  ctx.lineTo(size * 0.7, -size * 0.2);
+  ctx.lineTo(size * 0.7, -size * 0.5);
+  ctx.lineTo(-size * 0.7, -size * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Highlight on lintel
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillRect(-size * 0.7, -size * 0.5, size * 1.4, size * 0.1);
+  ctx.restore();
+}
+
+function drawHotSpring(ctx, x, y, size) {
+  // Steam vents + pool - all straight lines
+  ctx.save();
+  ctx.translate(x, y);
+  
+  // Pool - octagonal
+  ctx.fillStyle = '#0ea5e9';
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const r = size * 0.6;
+    const px = Math.cos(ang) * r;
+    const py = Math.sin(ang) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  
+  // Steam - three vertical lines with angular offset
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  for (let i = -1; i <= 1; i++) {
+    const sx = i * size * 0.25;
+    ctx.beginPath();
+    ctx.moveTo(sx, -size * 0.6);
+    ctx.lineTo(sx - size * 0.1, -size * 1.2);
+    ctx.lineTo(sx + size * 0.1, -size * 1.5);
+    ctx.lineTo(sx - size * 0.1, -size * 1.8);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawRiverConfluence(ctx, x, y, size) {
+  // Y-shaped river junction
+  ctx.save();
+  ctx.translate(x, y);
+  
+  // Main river stem (vertical)
+  ctx.fillStyle = '#0ea5e9';
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.3, size * 0.8);
+  ctx.lineTo(-size * 0.3, -size * 0.1);
+  ctx.lineTo(size * 0.3, -size * 0.1);
+  ctx.lineTo(size * 0.3, size * 0.8);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Left branch
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.3, -size * 0.1);
+  ctx.lineTo(-size * 0.8, -size * 0.6);
+  ctx.lineTo(-size * 1.1, -size * 0.5);
+  ctx.lineTo(-size * 0.8, -size * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Right branch
+  ctx.beginPath();
+  ctx.moveTo(size * 0.3, -size * 0.1);
+  ctx.lineTo(size * 0.8, -size * 0.6);
+  ctx.lineTo(size * 1.1, -size * 0.5);
+  ctx.lineTo(size * 0.8, -size * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Highlight on water
+  ctx.fillStyle = '#7dd3fc';
+  ctx.fillRect(-size * 0.3, -size * 0.1, size * 0.6, size * 0.15);
+  ctx.restore();
+}
+
 export function drawEntities(ctx, state, tileSize, game, centerX, centerY) {
   const MARGIN = tileSize * 2;
   state.entities.forEach(ent => {
@@ -66,36 +218,37 @@ export function drawEntities(ctx, state, tileSize, game, centerX, centerY) {
 
     const influenceRadiusPx = (game.CONSTANTS.INTERACTION_RADIUS || 35) * tileSize;
 
-    if (ent.type === game.CONSTANTS.ENTITY_CITY) {
-      // Draw an outlined, desaturated influence ring instead of filled green
-      drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_city', {
+    if (ent.type === game.CONSTANTS.ENTITY_LANDMARK) {
+      // Draw subtle influence ring
+      drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_landmark', {
         outline: true,
-        strokeColor: 'rgba(255,255,255,0.28)',
-        lineWidth: 10
+        strokeColor: 'rgba(16,185,129,0.35)', // emerald green tint
+        lineWidth: 8
       }, edgeFade);
+      
       ctx.save();
       ctx.globalAlpha = edgeFade;
-      ctx.fillStyle = '#10b981';
-      ctx.fillRect(screenX, screenY, tileSize, tileSize);
-      ctx.fillStyle = '#065f46';
-      ctx.fillRect(screenX + tileSize/2 - tileSize*0.1, screenY, tileSize*0.2, tileSize*0.6);
-      ctx.restore();
-    } else if (ent.type === game.CONSTANTS.ENTITY_RELIC) {
-      // Draw an outlined, desaturated influence ring instead of filled orange
-      drawJaggedInfluence(ctx, screenX + tileSize/2, screenY + tileSize/2, influenceRadiusPx, ent.id + '_relic', {
-        outline: true,
-        strokeColor: 'rgba(255,255,255,0.28)',
-        lineWidth: 10
-      }, edgeFade);
-      ctx.save();
-      ctx.globalAlpha = edgeFade;
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath();
-      ctx.moveTo(screenX + tileSize/2, screenY);
-      ctx.lineTo(screenX + tileSize, screenY + tileSize);
-      ctx.lineTo(screenX, screenY + tileSize);
-      ctx.fill();
+      ctx.translate(screenX + tileSize/2, screenY + tileSize/2);
+      
+      // Draw the landmark based on type
+      switch (ent.landmarkType) {
+        case game.CONSTANTS.LANDMARK_TYPES.FALLEN_TREE:
+          drawFallenTree(ctx, 0, 0, tileSize * 0.5);
+          break;
+        case game.CONSTANTS.LANDMARK_TYPES.ROCK_ARCH:
+          drawRockArch(ctx, 0, 0, tileSize * 0.5);
+          break;
+        case game.CONSTANTS.LANDMARK_TYPES.HOT_SPRING:
+          drawHotSpring(ctx, 0, 0, tileSize * 0.5);
+          break;
+        case game.CONSTANTS.LANDMARK_TYPES.RIVER_CONFLUENCE:
+          drawRiverConfluence(ctx, 0, 0, tileSize * 0.5);
+          break;
+        default:
+          drawFallenTree(ctx, 0, 0, tileSize * 0.5);
+      }
       ctx.restore();
     }
+    // ENTITY_RELIC decorative markers removed - they're now only collectable items
   });
 }

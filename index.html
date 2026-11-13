@@ -3,9 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="description" content="Cosy Current — A gentle river-world simulator. Drift, collect, discover.">
+    <meta name="theme-color" content="#0d1117">
+    <meta property="og:title" content="Cosy Current">
+    <meta property="og:description" content="A gentle river-world simulator. Drift, collect, discover.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="og-image.png">
     <title>Cosy Current</title>
-    <!-- Inline empty favicon: avoids a spurious /favicon.ico request (no network needed) -->
-    <link rel="icon" href="data:,">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     
     <!-- Modular CSS -->
     <link href="styles/base.css" rel="stylesheet" />
@@ -20,8 +25,31 @@
       <canvas id="main-canvas"></canvas>
       
       <div id="ui-layer">
-        <!-- Start Screen -->
-        <div id="start-screen" class="screen active-flex">
+        <!-- Title Screen -->
+        <div id="title-screen" class="screen active-flex">
+          <div class="title-container">
+            <h1 class="game-title">Cosy Current</h1>
+            <p class="game-subtitle">A gentle river-world simulator</p>
+          </div>
+          <div class="title-menu">
+            <button id="btn-new-journey" class="btn-large">New Journey</button>
+            <button id="btn-continue-journey" class="btn-large hidden">Continue Journey</button>
+            <button id="btn-settings-title" class="btn-large">Settings</button>
+            <button id="btn-credits-title" class="btn-text">Credits</button>
+          </div>
+
+          <div class="splash-credit">
+            <div class="credit-line">A ripple from</div>
+            <span class="splash-credit-mark" title="SitcomReality">
+              <img src="sitcomreality.png" alt="SitcomReality" title="SitcomReality" width="250" height="70">
+            </span>
+          </div>
+
+          <div class="version">v1.0.0</div>
+        </div>
+
+        <!-- Start Screen (legacy, kept for Continue Journey flow) -->
+        <div id="start-screen" class="screen">
           <div class="title-container">
             <h1 class="game-title">Cosy Current</h1>
             <p class="game-subtitle">A gentle river-world simulator</p>
@@ -41,7 +69,7 @@
             </span>
           </div>
 
-          <div class="version">v0.2.0 Alpha</div>
+          <div class="version">v1.0.0</div>
         </div>
 
         <!-- In-Game HUD -->
@@ -86,6 +114,13 @@
               <span style="font-size:0.7rem;font-weight:bold;">DEV</span>
             </button>
 
+            <button id="btn-pause" class="btn-icon" aria-label="Pause">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            </button>
+
             <button id="btn-settings-toggle" class="btn-icon" aria-label="Settings">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"></circle>
@@ -98,7 +133,7 @@
           <div id="settings-modal" class="modal hidden">
             <div class="modal-content">
               <div class="modal-header">
-                <h2>Generation Settings</h2>
+                <h2>Settings</h2>
                 <button id="btn-close-settings" class="btn-close">&times;</button>
               </div>
               <div id="settings-controls-container" class="modal-body">
@@ -107,7 +142,67 @@
             </div>
           </div>
 
+          <!-- Pause Menu -->
+          <div id="pause-menu" class="modal hidden">
+            <div class="modal-content" style="max-width: 320px;">
+              <div class="modal-header">
+                <h2>Paused</h2>
+                <button id="btn-close-pause" class="btn-close">&times;</button>
+              </div>
+              <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <button id="btn-resume" class="btn-large">Resume</button>
+                <button id="btn-pause-settings" class="btn-large">Settings</button>
+                <button id="btn-abandon-journey" class="btn-large" style="background: #ef4444;">Abandon Journey</button>
+                <button id="btn-return-title" class="btn-text">Return to Title</button>
+              </div>
+            </div>
+          </div>
 
+          <!-- Credits Modal -->
+          <div id="credits-modal" class="modal hidden">
+            <div class="modal-content" style="max-width: 400px;">
+              <div class="modal-header">
+                <h2>Credits</h2>
+                <button id="btn-close-credits" class="btn-close">&times;</button>
+              </div>
+              <div class="modal-body" style="text-align: center; line-height: 1.8;">
+                <p style="font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem;">Cosy Current</p>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">A gentle river-world simulator</p>
+                <p style="margin-bottom: 0.5rem;"><strong>Created by</strong> SitcomReality</p>
+                <p style="margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 0.9rem;">Designed, programmed, and illustrated by one person.</p>
+                <p style="margin-bottom: 0.5rem;"><strong>Fonts</strong></p>
+                <ul style="text-align: left; display: inline-block; color: var(--text-secondary); font-size: 0.85rem; line-height: 2;">
+                  <li>Aldothe Apache — Aldothe</li>
+                  <li>Chinese Rocks — Ray Larabie</li>
+                  <li>Oswald — Vernon Adams (SIL OFL 1.1)</li>
+                </ul>
+                <p style="margin-top: 2rem; margin-bottom: 0.5rem;"><strong>Tech</strong></p>
+                <p style="color: var(--text-secondary); font-size: 0.85rem;">Vanilla JS + Canvas 2D, no build step, no dependencies.</p>
+                <p style="margin-top: 2rem; color: var(--text-secondary); font-size: 0.8rem;">Thank you for playing.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ending Modal -->
+          <div id="ending-modal" class="modal hidden">
+            <div class="modal-content" style="max-width: 480px; text-align: center;">
+              <div class="modal-body" style="padding: 3rem 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">✦</div>
+                <h2 style="margin-bottom: 1.5rem;">The River Remembers</h2>
+                <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 1rem;">
+                  Four treasures returned to the current.<br>
+                  The water carries them onward,<br>
+                  and the raft drifts on.
+                </p>
+                <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 2rem;">
+                  The journey doesn't end here.<br>
+                  There are still materials to gather,<br>
+                  parts to craft, and banks to explore.
+                </p>
+                <button id="btn-keep-drifting" class="btn-large" style="margin-top: 1rem;">Keep Drifting</button>
+              </div>
+            </div>
+          </div>
 
           <!-- Collection Modal (Sticker Book) -->
           <div id="collection-modal" class="modal hidden">
@@ -151,5 +246,5 @@
         </div>
       </div>
     </div>
-</body>
+  </body>
 </html>

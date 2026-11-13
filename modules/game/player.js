@@ -8,61 +8,52 @@ function shortestAngleDiff(a, b) {
   return diff;
 }
 
-// Updated signature to accept generalized helper or just use the module import if we changed it.
-// We'll assume game.js passes the new helper or we import it. 
-// Actually game.js passes { getRiverVector } but we want getSmartSteering.
-// We will update game.js to pass the right thing, or import it here if needed.
-// For now, let's assume the passed riverModule has getSmartSteering or we use the passed one.
-// To be safe, let's expect 'steeringHelper' in the arguments or adapt.
-
 export function createPlayerModule(state, noise, heightModule, riverModule, entitiesModule) {
   function update(dt) {
     if (!state.isPlaying) return;
 
     const p = state.player;
     
+    // Check if player is actively steering (keyboard or touch)
+    const playerSteering = keysDown('KeyA') || keysDown('ArrowLeft') || 
+                          keysDown('KeyD') || keysDown('ArrowRight') ||
+                          state._touchSteering;
+    
     // Safety clamp: if we somehow got WAY off map or stuck deep in land
     const currentRiver = noise.getRiverSystem(p.x, p.y);
     if (currentRiver.value > 1.2) {
-        // Emergency nudge towards center (0,0 of grid cell?) 
-        // Or just let the steering handle it (it has a panic mode)
         p.speed *= 0.9;
     }
 
     // Use smart steering
-    // We assume riverModule is the object { getSmartSteering: ... } or similar
-    // We'll call the function we just wrote.
     const steering = riverModule.getSmartSteering(noise, p.x, p.y, p.angle);
     
     const targetAngle = steering.angle;
     const confidence = steering.confidence;
 
     // Smoothly turn towards target
-    // We turn slower if confidence is high (cruising), faster if confidence is low (panic/turn)
-    // Actually, at intersections (confidence might fluctuate), we want steady turning.
-    
     const diff = shortestAngleDiff(p.angle, targetAngle);
     
-    // Turn speed
-    // If diff is large, we need to turn harder.
-    // Keep baseline responsiveness but soften very small micro-adjustments using a smooth non-linear scale,
-    // so the raft makes tiny corrections more gently (reducing visible jitter, esp. near light edges).
+    // Turn speed - reduced autopilot authority when player is steering
     const baseTurnRate = 0.7;
     const dynamicFactor = Math.abs(diff) * 1.5;
-    const turnRate = baseTurnRate + dynamicFactor;
+    let turnRate = baseTurnRate + dynamicFactor;
+    
+    // If player is actively steering, reduce autopilot influence significantly
+    if (playerSteering) {
+      turnRate *= 0.3; // Autopilot only gently nudges when player steers
+    }
     
     // Compute max turn for this frame
     let maxTurn = turnRate * dt;
     
     // If the required adjustment is very small, scale the maxTurn down with a non-linear easing:
-    // small diffs -> (diff / THRESH)^expo factor, producing very gentle micro-corrections.
-    const MICRO_TURN_THRESHOLD = 0.35; // radians (~20°) below this we ease heavily (Increased for wider effect)
+    const MICRO_TURN_THRESHOLD = 0.35;
     if (Math.abs(diff) < MICRO_TURN_THRESHOLD) {
-      const r = Math.abs(diff) / MICRO_TURN_THRESHOLD; // 0..1
-      const expo = 2.0; // Increased exponent for stronger damping near zero
+      const r = Math.abs(diff) / MICRO_TURN_THRESHOLD;
+      const expo = 2.0;
       const easeScale = Math.pow(r, expo);
-      // Ensure we still allow a tiny minimum so we never completely stall correction
-      const MIN_SCALE = 0.1; // Increased minimum scale to prevent extreme sluggishness
+      const MIN_SCALE = 0.1;
       maxTurn *= Math.max(MIN_SCALE, easeScale);
     }
     
@@ -70,10 +61,6 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     p.angle += turn;
 
     // Speed control
-    // If facing target and confident, speed up.
-    // If turning hard or low confidence (shallow), slow down.
-    
-    // Base target speed
     let desiredSpeed = p.targetSpeed;
     
     // Slow down in turns
@@ -86,7 +73,6 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     const braking = 4.0 * (state.speedMultiplier || 1);
     
     if (state._playerPaused) {
-      // If paused via UI, strictly enforce 0 speed.
       p.speed = 0;
     } else if (p.speed < desiredSpeed) {
         p.speed += accel * dt;
@@ -105,13 +91,16 @@ export function createPlayerModule(state, noise, heightModule, riverModule, enti
     state.entities.forEach(e => {
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       if (d < INTERACTION_RADIUS) {
-        if (e.type === 'city') {
-          // No resource exchanges, city just acts as scenery now
-        } else if (e.type === 'relic') {
-          // Relics are purely decorative now
+        if (e.type === 'landmark') {
+          // Landmarks are purely decorative
         }
       }
     });
+  }
+
+  // Helper to check if keys are down (passed from app.js via state)
+  function keysDown(code) {
+    return state._keysDown && state._keysDown[code];
   }
 
   return { update };
