@@ -60,6 +60,13 @@ export function createUI({ container, state, renderer, noise, game }) {
   // Check if dev mode is enabled via URL parameter
   const isDevMode = new URLSearchParams(window.location.search).has('dev');
 
+  // A ?dev&time=... URL shortcut should survive the New Journey reset.
+  function getStartingDayTime() {
+    return state.devOptions && typeof state.devOptions.dayTimeOverride === 'number'
+      ? state.devOptions.dayTimeOverride
+      : 0.25;
+  }
+
   // Keep the dev weather controls in sync with the simulation. In automatic
   // mode the sliders follow the live values (read-only feedback); touching a
   // slider switches to manual control until Auto is re-enabled.
@@ -157,7 +164,7 @@ export function createUI({ container, state, renderer, noise, game }) {
       gameHud.style.display = 'flex';
       
       // Ensure consistent start conditions
-      state.dayTime = 0.25;
+      state.dayTime = getStartingDayTime();
       state.isPlaying = true;
       state.tileSize = 32;
       if (renderer && typeof renderer.clearCache === 'function') renderer.clearCache();
@@ -457,7 +464,7 @@ export function createUI({ container, state, renderer, noise, game }) {
     gameHud.style.display = 'flex';
     
     // Reset state for new journey
-    state.dayTime = 0.25;
+    state.dayTime = getStartingDayTime();
     state.isPlaying = true;
     state.tileSize = 32;
     state.hasInitialized = false;

@@ -60,11 +60,45 @@ contain links.)
 You can also load the page with the network disabled; it should boot and play normally.
 The browser smoke test fails on any external request, so it guards this automatically.
 
-## Dev panel and renderer experiments
+## Dev panel, weather controls, and renderer experiments
 
 Append `?dev` to the game URL to reveal the **DEV** button in the bottom bar. The panel
-contains two experimental renderer controls; both clear the chunk cache when changed so
-the result appears immediately.
+contains live weather controls plus the experimental renderer switches.
+
+### Weather controls
+
+| Control | Values | What it does |
+|---|---|---|
+| **Auto weather** | on / off | On by default. Rain fronts and wind evolve on their own, and the sliders follow the live values as read-only feedback. Touching any weather slider switches to manual; tick Auto to hand control back. |
+| **Rain** | 0–100% | Rain intensity. Also controls splash density and lightning frequency. |
+| **Wind strength** | 0–100% | Global wind vector magnitude. Trees lean/sway, shadows follow, and rain slants. |
+| **Wind direction** | 0–359° | 0° = east, 90° = south, 180° = west, 270° = north (screen/world axes). |
+| **Strike lightning** | button | Fires a manual strike immediately, even when it is not raining, for visual testing. |
+
+Rain and wind are coupled in automatic mode (storms tend to be windier, but a heavy
+downpour can stay relatively calm). Lightning is only scheduled automatically when rain
+is above ~50%, and strikes prefer the slowly-drifting storm bearing rather than a random
+screen direction.
+
+The same state can be forced from the URL:
+
+```text
+/?dev&rain=1&wind=0.8&winddir=90&time=0.95   # night storm, 80% wind from the south
+/?dev&rain=1&wind=1&winddir=0&time=0.35      # daytime storm, full east wind
+/?dev&time=0.95&lightning=1                  # night + an immediate strike
+```
+
+The page also exposes a small debug surface used by the weather smoke scenario:
+
+```js
+window.__webgame.snapshot()                  // dayTime, weather, player, camera
+window.__webgame.setWeather({ rain: 1, windStrength: 1, windAngle: 0, auto: false })
+window.__webgame.setDayTime(0.95)
+window.__webgame.setCamera(x, y)             // unlocks the camera for framing
+window.__webgame.strikeLightning()
+```
+
+### Renderer experiments
 
 | Control | Values | What it does |
 |---|---|---|
@@ -89,6 +123,16 @@ The same options can be opened directly:
 ```
 
 These flags are not persisted and are not part of the save file.
+
+### Weather smoke scenario
+
+`scripts/weather-smoke.mjs` forces clear night, stormy night, lightning, and a windy rain
+frame, and asserts that the stormy night is measurably darker than the clear
+night. Run it with:
+
+```bash
+webgame_smoke --scenario scripts/weather-smoke.mjs
+```
 
 ## Where things are
 

@@ -16,7 +16,7 @@ const MAX_DROPS = 400;
 const MAX_GROUND_SPLASHES = 400;
 const MAX_CANOPY_IMPACTS = 220;
 const GROUND_SPLASH_RATE = 100;  // spawn attempts per second at max rain
-const CANOPY_IMPACT_RATE = 55;   // impacts per second at max rain
+const CANOPY_IMPACT_RATE = 80;   // impacts per second at max rain
 const DRAW_THRESHOLD = 0.05;
 
 function ensureRenderState(state) {
@@ -112,10 +112,10 @@ export function renderWeatherGroundPass(ctx, state, game, tileSize) {
       const wx = (sx - centerX) / tileSize + state.camera.x;
       const wy = (sy - centerY) / tileSize + state.camera.y;
       const tile = game.getTile(wx, wy);
-      const perspective = 0.65 + 0.70 * (sy / Math.max(1, height));
+      const perspective = 0.70 + 0.60 * (sy / Math.max(1, height));
 
       if (tile === game.CONSTANTS.TILE_WATER) {
-        const size = tileSize * (0.055 + Math.random() * 0.070) * perspective;
+        const size = tileSize * (0.110 + Math.random() * 0.090) * perspective;
         const life = 0.32 + Math.random() * 0.18;
         rs.splashes.push({
           kind: 'water',
@@ -126,7 +126,7 @@ export function renderWeatherGroundPass(ctx, state, game, tileSize) {
           squash: 0.42 + Math.random() * 0.16
         });
       } else if (tile === game.CONSTANTS.TILE_BANK || tile === game.CONSTANTS.TILE_GRASS) {
-        const size = tileSize * (0.018 + Math.random() * 0.020) * perspective;
+        const size = tileSize * (0.030 + Math.random() * 0.020) * perspective;
         const life = 0.18 + Math.random() * 0.10;
         rs.splashes.push({
           kind: 'land',
@@ -246,7 +246,7 @@ function spawnCanopyImpacts(state, chunkManager, tileSize, CHUNK_SIZE, rs, dt) {
     const treeH = tileSize * prop.h;
     const baseW = tileSize * 0.5 * prop.h;
     const drip = Math.random() < 0.22;
-    const life = drip ? 0.42 + Math.random() * 0.24 : 0.20 + Math.random() * 0.14;
+    const life = drip ? 0.44 + Math.random() * 0.26 : 0.24 + Math.random() * 0.16;
 
     rs.canopy.push({
       wx: prop.x,
@@ -255,7 +255,7 @@ function spawnCanopyImpacts(state, chunkManager, tileSize, CHUNK_SIZE, rs, dt) {
       treeH,
       offX: (Math.random() - 0.5) * baseW * 0.60,
       offY: -treeH * (0.52 + Math.random() * 0.36),
-      size: tileSize * (0.040 + Math.random() * 0.030) * (0.85 + prop.h * 0.10),
+      size: tileSize * (0.045 + Math.random() * 0.030) * (0.85 + prop.h * 0.10),
       life,
       maxLife: life,
       drip,

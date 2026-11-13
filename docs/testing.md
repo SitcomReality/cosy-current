@@ -60,7 +60,24 @@ After a change, load the game (see [development.md](development.md)) and check:
 - [ ] The raft drifts; `A`/`D` or arrow keys steer; mouse wheel zooms; middle-drag pans.
 - [ ] Rain/weather, day–night tint, fauna, trees, and collectables animate without
       console errors.
-- [ ] **DEV** panel opens; speed, stop/start, cycle speed, weather slider, and the two renderer experiment controls respond.
+- [ ] **Auto weather** produces a rain front on its own within a couple of minutes, then
+      clears; the Rain/Wind sliders follow the live values while Auto is on.
+- [ ] Touching Rain, Wind strength, or Wind direction switches the panel to **MANUAL**;
+      ticking **Auto weather** hands control back to the simulation.
+- [ ] **Strike lightning** flashes the scene; lightning only appears automatically in
+      heavy rain, and the flash is brighter on the storm-bearing side. A jagged bolt
+      appears on some strikes.
+- [ ] Night + maximum storm is visibly darker than clear night. Compare
+      `/?dev&time=0.95&rain=0` with `/?dev&time=0.95&rain=1&wind=0.7`.
+- [ ] Water splashes are small flattened ripples, land splashes are tiny ticks, and
+      forest floors have no ground splashes. Canopy impacts are small glints/drips that
+      follow the tree lean.
+- [ ] At high wind, trees lean downwind and sway; their shadows lean with them. At wind 0
+      the trees are still. **Reduced motion** disables the sway but keeps the lean.
+- [ ] **DEV** panel opens; speed, stop/start, cycle speed, weather controls, and the
+      renderer experiment controls respond.
+- [ ] The weather QA scenario passes:
+      `webgame_smoke --scenario scripts/weather-smoke.mjs`.
 - [ ] At fractional wheel-zoom levels there are no 1px black grid lines between chunks.
 - [ ] In the dev panel, **Terrain** switches between Hull, Boundary polygons, and Hybrid border; **Hybrid ring** 1–3 changes the exact-tile band; **Water shading** switches between Baked / World-sampled / Flat. None of them throws or leaves chunk-edge background gaps.
 - [ ] Settings modal opens/closes. Collection and Dock buttons open their modals.

@@ -14,7 +14,7 @@ finish" scope, definition of done, and acceptance criteria.
 ## Project Overview
 
 The player controls a raft that floats along an infinite procedural river system.
-Day/night cycles, dynamic weather (rain + wind), and a living ecosystem of creatures
+Day/night cycles, dynamic weather (rain, wind, lightning), and a living ecosystem of creatures
 (fish, birds, deer, crabs, fireflies, sheep, turtles, eels) create the atmosphere.
 Collectable items spawn ahead of the raft; gathering them fills an inventory and a
 collection log (sticker book). Collected materials are spent in "The Dock" to
@@ -57,11 +57,14 @@ This gives the game a distinct, hand-hewn visual identity that sets it apart.
 - **Testing:** No unit-test framework. `webgame_check` (static) and `webgame_smoke`
   (headless Firefox) are configured via `webgame.config.json`; see
   [docs/testing.md](docs/testing.md).
-- **Dev renderer experiments:** Append `?dev` to the URL to show the **DEV** panel.
-  It can switch **Terrain** (Hull / Boundary polygons / Hybrid border), the **Hybrid
-  ring** depth (1–3 tiles), and **Water shading** (Baked / World-sampled + synced /
-  Flat). URL shortcuts: `?dev&terrain=polygon|hybrid&ring=1|2|3&shading=world|flat`.
-  Changing any of them clears the chunk cache.
+- **Dev panel:** Append `?dev` to the URL to show the **DEV** button. It includes
+  renderer experiments — **Terrain** (Hull / Boundary polygons / Hybrid border), the
+  **Hybrid ring** depth (1–3 tiles), and **Water shading** (Baked / World-sampled +
+  synced / Flat) — plus weather controls: **Auto weather**, separate **Rain**,
+  **Wind strength** and **Wind direction** sliders, and a **Strike lightning** button.
+  URL shortcuts: `?dev&terrain=polygon|hybrid&ring=1|2|3&shading=world|flat` and
+  `?dev&rain=0..1&wind=0..1&winddir=0..359&time=0..1&lightning=1`.
+  Changing a renderer option clears the chunk cache.
   See [docs/development.md](docs/development.md#dev-panel-and-renderer-experiments).
 - **Package manager:** None.
 
@@ -86,6 +89,7 @@ cosy-current/
 
   docs/                   — Local setup, testing, known issues, provenance, and the
                             v1.0 completion goal (completion-goal.md)
+  scripts/                — QA scenarios (weather-smoke.mjs, run via webgame_smoke)
   webgame.config.json     — Headless smoke-test config (webgame_check / webgame_smoke)
 
   modules/
@@ -107,7 +111,7 @@ cosy-current/
       height.js           — Terrain height quantization + tile classification
       river.js            — getSmartSteering(): raycast-based river navigation
       player.js           — Raft movement, steering, speed control
-      weather.js          — Dynamic precipitation and wind via noise
+      weather.js          — Rain fronts, global wind vector, storm bearing, lightning scheduling
       collectables.js     — Spawn, animate, collect items with magnet effect
       entities.js         — City/relic entities (scenery only, no interaction)
       crafting.js         — Raft part unlock/purchase with inventory costs
@@ -134,7 +138,7 @@ cosy-current/
         utils.js          — getLocalFlowAngle() for wave alignment
       objects/            — Per-object drawing modules
         player.js         — Raft sprite (hull, cabin, roof, light fixture) + depth shadow
-        tree.js           — Tree drawing with trunk, canopy, shadow
+        tree.js           — Tree drawing with wind lean/sway, canopy, matching shadow
         entities.js       — City/relic drawn as jagged influence areas + structures
         aquatic.js        — Submerged aquatic plants (reeds, seagrass, kelp)
         collectables.js   — Collectable item sprites + universal halo indicator
@@ -146,7 +150,8 @@ cosy-current/
         fauna.js          — Fauna + bird rendering passes with raft-light shadow logic
         objects.js        — Tree/aquatic/collectable rendering with per-prop lighting
         atmosphere.js     — Ambient overlay + raft headlight cone/radial gradient
-        weather.js        — Rain drops + splash particles with wind and parallax
+        weather.js        — Ground + foreground rain: surface-aware splashes, canopy hits, parallax
+        lightning.js      — Directional lightning flash wash and occasional jagged bolt
       fauna/              — Fauna rendering
         index.js          — renderFauna() + renderBirds() with night-light shadow
         shadows.js        — Creature shadow drawing
@@ -209,12 +214,14 @@ cosy-current/
 1. `renderTerrainPass` — Draw chunk canvases (terrain hulls + water bands) with cross-fade on rebuild. Chunk destination rects are derived from shared, device-pixel-snapped world edges with a 1px overlap, so fractional zoom cannot open 1px background gaps between chunks.
 2. `renderWaterShadingPass` — No-op (water shading is baked into chunk geometry).
 3. `waterEffects.render` — Wakes + shoreline waves over water.
-4. `renderFaunaPass` — Non-bird creatures (fish, deer, crabs, etc.) with per-creature shadows.
-5. `renderObjectsPass` — Trees, aquatic plants, collectables with per-prop headlight shadow logic.
-6. `drawPlayer` — Raft sprite with depth-aware shadow.
-7. `renderBirdsPass` — Birds rendered on top of player.
-8. `renderWeatherPass` — Rain drops + splashes (screen-space with camera parallax).
-9. `renderAtmospherePass` — Ambient overlay + raft headlight cone/radial gradient.
+4. `renderWeatherGroundPass` — World-anchored water ripples and land ticks, drawn *before* objects so trees/fauna/raft occlude them.
+5. `renderFaunaPass` — Non-bird creatures (fish, deer, crabs, etc.) with per-creature shadows.
+6. `renderObjectsPass` — Trees (with wind lean/sway), aquatic plants, collectables with per-prop headlight shadow logic.
+7. `drawPlayer` — Raft sprite with depth-aware shadow.
+8. `renderBirdsPass` — Birds rendered on top of player.
+9. `renderWeatherPass` — Foreground rain streaks + tiny canopy impact glints/drips (screen-space with camera parallax).
+10. `renderAtmospherePass` — Ambient overlay (night/day tint with storm composited on top) + raft headlight cone/radial gradient.
+11. `renderLightningBoltPass` / `renderLightningFlashPass` — Occasional jagged bolt, then an additive directional flash that lifts the whole frame.
 
 ### State Management
 
@@ -233,8 +240,12 @@ Persistence is manual: `persistence.js` serializes `seed`, `dayTime`, `player` p
   Rays cast along the river detect land and steer the raft via winner-take-all scoring.
 - **Day/Night:** `state.dayTime` (0–1) drives smoothsteps for dawn/dusk transitions,
   shadow length/alpha/direction, ambient color tint, and raft light activation.
-- **Weather:** Low-frequency noise drives `precipIntensity` and `wind` with naturalistic
-  transitions. A dev-panel slider can override precipitation.
+- **Weather:** Low-frequency noise drives rain fronts, a global `wind` vector
+  (`x`, `y`, `strength`, `angle`), and a slowly-drifting `stormBearing`. Rain and wind
+  are coupled but not identical: storms tend to be windier, while a heavy convective
+  downpour can stay relatively calm. Lightning is scheduled only above ~50% rain and
+  prefers the storm bearing. Rain/wind auto-run by default; the dev panel switches to
+  manual control when a slider is touched.
 
 ### Fauna System
 
@@ -314,6 +325,10 @@ in `webgame.config.json`:
 - `webgame_smoke` — headless Firefox run: waits for `window.__APP_READY__`, asserts the
   title, screenshots the start screen, clicks **New/Continue Journey**, waits 2 s, and
   asserts the canvas is painted. It also fails on any external network request.
+- `scripts/weather-smoke.mjs` — deterministic weather QA scenario: forces clear night
+  vs. stormy night (asserts the storm is darker), triggers lightning, frames a windy
+  rain shot, and checks the debug weather API. Run with
+  `webgame_smoke --scenario scripts/weather-smoke.mjs`.
 
 Manual verification is still loading the game in a browser and playing it. For bugs:
 - Check the browser's developer console for errors.

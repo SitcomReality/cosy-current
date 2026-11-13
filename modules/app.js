@@ -60,6 +60,9 @@ function applyDevQueryOptions(state) {
   if (timeParam !== null && Number.isFinite(Number(timeParam))) {
     const t = Number(timeParam);
     state.dayTime = ((t % 1) + 1) % 1;
+    // New Journey normally resets the clock to 06:00. Remember the dev URL
+    // override so a reproducible night screenshot isn't immediately undone.
+    state.devOptions.dayTimeOverride = state.dayTime;
   }
   if (lightningParam === '1' && state.weather.lightning) {
     state.weather.lightning.force = true;

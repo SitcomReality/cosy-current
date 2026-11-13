@@ -60,7 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
               dirX: w.lightning.dirX,
               dirY: w.lightning.dirY,
               boltSeed: w.lightning.boltSeed
-            }
+            },
+            particles: w._renderState ? {
+              drops: w._renderState.drops.length,
+              splashes: w._renderState.splashes.length,
+              canopy: w._renderState.canopy.length
+            } : null
           }
         };
       },
