@@ -154,27 +154,28 @@ export function getCycleProps(state) {
 
   if (state.weather && state.weather.precipIntensity > 0) {
     const intensity = state.weather.precipIntensity;
-    // During day, increase alpha (opacity of darkness layer)
-    // During night, maybe slightly lighten (scattering)? No, simpler is darker.
-    // We mix current ambient towards a dark grey/blue storm color.
-    
-    const stormColor = { r: 15, g: 20, b: 35, a: 0.55 };
-    
-    // Blend factor based on intensity
-    const blend = smoothstep(0, 0.8, intensity); // Max effect at 0.8 intensity
-    
-    // If it's day (alpha near 0), we need to raise alpha to darken the screen.
-    // If it's night (alpha high), we tint towards storm color.
-    
-    // Interpolate alpha
-    // Day (0) -> Storm (0.55)
-    // Night (0.6) -> Storm (0.55) roughly same
-    finalA = lerp(finalA, Math.max(finalA, stormColor.a), blend);
-    
-    // Interpolate color components
-    finalR = lerp(finalR, stormColor.r, blend);
-    finalG = lerp(finalG, stormColor.g, blend);
-    finalB = lerp(finalB, stormColor.b, blend);
+    // Storm clouds are an additional dark layer, not a replacement for the
+    // time-of-day layer. Composite storm OVER night/day:
+    //
+    //   aOut = aStorm + aBase * (1 - aStorm)
+    //   cOut = (cStorm*aStorm + cBase*aBase*(1-aStorm)) / aOut
+    //
+    // The old code used max() on the alpha, so night (0.6) stayed at 0.6 while
+    // the colour shifted to a slightly brighter storm blue — making a night
+    // storm brighter than clear night.
+    const stormColor = { r: 15, g: 20, b: 35 };
+    const stormAlpha = smoothstep(0, 0.8, intensity) * 0.55;
+
+    if (stormAlpha > 0.0001) {
+      const baseAlpha = finalA;
+      const outAlpha = stormAlpha + baseAlpha * (1 - stormAlpha);
+      const baseWeight = baseAlpha * (1 - stormAlpha);
+
+      finalR = Math.round((stormColor.r * stormAlpha + finalR * baseWeight) / outAlpha);
+      finalG = Math.round((stormColor.g * stormAlpha + finalG * baseWeight) / outAlpha);
+      finalB = Math.round((stormColor.b * stormAlpha + finalB * baseWeight) / outAlpha);
+      finalA = outAlpha;
+    }
   }
 
   const ambientColor = `rgba(${Math.round(finalR)},${Math.round(finalG)},${Math.round(finalB)},${finalA})`;
