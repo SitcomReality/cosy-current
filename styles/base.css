@@ -9,23 +9,37 @@
   --border-color: #30363d;
   /* Use ChineseRocks for general UI and AldotheApache for headings */
   --font-main: "ChineseRocksRg", "AldotheApache", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-heading: "AldotheApache", "ChineseRocksRg", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: "AldotheApache", "ChineseRocksRg", "Oswald", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Load bundled fonts */
+/* Load bundled fonts (paths are relative to this stylesheet so the game can be
+   served from a subdirectory as well as from the domain root) */
 @font-face {
   font-family: "AldotheApache";
-  src: url("/fonts/AldotheApache.ttf") format("truetype");
+  src: url("../fonts/AldotheApache.ttf") format("truetype");
   font-weight: 400 900;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "ChineseRocksRg";
-  src: url("/fonts/ChineseRocksRg.otf") format("opentype");
+  src: url("../fonts/ChineseRocksRg.otf") format("opentype");
   font-weight: 300 700;
   font-style: normal;
   font-display: swap;
+}
+/* Oswald (SIL Open Font License 1.1, see fonts/OFL-Oswald.txt) was previously
+   loaded from Google Fonts; it is now self-hosted. The woff2 is the latin
+   subset of the variable font, hence the weight range. */
+@font-face {
+  font-family: "Oswald";
+  src: url("../fonts/Oswald-latin.woff2") format("woff2");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 html, body {

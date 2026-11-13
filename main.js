@@ -15,6 +15,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   initApp({ canvas, controls });
+
+  // Readiness hook for the local browser smoke tests (webgame_smoke).
+  // Queued after the game's first rAF callback so screenshots never race the
+  // initial render.
+  requestAnimationFrame(() => {
+    window.__APP_READY__ = true;
+    window.__webgame = {
+      get ready() { return Boolean(window.__APP_READY__); },
+      get canvas() { return canvas; },
+    };
+  });
 });
 
 // Tombstones for legacy, removed code from the original main.js:

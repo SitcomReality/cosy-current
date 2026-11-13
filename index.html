@@ -4,14 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>Cosy Current</title>
+    <!-- Inline empty favicon: avoids a spurious /favicon.ico request (no network needed) -->
+    <link rel="icon" href="data:,">
     
     <!-- Modular CSS -->
     <link href="styles/base.css" rel="stylesheet" />
     <link href="styles/layout.css" rel="stylesheet" />
     <link href="styles/effects.css" rel="stylesheet" />
     <link href="styles/components.css" rel="stylesheet" />
-    <!-- Rigid, condensed display font -->
-    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet" />
     <!-- App entrypoint (ES module) -->
     <script type="module" src="main.js"></script>
   </head>
@@ -36,9 +36,9 @@
 
           <div class="splash-credit">
             <div class="credit-line">A ripple from</div>
-            <a href="https://websim.com/@SitcomReality/" target="_blank" rel="noopener noreferrer" title="SitcomReality">
+            <span class="splash-credit-mark" title="SitcomReality">
               <img src="sitcomreality.png" alt="SitcomReality" title="SitcomReality" width="250" height="70">
-            </a>
+            </span>
           </div>
 
           <div class="version">v0.2.0 Alpha</div>

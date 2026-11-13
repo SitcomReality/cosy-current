@@ -1,0 +1,35 @@
+{
+  "name": "Cosy Current",
+  "url": "/",
+  "serve": {
+    "root": ".",
+    "port": 0
+  },
+  "ready": "window.__APP_READY__ === true",
+  "viewport": {
+    "width": 1280,
+    "height": 720,
+    "dpr": 1
+  },
+  "timeoutMs": 30000,
+  "artifacts": ".artifacts/webgame",
+  "engine": "auto",
+  "expect": {
+    "noPageErrors": true,
+    "consoleErrors": "warn",
+    "noExternalRequests": true,
+    "noHttpErrors": true,
+    "noRequestFailures": true
+  },
+  "steps": [
+    { "name": "title", "assertTitle": "Cosy Current" },
+    { "name": "start-screen", "screenshot": "start-screen.png" },
+    { "name": "start", "eval": "document.querySelector('#btn-start')?.click()" },
+    { "name": "settle", "sleep": 2000 },
+    {
+      "name": "gameplay",
+      "assertCanvas": { "selector": "#main-canvas", "minPainted": 1000 },
+      "screenshot": "gameplay.png"
+    }
+  ]
+}
