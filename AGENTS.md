@@ -65,7 +65,7 @@ This gives the game a distinct, hand-hewn visual identity that sets it apart.
   URL shortcuts: `?dev&terrain=polygon|hybrid&ring=1|2|3&shading=world|flat` and
   `?dev&rain=0..1&wind=0..1&winddir=0..359&time=0..1&lightning=1`.
   Changing a renderer option clears the chunk cache.
-  See [docs/development.md](docs/development.md#dev-panel-and-renderer-experiments).
+  See [docs/development.md](docs/development.md#dev-panel-weather-controls-and-renderer-experiments).
 - **Package manager:** None.
 
 ---
@@ -317,8 +317,7 @@ no page/console errors, no external requests, canvas painted).
 
 ## Testing
 
-There is **no unit-test framework or test runner**. Two automated checks are configured
-in `webgame.config.json`:
+There is **no unit-test framework or test runner**. The automated checks are:
 
 - `webgame_check` — static syntax/import/asset/external-URL check. Must report
   **0 external** references and 0 errors.

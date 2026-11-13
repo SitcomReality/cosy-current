@@ -31,6 +31,7 @@ function getLightning(state) {
 export function renderLightningBoltPass(ctx, state) {
   const L = getLightning(state);
   if (!L || L.boltSeed <= 0.55) return;
+  if (state.settings && state.settings.reducedMotion) return;
 
   const w = state.width;
   const h = state.height;
@@ -57,6 +58,7 @@ export function renderLightningBoltPass(ctx, state) {
 
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 1;
   ctx.lineCap = 'butt';
   ctx.lineJoin = 'miter';
 
@@ -85,11 +87,13 @@ export function renderLightningFlashPass(ctx, state) {
 
   const w = state.width;
   const h = state.height;
-  const flash = Math.min(1, L.flash);
+  const reducedMotion = state.settings && state.settings.reducedMotion;
+  const flash = Math.min(1, L.flash) * (reducedMotion ? 0.45 : 1);
   const lift = Math.pow(flash, 1.35);
 
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 1;
 
   // Uniform lift so the entire frame brightens, not just the strike side.
   // Keep this modest: the directional gradient does most of the work.

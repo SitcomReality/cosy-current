@@ -73,7 +73,7 @@ After a change, load the game (see [development.md](development.md)) and check:
       forest floors have no ground splashes. Canopy impacts are small glints/drips that
       follow the tree lean.
 - [ ] At high wind, trees lean downwind and sway; their shadows lean with them. At wind 0
-      the trees are still. **Reduced motion** disables the sway but keeps the lean.
+      the trees are still. **Reduced motion** disables the sway (it keeps the static lean) and softens/disables the lightning bolt.
 - [ ] **DEV** panel opens; speed, stop/start, cycle speed, weather controls, and the
       renderer experiment controls respond.
 - [ ] The weather QA scenario passes:

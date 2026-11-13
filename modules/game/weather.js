@@ -39,6 +39,10 @@ export function createWeatherSystem(state, noise) {
   if (!w.wind || typeof w.wind !== 'object') {
     w.wind = { x: 0, y: 0, strength: 0, angle: 0 };
   }
+  if (typeof w.wind.x !== 'number') w.wind.x = 0;
+  if (typeof w.wind.y !== 'number') w.wind.y = 0;
+  if (typeof w.wind.strength !== 'number') w.wind.strength = 0;
+  if (typeof w.wind.angle !== 'number') w.wind.angle = 0;
   if (!w.lightning) {
     w.lightning = {
       flash: 0, dirX: 0, dirY: 1, timer: 3, pulses: [], boltSeed: 0, lastStrike: 0, force: false
@@ -46,6 +50,12 @@ export function createWeatherSystem(state, noise) {
   }
   if (!Array.isArray(w.lightning.pulses)) w.lightning.pulses = [];
   if (typeof w.lightning.timer !== 'number') w.lightning.timer = 3;
+  if (typeof w.lightning.flash !== 'number') w.lightning.flash = 0;
+  if (typeof w.lightning.dirX !== 'number') w.lightning.dirX = 0;
+  if (typeof w.lightning.dirY !== 'number') w.lightning.dirY = 1;
+  if (typeof w.lightning.boltSeed !== 'number') w.lightning.boltSeed = 0;
+  if (typeof w.lightning.lastStrike !== 'number') w.lightning.lastStrike = 0;
+  if (typeof w.lightning.force !== 'boolean') w.lightning.force = false;
   if (typeof w.auto !== 'boolean') w.auto = true;
   if (typeof w.stormBearing !== 'number') w.stormBearing = 0;
   if (typeof w.precipIntensity !== 'number') w.precipIntensity = 0;
