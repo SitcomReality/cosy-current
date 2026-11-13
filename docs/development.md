@@ -60,6 +60,36 @@ contain links.)
 You can also load the page with the network disabled; it should boot and play normally.
 The browser smoke test fails on any external request, so it guards this automatically.
 
+## Dev panel and renderer experiments
+
+Append `?dev` to the game URL to reveal the **DEV** button in the bottom bar. The panel
+contains two experimental renderer controls; both clear the chunk cache when changed so
+the result appears immediately.
+
+| Control | Values | What it does |
+|---|---|---|
+| **Terrain** | Hull (current) / Boundary polygons / Hybrid border | **Hull** is the original convex-hull renderer. **Boundary polygons** traces the real tile edges for the whole chunk (more stair-stepped, but no chunk-edge cuts). **Hybrid border** keeps the hulls in the interior but redraws a thin ring of exact tile cells over them at each chunk border. |
+| **Hybrid ring** | 1 / 2 / 3 tiles | How deep the exact-tile hybrid patch extends from each chunk border. Only affects **Hybrid border**. 1 tile is the least intrusive; 2–3 tiles correct more of the hull but become visibly tile-based. |
+| **Water shading** | Baked (current) / World-sampled + synced / Flat | **Baked** is the original per-chunk gradient shading. **World-sampled** samples the gradient from the band's world-space centroid and rebuilds all visible water chunks together, so neighboring chunks cannot be lit at different times. **Flat** disables baked directional water shading entirely. |
+
+**Hybrid border** is a compromise rather than a free win: it removes the cut exactly on
+the chunk edge, but where the exact ring meets the hull interior you can still see a
+one-tile stair. A 1-tile ring is the least intrusive; 2–3 tiles correct more of the hull
+but make the border band visibly tile-based.
+
+The same options can be opened directly:
+
+```text
+/?dev&terrain=polygon                      # boundary polygon terrain
+/?dev&terrain=hybrid&ring=1                # hybrid border, 1-tile exact ring
+/?dev&terrain=hybrid&ring=2                # hybrid border, 2-tile exact ring
+/?dev&shading=world                        # world-sampled water shading + synced rebuilds
+/?dev&shading=flat                         # flat water shading
+/?dev&terrain=hybrid&ring=1&shading=flat   # both experiments
+```
+
+These flags are not persisted and are not part of the save file.
+
 ## Where things are
 
 | Path | Purpose |

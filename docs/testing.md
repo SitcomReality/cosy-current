@@ -60,7 +60,9 @@ After a change, load the game (see [development.md](development.md)) and check:
 - [ ] The raft drifts; `A`/`D` or arrow keys steer; mouse wheel zooms; middle-drag pans.
 - [ ] Rain/weather, day–night tint, fauna, trees, and collectables animate without
       console errors.
-- [ ] **DEV** panel opens; speed, stop/start, cycle speed, and weather slider respond.
+- [ ] **DEV** panel opens; speed, stop/start, cycle speed, weather slider, and the two renderer experiment controls respond.
+- [ ] At fractional wheel-zoom levels there are no 1px black grid lines between chunks.
+- [ ] In the dev panel, **Terrain** switches between Hull, Boundary polygons, and Hybrid border; **Hybrid ring** 1–3 changes the exact-tile band; **Water shading** switches between Baked / World-sampled / Flat. None of them throws or leaves chunk-edge background gaps.
 - [ ] Settings modal opens/closes. Collection and Dock buttons open their modals.
 - [ ] Reloading keeps the save (same URL/port); **Delete Save Data** resets it.
 - [ ] Browser DevTools → Network shows only local files (no external hosts).

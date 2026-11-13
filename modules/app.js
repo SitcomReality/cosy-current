@@ -7,11 +7,36 @@ import { createFaunaSystem } from './fauna/index.js';
 import { loadGame, saveGame } from './persistence.js';
 import { RELIC_IDS } from './game/collectables.js';
 
+// Seed the experimental renderer flags from the URL so an A/B comparison can
+// be opened directly: ?dev&terrain=polygon&shading=world
+function applyDevQueryOptions(state) {
+  if (!state.devOptions) {
+    state.devOptions = { terrainMode: 'hull', hybridRing: 1, shadingMode: 'baked' };
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('dev')) return;
+  const terrain = params.get('terrain');
+  if (terrain === 'hull' || terrain === 'polygon' || terrain === 'hybrid') {
+    state.devOptions.terrainMode = terrain;
+  } else if (params.get('polys') === '1') {
+    state.devOptions.terrainMode = 'polygon';
+  }
+  const ring = Number(params.get('ring'));
+  if (Number.isFinite(ring)) {
+    state.devOptions.hybridRing = Math.max(1, Math.min(3, Math.round(ring)));
+  }
+  const shading = params.get('shading');
+  if (shading === 'world' || shading === 'flat' || shading === 'baked') {
+    state.devOptions.shadingMode = shading;
+  }
+}
+
 export function initApp({ canvas, controls }) {
   // Load saved game if available
   const savedData = loadGame();
   
   const state = createAppState(savedData);
+  applyDevQueryOptions(state);
   const noise = createNoiseEngine(state);
   const game = createGame({ state, noise });
   const fauna = createFaunaSystem({ state, game, noise });

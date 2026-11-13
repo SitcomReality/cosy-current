@@ -21,6 +21,9 @@ export function createRenderer({ canvas, state, game, noise }) {
   const waterEffects = createWaterEffects({ state, game, noise });
 
   function resize() {
+    // Browser zoom (and moving between displays) can change devicePixelRatio.
+    // Keep the backing store and the chunk-edge snapping in sync with it.
+    state.pixelRatio = window.devicePixelRatio || 1;
     const dpr = state.pixelRatio;
     state.width = window.innerWidth;
     state.height = window.innerHeight;

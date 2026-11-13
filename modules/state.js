@@ -87,6 +87,14 @@ export function createAppState(savedData = null) {
       reducedMotion: false,
       textSize: 1.0
     },
+
+    // Developer-only renderer experiments. Not persisted; toggled from the
+    // dev panel or seeded from the URL (?dev&terrain=polygon&shading=world).
+    devOptions: {
+      terrainMode: 'hull', // hull | polygon | hybrid
+      hybridRing: 1,       // tiles of exact terrain at chunk borders in hybrid mode
+      shadingMode: 'baked' // baked | world | flat
+    },
     
     // Onboarding
     onboardingSeen: false

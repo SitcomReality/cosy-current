@@ -911,6 +911,44 @@ button {
   flex: 1;
 }
 
+.dev-check-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dev-control .dev-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.dev-check input[type="checkbox"] {
+  accent-color: #f87171;
+  cursor: pointer;
+}
+
+.dev-check-select {
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.dev-check-select select {
+  background: #21262d;
+  color: var(--text-primary, #e6edf3);
+  border: 1px solid #484f58;
+  padding: 3px 4px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  max-width: 118px;
+  cursor: pointer;
+}
+
 .btn-small:hover {
   background: #484f58;
 }

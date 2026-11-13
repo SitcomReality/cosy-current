@@ -293,6 +293,40 @@ export function createUI({ container, state, renderer, noise, game }) {
       });
     }
 
+    // Experimental renderer switches. Both rebuild chunk bitmaps so the new
+    // mode is visible immediately. They are also seedable from the URL:
+    // ?dev&terrain=hybrid&ring=2&shading=world
+    const devTerrain = document.getElementById('dev-terrain-mode');
+    const devHybridRing = document.getElementById('dev-hybrid-ring');
+    const devShading = document.getElementById('dev-shading-mode');
+    if (!state.devOptions) {
+      state.devOptions = { terrainMode: 'hull', hybridRing: 1, shadingMode: 'baked' };
+    }
+    const rebuildChunks = () => {
+      if (renderer && typeof renderer.clearCache === 'function') renderer.clearCache();
+    };
+    if (devTerrain) {
+      devTerrain.value = state.devOptions.terrainMode || 'hull';
+      devTerrain.addEventListener('change', (e) => {
+        state.devOptions.terrainMode = e.target.value;
+        rebuildChunks();
+      });
+    }
+    if (devHybridRing) {
+      devHybridRing.value = String(state.devOptions.hybridRing || 1);
+      devHybridRing.addEventListener('change', (e) => {
+        state.devOptions.hybridRing = parseInt(e.target.value, 10) || 1;
+        rebuildChunks();
+      });
+    }
+    if (devShading) {
+      devShading.value = state.devOptions.shadingMode || 'baked';
+      devShading.addEventListener('change', (e) => {
+        state.devOptions.shadingMode = e.target.value;
+        rebuildChunks();
+      });
+    }
+
     // Add collection button to HUD
     const btnCollection = document.createElement('button');
     btnCollection.id = 'btn-collection';

@@ -106,6 +106,35 @@
                 <label>Weather Intensity</label>
                 <input type="range" id="dev-weather-slider" min="0" max="1" step="0.01" value="0">
               </div>
+              <div class="dev-control full-width">
+                <label>Renderer experiments</label>
+                <div class="dev-check-row">
+                  <label class="dev-check dev-check-select" for="dev-terrain-mode" title="How terrain polygons are built">
+                    <span>Terrain</span>
+                    <select id="dev-terrain-mode">
+                      <option value="hull">Hull (current)</option>
+                      <option value="polygon">Boundary polygons</option>
+                      <option value="hybrid">Hybrid border</option>
+                    </select>
+                  </label>
+                  <label class="dev-check dev-check-select" for="dev-hybrid-ring" title="Tiles of exact terrain drawn over the hull at each chunk border (hybrid mode)">
+                    <span>Hybrid ring</span>
+                    <select id="dev-hybrid-ring">
+                      <option value="1">1 tile</option>
+                      <option value="2">2 tiles</option>
+                      <option value="3">3 tiles</option>
+                    </select>
+                  </label>
+                  <label class="dev-check dev-check-select" for="dev-shading-mode" title="How water-band shading is baked">
+                    <span>Water shading</span>
+                    <select id="dev-shading-mode">
+                      <option value="baked">Baked (current)</option>
+                      <option value="world">World-sampled + synced</option>
+                      <option value="flat">Flat</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 

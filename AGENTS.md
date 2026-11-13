@@ -57,6 +57,12 @@ This gives the game a distinct, hand-hewn visual identity that sets it apart.
 - **Testing:** No unit-test framework. `webgame_check` (static) and `webgame_smoke`
   (headless Firefox) are configured via `webgame.config.json`; see
   [docs/testing.md](docs/testing.md).
+- **Dev renderer experiments:** Append `?dev` to the URL to show the **DEV** panel.
+  It can switch **Terrain** (Hull / Boundary polygons / Hybrid border), the **Hybrid
+  ring** depth (1–3 tiles), and **Water shading** (Baked / World-sampled + synced /
+  Flat). URL shortcuts: `?dev&terrain=polygon|hybrid&ring=1|2|3&shading=world|flat`.
+  Changing any of them clears the chunk cache.
+  See [docs/development.md](docs/development.md#dev-panel-and-renderer-experiments).
 - **Package manager:** None.
 
 ---
@@ -116,7 +122,9 @@ cosy-current/
       chunk.js            — Barrel export (delegates to chunk/manager.js)
       chunk/
         manager.js        — createChunkManager(): chunk generation, caching, cross-fade
-        waterBands.js     — Quantized depth-banded water hull rendering with baked shading
+        boundary.js       — Tile-edge boundary tracing + closed-loop simplification
+                            (experimental boundary-polygon and hybrid terrain modes)
+        waterBands.js     — Quantized depth-banded water rendering with baked shading
         color.js          — hexToRgb / lerpColorHex helpers
         props.js          — Tree + aquatic flora placement per chunk
       water/
@@ -198,7 +206,7 @@ cosy-current/
 
 ### Render Pipeline (ordered passes in `scene.js`)
 
-1. `renderTerrainPass` — Draw chunk canvases (terrain hulls + water bands) with cross-fade on rebuild.
+1. `renderTerrainPass` — Draw chunk canvases (terrain hulls + water bands) with cross-fade on rebuild. Chunk destination rects are derived from shared, device-pixel-snapped world edges with a 1px overlap, so fractional zoom cannot open 1px background gaps between chunks.
 2. `renderWaterShadingPass` — No-op (water shading is baked into chunk geometry).
 3. `waterEffects.render` — Wakes + shoreline waves over water.
 4. `renderFaunaPass` — Non-bird creatures (fish, deer, crabs, etc.) with per-creature shadows.
