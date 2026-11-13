@@ -34,6 +34,17 @@ document.addEventListener('DOMContentLoaded', () => {
           ready: Boolean(window.__APP_READY__),
           isPlaying: Boolean(state.isPlaying),
           dayTime: state.dayTime,
+          tileSize: state.tileSize,
+          player: {
+            x: state.player.x,
+            y: state.player.y,
+            angle: state.player.angle
+          },
+          camera: {
+            x: state.camera.x,
+            y: state.camera.y,
+            locked: state.cameraLocked
+          },
           weather: {
             auto: Boolean(w.auto),
             precipIntensity: w.precipIntensity,
@@ -90,6 +101,15 @@ document.addEventListener('DOMContentLoaded', () => {
       setDayTime(value) {
         app.state.dayTime = ((Number(value) % 1) + 1) % 1;
         return app.state.dayTime;
+      },
+
+      setCamera(x, y) {
+        if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) return null;
+        app.state.camera.x = Number(x);
+        app.state.camera.y = Number(y);
+        app.state.cameraLocked = false;
+        app.state.lastInputTime = performance.now();
+        return { x: app.state.camera.x, y: app.state.camera.y };
       },
 
       strikeLightning() {

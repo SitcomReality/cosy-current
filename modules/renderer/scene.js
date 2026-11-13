@@ -9,7 +9,7 @@ import { renderWaterShadingPass } from './passes/waterShading.js';
 import { renderFaunaPass, renderBirdsPass } from './passes/fauna.js';
 import { renderObjectsPass } from './passes/objects.js';
 import { renderAtmospherePass } from './passes/atmosphere.js';
-import { renderWeatherPass } from './passes/weather.js';
+import { renderWeatherGroundPass, renderWeatherPass } from './passes/weather.js';
 import { renderLightningBoltPass, renderLightningFlashPass } from './passes/lightning.js';
 
 export function createRenderer({ canvas, state, game, noise }) {
@@ -57,6 +57,10 @@ export function createRenderer({ canvas, state, game, noise }) {
     renderWaterShadingPass(ctx, state, game, noise, cycle, shadowDir);
     waterEffects.render(ctx, state.camera, tileSize);
 
+    // Ground-plane rain impacts go under trees, fauna and the raft so they are
+    // correctly occluded instead of reading as decals on top of the world.
+    renderWeatherGroundPass(ctx, state, game, tileSize);
+
     if (state.fauna && state.fauna.creatures) {
       renderFaunaPass(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightActive);
     }
@@ -70,7 +74,7 @@ export function createRenderer({ canvas, state, game, noise }) {
       renderBirdsPass(ctx, state, tileSize, state.fauna.creatures, cycle, shadowDir, noise, cycle.raftLightActive);
     }
 
-    renderWeatherPass(ctx, state, cycle);
+    renderWeatherPass(ctx, state, chunkManager, tileSize, CHUNK_SIZE);
     renderAtmospherePass(ctx, state, cycle, 0.9);
 
     // Lightning is drawn after the atmosphere: the bolt should not be dimmed by
